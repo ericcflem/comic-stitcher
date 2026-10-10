@@ -63,8 +63,16 @@ Name: explorer; Description: "Add Comic Stitcher to Explorer Open with"; GroupDe
 
 Name: foldermenu; Description: "Add Open in Comic Stitcher to folder menus (single comics and batches)"; GroupDescription: "Explorer integration:"
 
+Name: droptab; Description: "Show a drop tab on the right edge of the screen and start it when I sign in"; GroupDescription: "Drop tab:"; Flags: unchecked
+
 [Run]
+; The tab records its own sign-in entry, so turning it off from its menu is respected.
+Filename: "{app}\ComicStitcher.exe"; Parameters: "--drop-tab --enable-autostart"; Flags: nowait; Tasks: droptab
 Filename: "{app}\ComicStitcher.exe"; Description: "Launch Comic Stitcher"; Flags: nowait postinstall skipifsilent
+
+[UninstallRun]
+; Close a running drop tab and remove its sign-in entry before files are removed.
+Filename: "{app}\ComicStitcher.exe"; Parameters: "--uninstall-drop-tab"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveDropTab"
 
 [Registry]
 Root: HKCU; Subkey: "Software\Classes\SystemFileAssociations\.pdf\shell\ComicStitcher"; ValueType: none; Flags: deletekey

@@ -1,0 +1,124 @@
+"""Behaviour of the screen-edge drop tab widget."""
+import os
+import tempfile
+import time
+import unittest
+from pathlib import Path
+from uuid import uuid4
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+from PySide6.QtCore import QMimeData, QPoint, QPointF, QSettings, Qt, QUrl
+from PySide6.QtGui import QDragEnterEvent, QDropEvent
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QApplication
+
+from .drop_tab import DropTab, DropTabControl, local_paths
+from .drop_tab_support import COLLAPSED_SIZE, EXPANDED_SIZE
+
+
+def mime_for(*urls):
+    data = QMimeData()
+    data.setUrls([QUrl(url) if "://" in url else QUrl.fromLocalFile(url) for url in urls])
+    return data
+
+
+def drag_enter(tab, data):
+    event = QDragEnterEvent(QPoint(2, 10), Qt.DropAction.CopyAction, data,
+                            Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
+    tab.dragEnterEvent(event)
+    return event
+
+
+def drop(tab, data):
+    event = QDropEvent(QPointF(2, 10), Qt.DropAction.CopyAction, data,
+                       Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
+    tab.dropEvent(event)
+    return event
+
+
+def wait_for(predicate, seconds=1.0):
+    deadline = time.monotonic() + seconds
+    while not predicate() and time.monotonic() < deadline:
+        QApplication.processEvents()
+        time.sleep(.005)
+    return predicate()
+
+
+class DropTabTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QApplication.instance() or QApplication([])
+
+    def setUp(self):
+        self.folder = tempfile.TemporaryDirectory()
+        self.settings = QSettings(str(Path(self.folder.name) / "settings.ini"), QSettings.Format.IniFormat)
+        self.opened = []
+        self.tab = DropTab(self.settings, opener=lambda paths: self.opened.append(list(paths)) or True)
+        self.tab.show()
+
+    def tearDown(self):
+        self.tab.close()
+        self.tab.deleteLater()
+        self.settings.sync()
+        self.folder.cleanup()
+
+    def test_only_local_files_are_accepted(self):
+        self.assertEqual(local_paths(mime_for("https://example.com/a.cbz")), [])
+        self.assertEqual(local_paths(None), [])
+        self.assertFalse(drag_enter(self.tab, mime_for("https://example.com/a.cbz")).isAccepted())
+        self.assertFalse(self.tab.expanded)
+
+    def test_drag_expands_and_leave_collapses(self):
+        self.assertEqual((self.tab.width(), self.tab.height()), COLLAPSED_SIZE)
+        self.assertTrue(drag_enter(self.tab, mime_for("/comics/one.cbz")).isAccepted())
+        self.assertTrue(self.tab.expanded)
+        self.assertEqual((self.tab.width(), self.tab.height()), EXPANDED_SIZE)
+        self.tab.dragLeaveEvent(None)
+        self.assertTrue(wait_for(lambda: not self.tab.expanded))
+
+    def test_drop_opens_every_dropped_path(self):
+        data = mime_for("/comics/one.cbz", "/comics/two folder")
+        drag_enter(self.tab, data)
+        self.assertTrue(drop(self.tab, data).isAccepted())
+        self.assertTrue(wait_for(lambda: self.opened))
+        self.assertEqual(self.opened, [[Path("/comics/one.cbz"), Path("/comics/two folder")]])
+
+    def test_click_opens_comic_stitcher_without_files(self):
+        QTest.mouseClick(self.tab, Qt.MouseButton.LeftButton, pos=QPoint(4, 40))
+        self.assertEqual(self.opened, [[]])
+
+    def test_dragging_the_tab_moves_and_remembers_it(self):
+        start = self.tab.offset
+        QTest.mousePress(self.tab, Qt.MouseButton.LeftButton, pos=QPoint(4, 40))
+        QTest.mouseMove(self.tab, QPoint(4, 100))
+        QTest.mouseRelease(self.tab, Qt.MouseButton.LeftButton, pos=QPoint(4, 100))
+        self.assertEqual(self.opened, [])
+        self.assertNotEqual(self.tab.offset, start)
+        self.assertEqual(int(self.settings.value("drop_tab/offset")), self.tab.offset)
+
+
+class ControlTests(unittest.TestCase):
+    def test_second_tab_is_refused_and_quit_message_arrives(self):
+        app = QApplication.instance() or QApplication([])
+        name = "cs-droptab-test-" + uuid4().hex[:8]
+        first = DropTabControl(name)
+        second = DropTabControl(name)
+        quits = []
+        first.quit_requested.connect(lambda: quits.append(True))
+        try:
+            if not first.claim():
+                self.skipTest("This execution environment blocks local sockets")
+            self.assertFalse(second.claim())
+            self.assertTrue(DropTabControl.send_quit(name))
+            deadline = time.monotonic() + 2
+            while not quits and time.monotonic() < deadline:
+                app.processEvents()
+                time.sleep(.005)
+            self.assertEqual(quits, [True])
+        finally:
+            first.close()
+
+
+if __name__ == "__main__":
+    unittest.main()

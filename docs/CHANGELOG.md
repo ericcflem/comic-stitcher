@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Add an optional drop tab on the right screen edge: drag comics onto it to open
+  them in Comic Stitcher without arranging windows. It can start at sign-in, is
+  offered as an unticked installer option, and is closed and removed on uninstall.
+
 ## 0.6.38 — first public release
 
 - Import PDFs, supported comic archives, page-image folders and centered screenshots

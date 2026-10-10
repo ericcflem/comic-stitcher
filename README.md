@@ -60,6 +60,14 @@ At the last comic's confirmation, start exports directly or choose **Review batc
 * **Resuming:** Unfinished review sessions are automatically saved as checkpoints. Reopening an unmodified source allows you to resume where you left off. This saves review progress, not the entire queued batch.
 * **Memory Management:** By default, temporary extracted assets are cleaned up after each job in a batch to save space. Choose **Keep imported pages** when setting up a batch for faster queued exports if disk space permits.
 
+### Drop Tab
+
+The optional drop tab is a slim strip on the right edge of the screen, a little below the corner. Drag a comic, PDF or folder onto it and the tab slides out; let go and the comic opens in Comic Stitcher, or joins the window that is already open. You never need to arrange windows to reach the drop zone.
+
+* **Turn it on:** tick **Show a drop tab on the right edge of the screen** in the installer, or run `ComicStitcher.exe --drop-tab` (`python launch.py --drop-tab` from source).
+* **Use it:** click the tab to open Comic Stitcher, drag it up or down to move it, and right-click it (or its tray icon) to choose **Start when I sign in** or **Close drop tab**.
+* **Linux:** on Wayland the tab runs through XWayland, because Wayland does not let ordinary windows stay pinned to a screen edge. Ubuntu may need the `libxcb-cursor0` package for that.
+
 ### PDF Processing
 * **Lossless Extraction:** If a PDF contains compatible embedded JPEGs that can be extracted without re-encoding, Comic Stitcher offers direct extraction to preserve original quality.
 * **Rendering:** If extraction isn't available, PDFs are rendered at a configurable DPI (default is **300 DPI**, yielding ~1988×3056 px for standard U.S. comic dimensions).
