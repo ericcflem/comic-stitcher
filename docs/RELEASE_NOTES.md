@@ -32,6 +32,6 @@ x64 prerequisite if required, under Microsoft's component terms.
 - This release provides a Windows x64 installer. Mac, Linux and portable downloads
   are not included. Comic Stitcher is not a comic reader or library manager.
 
-See [README.md](README.md) for instructions and
+See [README.md](../README.md) for instructions and
 [SOURCE_ACCESS.md](SOURCE_ACCESS.md) for matching source, licenses and library
 replacement information.

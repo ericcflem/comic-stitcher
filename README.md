@@ -22,7 +22,7 @@ It imports PDFs, image folders, compressed archives, existing comic book files a
 - **UnRAR:** RAR/CBR import relies on the companion UnRAR utility bundled with the installer. Exporting to CBR/RAR is not supported.
 - **System Dependencies:** If needed, the installer will prompt to install the Microsoft Visual C++ x64 runtime.
 
-*For developer build instructions, see [BUILDING.md](BUILDING.md). For version history, see [CHANGELOG.md](CHANGELOG.md).*
+*For developer build instructions, see [BUILDING.md](docs/BUILDING.md). For version history, see [CHANGELOG.md](docs/CHANGELOG.md).*
 
 ---
 
@@ -104,7 +104,7 @@ Saved preferences take priority over fresh defaults. Output is saved beside an i
 
 ## License & Credits
 
-- **License:** Comic Stitcher's own material uses the [MIT License](LICENSE). See [PROVENANCE.md](PROVENANCE.md) for development history and attribution.
+- **License:** Comic Stitcher's own material uses the [MIT License](LICENSE). See [PROVENANCE.md](docs/PROVENANCE.md) for development history and attribution.
 - **Icons & Artwork:** Page icons created by Eric Fleming. Application icon created with AI assistance and manual editing. UI icons via Phosphor Icons (MIT).
 - **Third-Party Libraries:** Built using Qt/PySide6, Pillow, NumPy, pypdfium2, py7zr, and rarfile. Third-party components retain their respective licenses (see `licenses/` directory for full terms).
-Matching library sources and license information are described in [SOURCE_ACCESS.md](SOURCE_ACCESS.md). Developers can find library rebuild and replacement instructions in [REBUILDING_AND_REPLACING_LIBRARIES.md](REBUILDING_AND_REPLACING_LIBRARIES.md).
+Matching library sources and license information are described in [SOURCE_ACCESS.md](docs/SOURCE_ACCESS.md). Developers can find library rebuild and replacement instructions in [REBUILDING_AND_REPLACING_LIBRARIES.md](docs/REBUILDING_AND_REPLACING_LIBRARIES.md).

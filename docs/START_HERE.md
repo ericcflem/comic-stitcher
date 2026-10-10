@@ -1,6 +1,6 @@
 # Comic Stitcher 0.6.38 — source package
 
-For an introduction and normal use, read [README.md](README.md).
+For an introduction and normal use, read [README.md](../README.md).
 To build the Windows installer, follow [BUILDING.md](BUILDING.md).
 To rebuild or replace libraries, see
 [REBUILDING_AND_REPLACING_LIBRARIES.md](REBUILDING_AND_REPLACING_LIBRARIES.md)

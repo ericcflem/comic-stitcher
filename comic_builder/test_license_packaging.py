@@ -15,17 +15,19 @@ class LicensePackagingTests(unittest.TestCase):
             (destination / 'licenses').mkdir()
             (destination / 'STATUS.md').write_text('Old private release record')
             (destination / 'LICENSE_AUDIT.md').write_text('Old coverage summary')
+            (destination / 'SOURCE_ACCESS.md').write_text('Old guide location')
             (destination / 'licenses/RELEASE-LICENSE-REVIEW.md').write_text('Old duplicate')
             supplier = destination / 'licenses/supplier-license.txt'
             supplier.write_text('Unmodified supplier terms')
             package_licenses.copy_public_documents(destination)
             self.assertFalse((destination / 'STATUS.md').exists())
+            self.assertFalse((destination / 'SOURCE_ACCESS.md').exists())
             self.assertFalse((destination / 'LICENSE_AUDIT.md').exists())
             self.assertFalse((destination / 'licenses/RELEASE-LICENSE-REVIEW.md').exists())
-            self.assertEqual((destination / 'SOURCE_ACCESS.md').read_bytes(),
-                             (package_licenses.ROOT / 'SOURCE_ACCESS.md').read_bytes())
-            self.assertTrue((destination / 'START_HERE.md').is_file())
-            self.assertTrue((destination / 'THIRD_PARTY_ACKNOWLEDGEMENTS.md').is_file())
+            self.assertEqual((destination / 'docs/SOURCE_ACCESS.md').read_bytes(),
+                             (package_licenses.ROOT / 'docs/SOURCE_ACCESS.md').read_bytes())
+            self.assertTrue((destination / 'docs/START_HERE.md').is_file())
+            self.assertTrue((destination / 'docs/THIRD_PARTY_ACKNOWLEDGEMENTS.md').is_file())
             self.assertTrue((destination / 'licenses/SOURCE-AND-LICENSES.txt').is_file())
             self.assertEqual(supplier.read_text(), 'Unmodified supplier terms')
 
@@ -109,7 +111,7 @@ class LicensePackagingTests(unittest.TestCase):
             self.assertFalse(data['release_clearance'])
             self.assertEqual(data['application_license']['id'], 'MIT')
             self.assertEqual((destination / 'LICENSE').read_bytes(), (package_licenses.ROOT / 'LICENSE').read_bytes())
-            self.assertTrue((destination / 'PROVENANCE.md').is_file())
+            self.assertTrue((destination / 'docs/PROVENANCE.md').is_file())
             self.assertTrue((destination / 'licenses/ComicStitcher-MIT.txt').is_file())
             self.assertTrue((destination / 'licenses/THIRD_PARTY_ACKNOWLEDGEMENTS.md').is_file())
             index = (destination / 'licenses/index.html').read_text()

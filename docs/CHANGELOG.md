@@ -17,4 +17,4 @@
   sources, and application build and library replacement instructions.
 
 Original input files are preserved. See [RELEASE_NOTES.md](RELEASE_NOTES.md) for
-release scope and limitations, and [README.md](README.md) for the user guide.
+release scope and limitations, and [README.md](../README.md) for the user guide.

@@ -43,7 +43,7 @@ Microsoft's runtime and UnRAR retain separate supplier terms. They are not
 relicensed under MIT. Their required notices and Microsoft component conditions
 are retained with this package and installed notices.
 
-Comic Stitcher's own MIT grant is in [LICENSE](LICENSE); its scope and AI-assisted
+Comic Stitcher's own MIT grant is in [LICENSE](../LICENSE); its scope and AI-assisted
 history are explained in [PROVENANCE.md](PROVENANCE.md).
 
 ## Component notices and build records

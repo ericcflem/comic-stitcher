@@ -3,7 +3,7 @@
 | Location | Contents |
 | --- | --- |
 | `comic_builder/`, root Python files | Application code, tests, packaging helpers and verification tools |
-| Root documentation | User guide, Windows build/replacement instructions, component scope and source access |
+| `README.md`, `LICENSE`, `docs/` | User guide, Windows build/replacement instructions, component scope and source access |
 | `assets/` | App/page/interface icons and retained component notices |
 | `third_party_sources/` | Ten complete version-specific library source archives |
 | `third_party_notices/` | Notice texts extracted from all 26 exact pinned build-input wheels, plus the matching CPython notice; a conservative superset of final runtime notices |

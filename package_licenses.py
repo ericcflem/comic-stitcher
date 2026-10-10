@@ -15,10 +15,10 @@ from packaging.requirements import Requirement
 ROOT = Path(__file__).resolve().parent
 QT_PACKAGES = {'pyside6', 'pyside6-essentials', 'pyside6-addons', 'shiboken6'}
 PUBLIC_DOCUMENTS = (
-    'LICENSE', 'README.md', 'RELEASE_NOTES.md', 'CHANGELOG.md', 'PROVENANCE.md',
-    'START_HERE.md', 'SOURCE_ACCESS.md', 'SOURCE_PACKAGE_CONTENTS.md', 'BUILDING.md',
-    'REBUILDING_AND_REPLACING_LIBRARIES.md', 'NATIVE_SOURCE_REBUILD.md',
-    'THIRD_PARTY_ACKNOWLEDGEMENTS.md',
+    'LICENSE', 'README.md', 'docs/RELEASE_NOTES.md', 'docs/CHANGELOG.md', 'docs/PROVENANCE.md',
+    'docs/START_HERE.md', 'docs/SOURCE_ACCESS.md', 'docs/SOURCE_PACKAGE_CONTENTS.md', 'docs/BUILDING.md',
+    'docs/REBUILDING_AND_REPLACING_LIBRARIES.md', 'docs/NATIVE_SOURCE_REBUILD.md',
+    'docs/THIRD_PARTY_ACKNOWLEDGEMENTS.md',
 )
 INTERNAL_DOCUMENTS = (
     'PUBLICATION_PLAN.md', 'RELEASE_CHECKLIST.md', 'GITHUB_LAYOUT.md', 'STATUS.md',
@@ -36,11 +36,15 @@ def copy_public_documents(destination):
     target.mkdir(parents=True, exist_ok=True)
     (target / 'RELEASE-LICENSE-REVIEW.md').unlink(missing_ok=True)
     for document in PUBLIC_DOCUMENTS:
+        output = destination / document
+        output.parent.mkdir(parents=True, exist_ok=True)
+        if document.startswith('docs/'):
+            (destination / Path(document).name).unlink(missing_ok=True)
         shutil.copyfile(ROOT / document, destination / document)
     (target / 'SOURCE-AND-LICENSES.txt').write_text(
-        'Matching sources and component licenses are described in SOURCE_ACCESS.md\n'
-        'in the parent application folder. Build instructions are in BUILDING.md;\n'
-        'library replacement instructions are in REBUILDING_AND_REPLACING_LIBRARIES.md.\n'
+        'Matching sources and component licenses are described in docs/SOURCE_ACCESS.md\n'
+        'in the parent application folder. Build instructions are in docs/BUILDING.md;\n'
+        'library replacement instructions are in docs/REBUILDING_AND_REPLACING_LIBRARIES.md.\n'
         'Complete supplier license texts are retained in this licenses folder.\n',
         encoding='utf-8')
 
@@ -201,7 +205,7 @@ def collect(destination):
     for subdir in ('qt', 'microsoft'):
         shutil.copytree(ROOT / 'assets' / 'licenses' / subdir, target / subdir, dirs_exist_ok=True)
     shutil.copyfile(ROOT / 'assets/licenses/Phosphor-LICENSE.txt', target / 'Phosphor-LICENSE.txt')
-    shutil.copyfile(ROOT / 'THIRD_PARTY_ACKNOWLEDGEMENTS.md', target / 'THIRD_PARTY_ACKNOWLEDGEMENTS.md')
+    shutil.copyfile(ROOT / 'docs/THIRD_PARTY_ACKNOWLEDGEMENTS.md', target / 'THIRD_PARTY_ACKNOWLEDGEMENTS.md')
     shutil.copyfile(ROOT / 'installer/component-terms.txt', target / 'microsoft' / 'Component-terms.txt')
     shutil.copyfile(ROOT / 'installer/microsoft-terms-review.json', target / 'microsoft' / 'prerequisite-record.json')
     runtime_tool_notices.append({
@@ -233,7 +237,7 @@ def collect(destination):
         data['release_follow_up'].append('Frozen executable was not inspected in this collection.')
     from native_notices import collect_native_notices
     data['native_notices'] = collect_native_notices(destination, target, data['qt'])
-    data['application_license'] = {'id': 'MIT', 'notice': 'ComicStitcher-MIT.txt', 'scope': 'See PROVENANCE.md; third-party material retains its licenses.'}
+    data['application_license'] = {'id': 'MIT', 'notice': 'ComicStitcher-MIT.txt', 'scope': 'See docs/PROVENANCE.md; third-party material retains its licenses.'}
     shutil.copyfile(ROOT / 'LICENSE', target / 'ComicStitcher-MIT.txt')
     data['binaries'] = [{'path': path.relative_to(destination).as_posix(),
                          'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
@@ -252,7 +256,7 @@ def collect(destination):
     (target / 'resolved-runtime-requirements.txt').write_text('\n'.join(f"{row['name']}=={row['version']}" for row in packages if row['name'] != 'Python') + '\n', encoding='utf-8')
     copy_public_documents(destination)
     write_index(target)
-    print(f'Collected notices for {len(packages)} components in {target}. Source and license information is in SOURCE_ACCESS.md.')
+    print(f'Collected notices for {len(packages)} components in {target}. Source and license information is in docs/SOURCE_ACCESS.md.')
 
 
 if __name__ == '__main__':
