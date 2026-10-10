@@ -12,7 +12,7 @@ import tempfile
 from pathlib import Path
 
 from PySide6.QtCore import QLockFile, QObject, QProcess, QRectF, QSettings, Qt, QTimer, Signal
-from PySide6.QtGui import QAction, QColor, QFont, QFontMetrics, QGuiApplication, QIcon, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QAction, QColor, QCursor, QFont, QFontMetrics, QGuiApplication, QIcon, QPainter, QPainterPath, QPen
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon, QWidget
 
@@ -142,6 +142,8 @@ class DropTab(QWidget):
         self.hover_timer.setInterval(HOVER_DELAY_MS)
         self.hover_timer.timeout.connect(lambda: self._set_expanded(True))
         self.menu = None
+        # Decode the icon now so the first reveal is not slowed by loading it.
+        app_icon().pixmap(ICON_SIZE, ICON_SIZE)
         app = QGuiApplication.instance()
         app.primaryScreenChanged.connect(self._watch_screen)
         self._screen = None
@@ -197,7 +199,15 @@ class DropTab(QWidget):
             self.expanded = expanded
             self.place()
 
+    def _pointer_inside(self):
+        return self.frameGeometry().contains(QCursor.pos())
+
     def _collapse(self):
+        if self.expanded and not self.opening and self._pointer_inside():
+            # Windows can report a "leave" when the panel grows under the pointer,
+            # most noticeably on the first reveal. Keep it open and check again shortly.
+            self.collapse_timer.start(300)
+            return
         self.opening = False
         self._set_expanded(False)
 

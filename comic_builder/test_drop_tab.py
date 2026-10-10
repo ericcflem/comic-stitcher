@@ -4,6 +4,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from uuid import uuid4
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -98,6 +99,17 @@ class DropTabTests(unittest.TestCase):
         self.assertTrue(wait_for(lambda: self.tab.expanded))
         self.tab.leaveEvent(None)
         self.assertTrue(wait_for(lambda: not self.tab.expanded))
+
+    def test_stray_leave_while_pointer_is_inside_keeps_it_open(self):
+        self.tab.hover_timer.setInterval(10)
+        self.tab.enterEvent(None)
+        self.assertTrue(wait_for(lambda: self.tab.expanded))
+        inside = [True]
+        with patch.object(self.tab, "_pointer_inside", lambda: inside[0]):
+            self.tab.leaveEvent(None)
+            self.assertFalse(wait_for(lambda: not self.tab.expanded, seconds=0.5))
+            inside[0] = False
+            self.assertTrue(wait_for(lambda: not self.tab.expanded))
 
     def test_leaving_before_the_delay_keeps_it_slim(self):
         self.tab.hover_timer.setInterval(30)

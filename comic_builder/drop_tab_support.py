@@ -15,7 +15,7 @@ MODE_FLAGS = (DROP_TAB_FLAG, UNINSTALL_FLAG)
 
 COLLAPSED_SIZE = (8, 96)
 EXPANDED_SIZE = (165, 150)  # Fallback; the tab sizes itself to its icon and text.
-HOVER_DELAY_MS = 1000
+HOVER_DELAY_MS = 600
 DEFAULT_OFFSET = 200
 
 AUTOSTART_NAME = "ComicStitcherDropTab"
