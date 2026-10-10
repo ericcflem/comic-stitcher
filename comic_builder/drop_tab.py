@@ -32,6 +32,7 @@ MAIN_TEXT = "Drop to open in\nComic Stitcher"
 OPENING_TEXT = "Opening…"
 HINT_TEXT = "or click to open"
 QUIT_MESSAGE = b"quit\n"
+SHOW_MESSAGE = b"show\n"
 
 
 def control_name():
@@ -70,6 +71,7 @@ def open_in_comic_stitcher(paths=()):
 class DropTabControl(QObject):
     """Keeps one drop tab per user and lets the uninstaller close it."""
     quit_requested = Signal()
+    show_requested = Signal()
 
     def __init__(self, name=None, parent=None):
         super().__init__(parent)
@@ -95,8 +97,11 @@ class DropTabControl(QObject):
             self._read(socket)
 
     def _read(self, socket):
-        if bytes(socket.readAll()).startswith(QUIT_MESSAGE.strip()):
+        message = bytes(socket.readAll())
+        if message.startswith(QUIT_MESSAGE.strip()):
             self.quit_requested.emit()
+        elif message.startswith(SHOW_MESSAGE.strip()):
+            self.show_requested.emit()
 
     def close(self):
         self.server.close()
@@ -104,11 +109,19 @@ class DropTabControl(QObject):
 
     @staticmethod
     def send_quit(name=None):
+        return DropTabControl.send(QUIT_MESSAGE, name)
+
+    @staticmethod
+    def send_show(name=None):
+        return DropTabControl.send(SHOW_MESSAGE, name)
+
+    @staticmethod
+    def send(message, name=None):
         socket = QLocalSocket()
         socket.connectToServer(name or control_name())
         if not socket.waitForConnected(1000):
             return False
-        socket.write(QUIT_MESSAGE)
+        socket.write(message)
         sent = socket.waitForBytesWritten(1000)
         socket.disconnectFromServer()
         return sent
@@ -243,6 +256,25 @@ class DropTab(QWidget):
         QTimer.singleShot(0, lambda: self.open_paths(paths))
         self.collapse_timer.start(900)
 
+    def hide_tab(self):
+        self.hover_timer.stop()
+        self.collapse_timer.stop()
+        self.opening = False
+        self.expanded = False
+        self.hide()
+
+    def show_tab(self):
+        self.expanded = False
+        self.place()
+        self.show()
+        self.raise_()
+
+    def toggle_visible(self):
+        if self.isVisible():
+            self.hide_tab()
+        else:
+            self.show_tab()
+
     def open_paths(self, paths=()):
         if not self.opener(paths):
             QMessageBox.warning(None, "Comic Stitcher", "Comic Stitcher could not be started.")
@@ -358,6 +390,11 @@ def build_menu(tab, app):
         menu.aboutToShow.connect(refresh)
         menu.addAction(sign_in)
     menu.addSeparator()
+    visible_action = QAction("Hide drop tab", menu)
+    visible_action.triggered.connect(tab.toggle_visible)
+    menu.aboutToShow.connect(lambda: visible_action.setText(
+        "Hide drop tab" if tab.isVisible() else "Show drop tab"))
+    menu.addAction(visible_action)
     close_action = QAction("Close drop tab", menu)
     close_action.triggered.connect(app.quit)
     menu.addAction(close_action)
@@ -388,9 +425,12 @@ def main(argv=None):
             pass
     control = DropTabControl()
     if not control.claim():
-        return 0  # A drop tab is already running for this user.
+        # A drop tab is already running for this user; bring it back if it was hidden.
+        DropTabControl.send_show()
+        return 0
     control.quit_requested.connect(app.quit)
     tab = DropTab()
+    control.show_requested.connect(tab.show_tab)
     menu = build_menu(tab, app)
     tab.menu = menu
     tray = None
@@ -398,7 +438,8 @@ def main(argv=None):
         tray = QSystemTrayIcon(app_icon())
         tray.setToolTip("Comic Stitcher drop tab")
         tray.setContextMenu(menu)
-        tray.activated.connect(lambda reason: tab.open_paths()
+        # Clicking the tray icon hides the tab or brings it back.
+        tray.activated.connect(lambda reason: tab.toggle_visible()
                                if reason == QSystemTrayIcon.ActivationReason.Trigger else None)
         tray.show()
     tab.show()

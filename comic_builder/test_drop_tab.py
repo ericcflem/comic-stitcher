@@ -123,6 +123,13 @@ class DropTabTests(unittest.TestCase):
         self.assertGreater(width, 48 * 1.5 - 1)
         self.assertGreater(height, 48)
 
+    def test_hide_and_show_again(self):
+        self.tab.toggle_visible()
+        self.assertFalse(self.tab.isVisible())
+        self.tab.show_tab()
+        self.assertTrue(self.tab.isVisible())
+        self.assertFalse(self.tab.expanded)
+
     def test_dragging_the_tab_moves_and_remembers_it(self):
         start = self.tab.offset
         QTest.mousePress(self.tab, Qt.MouseButton.LeftButton, pos=QPoint(4, 40))
@@ -151,6 +158,14 @@ class ControlTests(unittest.TestCase):
                 app.processEvents()
                 time.sleep(.005)
             self.assertEqual(quits, [True])
+            shows = []
+            first.show_requested.connect(lambda: shows.append(True))
+            self.assertTrue(DropTabControl.send_show(name))
+            deadline = time.monotonic() + 2
+            while not shows and time.monotonic() < deadline:
+                app.processEvents()
+                time.sleep(.005)
+            self.assertEqual(shows, [True])
         finally:
             first.close()
 

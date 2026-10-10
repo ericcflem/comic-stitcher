@@ -55,6 +55,8 @@ Source: "dist\ComicStitcher\*"; DestDir: "{app}"; Flags: ignoreversion recursesu
 [Icons]
 Name: "{group}\Comic Stitcher"; Filename: "{app}\ComicStitcher.exe"
 Name: "{autodesktop}\Comic Stitcher"; Filename: "{app}\ComicStitcher.exe"; Tasks: desktopicon
+; Starts the drop tab, or shows it again if it was hidden.
+Name: "{group}\Comic Stitcher Drop Tab"; Filename: "{app}\ComicStitcher.exe"; Parameters: "--drop-tab"; Comment: "Show the Comic Stitcher drop tab on the right edge of the screen"
 
 [Tasks]
 Name: desktopicon; Description: "Create a desktop shortcut"; GroupDescription: "Additional options:"
