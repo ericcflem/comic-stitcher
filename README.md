@@ -4,6 +4,8 @@ Comic Stitcher is an easy-to-use application designed to turn a messy source int
 
 It imports PDFs, image folders, compressed archives, existing comic book files and web screenshots, and allows you to stitch together split 2-page spreads, rotate pages, and clean up layouts without ever modifying your original source files.
 
+**About development:** Comic Stitcher was coded by AI, with Eric Fleming directing its design, testing it, and guiding revisions throughout extensive development. It began with a spread-detection script Eric developed with Grok; ChatGPT/Codex and Claude helped turn it into the application. Gemini helped refine this README and, alongside Grok, contributed to the application icon, which Eric edited manually.
+
 ---
 
 ## Quick Start
@@ -108,3 +110,4 @@ Saved preferences take priority over fresh defaults. Output is saved beside an i
 - **Icons & Artwork:** Page icons created by Eric Fleming. Application icon created with AI assistance and manual editing. UI icons via Phosphor Icons (MIT).
 - **Third-Party Libraries:** Built using Qt/PySide6, Pillow, NumPy, pypdfium2, py7zr, and rarfile. Third-party components retain their respective licenses (see `licenses/` directory for full terms).
 Matching library sources and license information are described in [SOURCE_ACCESS.md](docs/SOURCE_ACCESS.md). Developers can find library rebuild and replacement instructions in [REBUILDING_AND_REPLACING_LIBRARIES.md](docs/REBUILDING_AND_REPLACING_LIBRARIES.md).
+
