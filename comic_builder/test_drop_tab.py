@@ -14,7 +14,7 @@ from PySide6.QtGui import QDragEnterEvent, QDropEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
-from .drop_tab import DropTab, DropTabControl, local_paths
+from .drop_tab import DropTab, DropTabControl, DropTabSettingsDialog, local_paths
 from .drop_tab_support import COLLAPSED_SIZE
 
 
@@ -122,6 +122,24 @@ class DropTabTests(unittest.TestCase):
         self.assertLess(width, 220)
         self.assertGreater(width, 48 * 1.5 - 1)
         self.assertGreater(height, 48)
+
+    def test_settings_apply_live_and_are_saved(self):
+        self.tab.apply_settings(thickness=20, height=300, offset=250, hover_delay=900)
+        self.assertEqual((self.tab.width(), self.tab.height()), (20, 300))
+        self.assertEqual(self.tab.hover_timer.interval(), 900)
+        self.assertEqual(int(self.settings.value("drop_tab/thickness")), 20)
+        self.assertEqual(int(self.settings.value("drop_tab/height")), 300)
+        self.assertEqual(int(self.settings.value("drop_tab/hover_delay")), 900)
+        reopened = DropTab(self.settings, opener=lambda paths: True)
+        self.assertEqual((reopened.thickness, reopened.tab_height, reopened.hover_delay), (20, 300, 900))
+        reopened.deleteLater()
+
+    def test_settings_dialog_reset_restores_defaults(self):
+        self.tab.apply_settings(thickness=20, height=300, hover_delay=900)
+        dialog = DropTabSettingsDialog(self.tab)
+        dialog.reset()
+        self.assertEqual((self.tab.thickness, self.tab.tab_height, self.tab.hover_delay), (8, 96, 450))
+        dialog.deleteLater()
 
     def test_hide_and_show_again(self):
         self.tab.toggle_visible()

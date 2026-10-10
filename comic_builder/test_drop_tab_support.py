@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 from . import drop_tab_support as support
 from .drop_tab_support import (
-    COLLAPSED_SIZE, DEFAULT_OFFSET, DROP_TAB_FLAG, EXPANDED_SIZE, UNINSTALL_FLAG,
-    clamp_offset, drop_tab_command, launch_command, linux_autostart_path,
+    COLLAPSED_SIZE, DEFAULT_OFFSET, DROP_TAB_FLAG, EDGE_MARGIN, EXPANDED_SIZE, UNINSTALL_FLAG,
+    clamp_height, clamp_hover_delay, clamp_offset, clamp_thickness, max_height, offset_range, drop_tab_command, launch_command, linux_autostart_path,
     linux_desktop_entry, needs_x11, tab_rect, wants_drop_tab,
 )
 
@@ -40,11 +40,48 @@ class LayoutTests(unittest.TestCase):
                 self.assertTrue(contains(screen, collapsed), (screen, offset))
 
     def test_offset_is_clamped_and_tolerates_bad_settings(self):
-        self.assertEqual(clamp_offset(-10, 1000), 0)
-        self.assertEqual(clamp_offset(5000, 1000), 1000 - COLLAPSED_SIZE[1])
+        self.assertEqual(clamp_offset(-10, 1000), EDGE_MARGIN)
+        self.assertEqual(clamp_offset(5000, 1000), 1000 - EDGE_MARGIN - COLLAPSED_SIZE[1])
         self.assertEqual(clamp_offset("not a number", 1000), DEFAULT_OFFSET)
         self.assertEqual(clamp_offset(None, 1000), DEFAULT_OFFSET)
         self.assertEqual(clamp_offset("300", 1000), 300)
+
+
+    def test_settings_are_kept_in_range(self):
+        self.assertEqual(clamp_thickness(1), 3)
+        self.assertEqual(clamp_thickness(99), 24)
+        self.assertEqual(clamp_thickness("junk"), 8)
+        self.assertEqual(clamp_hover_delay(-5), 0)
+        self.assertEqual(clamp_hover_delay(9000), 2000)
+        self.assertEqual(clamp_hover_delay(None), 450)
+        self.assertEqual(max_height(1040), 1040 - 2 * EDGE_MARGIN)
+        self.assertEqual(clamp_height(10, 1040), 48)
+        self.assertEqual(clamp_height(5000, 1040), 1040 - 2 * EDGE_MARGIN)
+
+    def test_tab_never_enters_the_top_or_bottom_margin(self):
+        for height in (48, 96, 400, 944):
+            low, high = offset_range(1040, height)
+            for offset in (-100, low, high, 10_000):
+                x, y, w, h = tab_rect(SCREEN, offset, False, collapsed_size=(12, height))
+                self.assertGreaterEqual(y, EDGE_MARGIN)
+                self.assertLessEqual(y + h, 1040 - EDGE_MARGIN)
+                self.assertEqual((x + w, w, h), (1920, 12, height))
+
+    def test_tall_tab_opens_the_panel_under_the_pointer(self):
+        tall = (8, 800)
+        tab = tab_rect(SCREEN, 100, False, collapsed_size=tall)
+        for pointer in (tab[1], tab[1] + 400, tab[1] + tab[3] - 1):
+            panel = tab_rect(SCREEN, 100, True, collapsed_size=tall, anchor_y=pointer)
+            self.assertEqual(panel[2:], EXPANDED_SIZE)
+            self.assertTrue(panel[1] <= pointer < panel[1] + panel[3], pointer)
+            self.assertTrue(contains(SCREEN, panel))
+
+    def test_short_tab_is_covered_by_the_panel_for_any_thickness(self):
+        for thickness in (3, 8, 24):
+            for height in (48, 96, 150):
+                tab = tab_rect(SCREEN, 300, False, collapsed_size=(thickness, height))
+                panel = tab_rect(SCREEN, 300, True, collapsed_size=(thickness, height), anchor_y=0)
+                self.assertTrue(contains(panel, tab), (thickness, height))
 
 
 class LaunchTests(unittest.TestCase):

@@ -14,12 +14,16 @@ from pathlib import Path
 from PySide6.QtCore import QLockFile, QObject, QProcess, QRectF, QSettings, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QColor, QCursor, QFont, QFontMetrics, QGuiApplication, QIcon, QPainter, QPainterPath, QPen
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
-from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon, QWidget
+from PySide6.QtWidgets import (
+    QApplication, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout, QLabel, QMenu,
+    QMessageBox, QPushButton, QSlider, QSpinBox, QSystemTrayIcon, QVBoxLayout, QWidget,
+)
 
 from .drop_tab_support import (
-    COLLAPSED_SIZE, DEFAULT_OFFSET, ENABLE_AUTOSTART_FLAG, HOVER_DELAY_MS, UNINSTALL_FLAG,
-    autostart_enabled, autostart_supported, clamp_offset, launch_command, needs_x11,
-    set_autostart, tab_rect,
+    DEFAULT_HEIGHT, DEFAULT_OFFSET, DEFAULT_THICKNESS, ENABLE_AUTOSTART_FLAG, HOVER_DELAY_MS,
+    HOVER_RANGE, MIN_HEIGHT, THICKNESS_RANGE, UNINSTALL_FLAG, autostart_enabled,
+    autostart_supported, clamp_height, clamp_hover_delay, clamp_offset, clamp_thickness,
+    launch_command, max_height, needs_x11, offset_range, set_autostart, tab_rect,
 )
 
 CLICK_SLOP = 4
@@ -140,7 +144,11 @@ class DropTab(QWidget):
                         "Drag up or down to move. Right-click for options.")
         self.settings = settings or QSettings("ComicStitcher", "Comic Stitcher")
         self.opener = opener
+        self.thickness = clamp_thickness(self.settings.value("drop_tab/thickness", DEFAULT_THICKNESS))
+        self.tab_height = clamp_height(self.settings.value("drop_tab/height", DEFAULT_HEIGHT), 1 << 30)
+        self.hover_delay = clamp_hover_delay(self.settings.value("drop_tab/hover_delay", HOVER_DELAY_MS))
         self.offset = self._stored_offset()
+        self.anchor_y = None
         self.expanded = False
         self.hovered = False
         self.opening = False
@@ -152,8 +160,8 @@ class DropTab(QWidget):
         self.collapse_timer.timeout.connect(self._collapse)
         self.hover_timer = QTimer(self)
         self.hover_timer.setSingleShot(True)
-        self.hover_timer.setInterval(HOVER_DELAY_MS)
-        self.hover_timer.timeout.connect(lambda: self._set_expanded(True))
+        self.hover_timer.setInterval(self.hover_delay)
+        self.hover_timer.timeout.connect(lambda: self._expand(QCursor.pos().y()))
         self.menu = None
         # Decode the icon now so the first reveal is not slowed by loading it.
         app_icon().pixmap(ICON_SIZE, ICON_SIZE)
@@ -164,7 +172,7 @@ class DropTab(QWidget):
 
     # Placement -----------------------------------------------------------
     def _stored_offset(self):
-        return clamp_offset(self.settings.value("drop_tab/offset", DEFAULT_OFFSET), 1 << 30)
+        return clamp_offset(self.settings.value("drop_tab/offset", DEFAULT_OFFSET), 1 << 30, self.tab_height)
 
     def _watch_screen(self, screen):
         if self._screen is not None:
@@ -202,9 +210,34 @@ class DropTab(QWidget):
 
     def place(self, *_):
         available = self.available()
-        self.offset = clamp_offset(self.offset, available[3])
-        self.setGeometry(*tab_rect(available, self.offset, self.expanded, self.expanded_size()))
+        height = clamp_height(self.tab_height, available[3])
+        self.offset = clamp_offset(self.offset, available[3], height)
+        self.setGeometry(*tab_rect(available, self.offset, self.expanded, self.expanded_size(),
+                                   (self.thickness, height), self.anchor_y))
         self.update()
+
+    def _expand(self, anchor_y=None):
+        """Open the panel; on a tall tab it opens where the pointer is."""
+        self.anchor_y = anchor_y
+        self._set_expanded(True)
+
+    def apply_settings(self, thickness=None, height=None, offset=None, hover_delay=None):
+        """Change the tab's shape or timing, save it, and redraw it straight away."""
+        if thickness is not None:
+            self.thickness = clamp_thickness(thickness)
+            self.settings.setValue("drop_tab/thickness", self.thickness)
+        if height is not None:
+            self.tab_height = clamp_height(height, self.available()[3])
+            self.settings.setValue("drop_tab/height", self.tab_height)
+        if offset is not None:
+            self.offset = int(offset)
+        if hover_delay is not None:
+            self.hover_delay = clamp_hover_delay(hover_delay)
+            self.hover_timer.setInterval(self.hover_delay)
+            self.settings.setValue("drop_tab/hover_delay", self.hover_delay)
+        self.place()
+        if offset is not None or height is not None:
+            self.settings.setValue("drop_tab/offset", self.offset)
 
     def _set_expanded(self, expanded):
         self.hover_timer.stop()
@@ -230,7 +263,8 @@ class DropTab(QWidget):
             event.acceptProposedAction()
             self.collapse_timer.stop()
             self.opening = False
-            self._set_expanded(True)
+            if not self.expanded:
+                self._expand(self.mapToGlobal(event.position().toPoint()).y())
         else:
             event.ignore()
 
@@ -294,7 +328,9 @@ class DropTab(QWidget):
         if abs(delta) > CLICK_SLOP:
             self.moved = True
         if self.moved:
-            self.offset = clamp_offset(self.press_offset + int(delta), self.available()[3])
+            available_height = self.available()[3]
+            self.offset = clamp_offset(self.press_offset + int(delta), available_height,
+                                       clamp_height(self.tab_height, available_height))
             self.place()
 
     def mouseReleaseEvent(self, event):
@@ -307,7 +343,7 @@ class DropTab(QWidget):
             self.open_paths()
         else:
             # A click on the slim tab shows what it is; a click on the panel opens the app.
-            self._set_expanded(True)
+            self._expand(event.globalPosition().y())
 
     def enterEvent(self, event):
         self.hovered = True
@@ -338,7 +374,7 @@ class DropTab(QWidget):
         if not self.expanded:
             # Rounded on the left only, flush with the screen edge on the right.
             path = QPainterPath()
-            radius = COLLAPSED_SIZE[0] / 2
+            radius = self.thickness / 2
             path.addRoundedRect(rect.adjusted(0, 0, radius, 0), radius, radius)
             colour = QColor(accent)
             colour.setAlpha(255 if self.hovered else 190)
@@ -366,6 +402,91 @@ class DropTab(QWidget):
             painter.drawText(QRectF(0, text_top + 2 * line + HINT_GAP, self.width(), line), centre, HINT_TEXT)
 
 
+class SliderField(QWidget):
+    """A slider with a matching number box, kept in step."""
+
+    def __init__(self, low, high, value, suffix, on_change, parent=None):
+        super().__init__(parent)
+        self.slider = QSlider(Qt.Orientation.Horizontal)
+        self.box = QSpinBox()
+        self.box.setSuffix(suffix)
+        for control in (self.slider, self.box):
+            control.setRange(low, high)
+            control.setValue(value)
+        self.slider.setMinimumWidth(220)
+        self.slider.valueChanged.connect(self.box.setValue)
+        self.box.valueChanged.connect(self.slider.setValue)
+        self.box.valueChanged.connect(on_change)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.slider, 1)
+        layout.addWidget(self.box)
+
+    def value(self):
+        return self.box.value()
+
+    def set_range(self, low, high):
+        for control in (self.slider, self.box):
+            control.blockSignals(True)
+            control.setRange(low, high)
+            control.blockSignals(False)
+
+    def set_value(self, value):
+        self.box.setValue(value)
+
+
+class DropTabSettingsDialog(QDialog):
+    """Changes apply to the real tab as you move the sliders."""
+
+    def __init__(self, tab, parent=None):
+        super().__init__(parent)
+        self.tab = tab
+        self.setWindowTitle("Drop tab settings")
+        self.setWindowIcon(app_icon())
+        available_height = tab.available()[3]
+        height = clamp_height(tab.tab_height, available_height)
+        self.thickness = SliderField(*THICKNESS_RANGE, tab.thickness, " px",
+                                     lambda v: tab.apply_settings(thickness=v))
+        self.height_field = SliderField(MIN_HEIGHT, max_height(available_height), height, " px",
+                                        self._height_changed)
+        self.position = SliderField(*offset_range(available_height, height), tab.offset, " px",
+                                    lambda v: tab.apply_settings(offset=v))
+        self.delay = SliderField(*HOVER_RANGE, tab.hover_delay, " ms",
+                                 lambda v: tab.apply_settings(hover_delay=v))
+        self.delay.slider.setSingleStep(50)
+        self.delay.box.setSingleStep(50)
+        form = QFormLayout()
+        form.addRow("How far it sticks out:", self.thickness)
+        form.addRow("Height:", self.height_field)
+        form.addRow("Distance from the top:", self.position)
+        form.addRow("Open on hover after:", self.delay)
+        note = QLabel("The tab stays clear of the top and bottom of the screen so it does not cover "
+                      "window controls or the taskbar. You can also drag the tab to move it.")
+        note.setWordWrap(True)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        reset = QPushButton("Reset to defaults")
+        buttons.addButton(reset, QDialogButtonBox.ButtonRole.ResetRole)
+        reset.clicked.connect(self.reset)
+        buttons.rejected.connect(self.reject)
+        buttons.accepted.connect(self.accept)
+        layout = QVBoxLayout(self)
+        layout.addLayout(form)
+        layout.addWidget(note)
+        layout.addWidget(buttons)
+
+    def _height_changed(self, value):
+        self.tab.apply_settings(height=value)
+        # A taller tab has less room to move; keep the position slider honest.
+        self.position.set_range(*offset_range(self.tab.available()[3], self.tab.tab_height))
+        self.position.set_value(self.tab.offset)
+
+    def reset(self):
+        self.thickness.set_value(DEFAULT_THICKNESS)
+        self.height_field.set_value(DEFAULT_HEIGHT)
+        self.position.set_value(DEFAULT_OFFSET)
+        self.delay.set_value(HOVER_DELAY_MS)
+
+
 def build_menu(tab, app):
     menu = QMenu()
     open_action = QAction("Open Comic Stitcher", menu)
@@ -390,6 +511,15 @@ def build_menu(tab, app):
         menu.aboutToShow.connect(refresh)
         menu.addAction(sign_in)
     menu.addSeparator()
+    settings_action = QAction("Drop tab settings…", menu)
+
+    def show_settings():
+        if not tab.isVisible():
+            tab.show_tab()
+        DropTabSettingsDialog(tab).exec()
+
+    settings_action.triggered.connect(show_settings)
+    menu.addAction(settings_action)
     visible_action = QAction("Hide drop tab", menu)
     visible_action.triggered.connect(tab.toggle_visible)
     menu.aboutToShow.connect(lambda: visible_action.setText(

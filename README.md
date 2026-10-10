@@ -66,6 +66,7 @@ The optional drop tab is a slim strip on the right edge of the screen, a little 
 
 * **Turn it on:** tick **Show a drop tab on the right edge of the screen** in the installer, or run `ComicStitcher.exe --drop-tab` (`python launch.py --drop-tab` from source).
 * **Use it:** rest the mouse on the tab for a second, or click it, to see what it is; click the open panel to start Comic Stitcher. Drag the tab up or down to move it, and right-click it (or its tray icon) for **Start when I sign in**, **Hide drop tab** and **Close drop tab**.
+* **Adjust it:** right-click the tab and choose **Drop tab settings…** to set how far it sticks out (3–24 px), its height, its distance from the top and the hover delay. The tab changes as you move the sliders, and stays clear of the very top and bottom of the screen so it never covers window controls or the taskbar.
 * **Get it back:** click the tray icon to show a hidden tab, or use the **Comic Stitcher Drop Tab** Start menu shortcut, which starts the tab or shows it again.
 * **Linux:** on Wayland the tab runs through XWayland, because Wayland does not let ordinary windows stay pinned to a screen edge. Ubuntu may need the `libxcb-cursor0` package for that.
 

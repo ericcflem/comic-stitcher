@@ -13,10 +13,20 @@ ENABLE_AUTOSTART_FLAG = "--enable-autostart"
 UNINSTALL_FLAG = "--uninstall-drop-tab"
 MODE_FLAGS = (DROP_TAB_FLAG, UNINSTALL_FLAG)
 
-COLLAPSED_SIZE = (8, 96)
 EXPANDED_SIZE = (165, 150)  # Fallback; the tab sizes itself to its icon and text.
-HOVER_DELAY_MS = 450
+
+# Adjustable in "Drop tab settings…". Pixels are Windows' scaled pixels.
+DEFAULT_THICKNESS = 8
+THICKNESS_RANGE = (3, 24)
+DEFAULT_HEIGHT = 96
+MIN_HEIGHT = 48
 DEFAULT_OFFSET = 200
+HOVER_DELAY_MS = 450
+HOVER_RANGE = (0, 2000)
+# Kept clear at the top (window controls) and bottom (an auto-hiding taskbar).
+EDGE_MARGIN = 48
+
+COLLAPSED_SIZE = (DEFAULT_THICKNESS, DEFAULT_HEIGHT)
 
 AUTOSTART_NAME = "ComicStitcherDropTab"
 WINDOWS_RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
@@ -27,27 +37,69 @@ def wants_drop_tab(argv):
     return any(argument in MODE_FLAGS for argument in argv[1:])
 
 
-def clamp_offset(offset, available_height):
-    """Keep the collapsed tab fully on screen."""
+def _int(value, default):
     try:
-        offset = int(offset)
+        return int(value)
     except (TypeError, ValueError):
-        offset = DEFAULT_OFFSET
-    return max(0, min(offset, max(0, available_height - COLLAPSED_SIZE[1])))
+        return default
 
 
-def tab_rect(available, offset, expanded, expanded_size=EXPANDED_SIZE):
+def clamp(value, low, high, default):
+    return max(low, min(_int(value, default), high))
+
+
+def clamp_thickness(value):
+    return clamp(value, *THICKNESS_RANGE, DEFAULT_THICKNESS)
+
+
+def clamp_hover_delay(value):
+    return clamp(value, *HOVER_RANGE, HOVER_DELAY_MS)
+
+
+def max_height(available_height):
+    return max(MIN_HEIGHT, available_height - 2 * EDGE_MARGIN)
+
+
+def clamp_height(value, available_height):
+    return clamp(value, MIN_HEIGHT, max_height(available_height), DEFAULT_HEIGHT)
+
+
+def offset_range(available_height, tab_height=DEFAULT_HEIGHT):
+    """Allowed distances from the top, keeping the margins clear where possible."""
+    low = EDGE_MARGIN
+    high = available_height - EDGE_MARGIN - tab_height
+    if high < low:  # A very small screen: fall back to just staying on it.
+        low, high = 0, max(0, available_height - tab_height)
+    return low, high
+
+
+def clamp_offset(offset, available_height, tab_height=DEFAULT_HEIGHT):
+    return clamp(offset, *offset_range(available_height, tab_height), DEFAULT_OFFSET)
+
+
+def tab_rect(available, offset, expanded, expanded_size=EXPANDED_SIZE,
+             collapsed_size=COLLAPSED_SIZE, anchor_y=None):
     """Return (x, y, width, height) for the tab on the right edge.
 
     ``available`` is the screen's usable area as (x, y, width, height). The
-    expanded panel shares the collapsed tab's centre and right edge, so a drag
-    that entered the thin tab is still inside it after it grows.
+    open panel keeps the right edge. When the tab is shorter than the panel the
+    panel is centred on it, so it covers the whole tab; when the tab is taller,
+    the panel opens at ``anchor_y`` (the pointer) within the tab's span, so the
+    pointer is inside it either way.
     """
     x, y, width, height = available
-    tab_width, tab_height = expanded_size if expanded else COLLAPSED_SIZE
-    centre = y + clamp_offset(offset, height) + COLLAPSED_SIZE[1] // 2
-    top = max(y, min(centre - tab_height // 2, y + height - tab_height))
-    return (x + width - tab_width, top, tab_width, tab_height)
+    thickness, tab_height = collapsed_size
+    tab_height = clamp_height(tab_height, height)
+    tab_top = y + clamp_offset(offset, height, tab_height)
+    if not expanded:
+        return (x + width - thickness, tab_top, thickness, tab_height)
+    panel_width, panel_height = expanded_size
+    centre = tab_top + tab_height // 2
+    if tab_height > panel_height and anchor_y is not None:
+        centre = max(tab_top + panel_height // 2,
+                     min(int(anchor_y), tab_top + tab_height - panel_height // 2))
+    top = max(y, min(centre - panel_height // 2, y + height - panel_height))
+    return (x + width - panel_width, top, panel_width, panel_height)
 
 
 def launch_command(paths=(), frozen=None, executable=None, source_root=None):
