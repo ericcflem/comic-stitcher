@@ -14,7 +14,8 @@ UNINSTALL_FLAG = "--uninstall-drop-tab"
 MODE_FLAGS = (DROP_TAB_FLAG, UNINSTALL_FLAG)
 
 COLLAPSED_SIZE = (8, 96)
-EXPANDED_SIZE = (220, 150)
+EXPANDED_SIZE = (165, 150)  # Fallback; the tab sizes itself to its icon and text.
+HOVER_DELAY_MS = 1000
 DEFAULT_OFFSET = 200
 
 AUTOSTART_NAME = "ComicStitcherDropTab"
@@ -35,7 +36,7 @@ def clamp_offset(offset, available_height):
     return max(0, min(offset, max(0, available_height - COLLAPSED_SIZE[1])))
 
 
-def tab_rect(available, offset, expanded):
+def tab_rect(available, offset, expanded, expanded_size=EXPANDED_SIZE):
     """Return (x, y, width, height) for the tab on the right edge.
 
     ``available`` is the screen's usable area as (x, y, width, height). The
@@ -43,7 +44,7 @@ def tab_rect(available, offset, expanded):
     that entered the thin tab is still inside it after it grows.
     """
     x, y, width, height = available
-    tab_width, tab_height = EXPANDED_SIZE if expanded else COLLAPSED_SIZE
+    tab_width, tab_height = expanded_size if expanded else COLLAPSED_SIZE
     centre = y + clamp_offset(offset, height) + COLLAPSED_SIZE[1] // 2
     top = max(y, min(centre - tab_height // 2, y + height - tab_height))
     return (x + width - tab_width, top, tab_width, tab_height)

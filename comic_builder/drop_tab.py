@@ -12,17 +12,25 @@ import tempfile
 from pathlib import Path
 
 from PySide6.QtCore import QLockFile, QObject, QProcess, QRectF, QSettings, Qt, QTimer, Signal
-from PySide6.QtGui import QAction, QColor, QGuiApplication, QIcon, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QAction, QColor, QFont, QFontMetrics, QGuiApplication, QIcon, QPainter, QPainterPath, QPen
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon, QWidget
 
 from .drop_tab_support import (
-    COLLAPSED_SIZE, DEFAULT_OFFSET, ENABLE_AUTOSTART_FLAG, UNINSTALL_FLAG,
+    COLLAPSED_SIZE, DEFAULT_OFFSET, ENABLE_AUTOSTART_FLAG, HOVER_DELAY_MS, UNINSTALL_FLAG,
     autostart_enabled, autostart_supported, clamp_offset, launch_command, needs_x11,
     set_autostart, tab_rect,
 )
 
 CLICK_SLOP = 4
+ICON_SIZE = 48
+TOP_PAD = 16
+ICON_GAP = 8
+HINT_GAP = 4
+BOTTOM_PAD = 14
+MAIN_TEXT = "Drop to open in\nComic Stitcher"
+OPENING_TEXT = "Opening…"
+HINT_TEXT = "or click to open"
 QUIT_MESSAGE = b"quit\n"
 
 
@@ -116,7 +124,7 @@ class DropTab(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAcceptDrops(True)
         self.setToolTip("Drag comics, PDFs or folders here to open them in Comic Stitcher.\n"
-                        "Click to open Comic Stitcher. Drag up or down to move. Right-click for options.")
+                        "Drag up or down to move. Right-click for options.")
         self.settings = settings or QSettings("ComicStitcher", "Comic Stitcher")
         self.opener = opener
         self.offset = self._stored_offset()
@@ -129,6 +137,10 @@ class DropTab(QWidget):
         self.collapse_timer = QTimer(self)
         self.collapse_timer.setSingleShot(True)
         self.collapse_timer.timeout.connect(self._collapse)
+        self.hover_timer = QTimer(self)
+        self.hover_timer.setSingleShot(True)
+        self.hover_timer.setInterval(HOVER_DELAY_MS)
+        self.hover_timer.timeout.connect(lambda: self._set_expanded(True))
         self.menu = None
         app = QGuiApplication.instance()
         app.primaryScreenChanged.connect(self._watch_screen)
@@ -157,13 +169,30 @@ class DropTab(QWidget):
         area = screen.availableGeometry()
         return (area.x(), area.y(), area.width(), area.height())
 
+    def _hint_font(self):
+        font = QFont(self.font())
+        font.setPointSizeF(max(6.0, font.pointSizeF() * 0.85))
+        return font
+
+    def expanded_size(self):
+        """Fit the panel to its icon and text, plus half again for padding."""
+        metrics = QFontMetrics(self.font())
+        hint = QFontMetrics(self._hint_font())
+        lines = MAIN_TEXT.split("\n") + [OPENING_TEXT]
+        content = max([ICON_SIZE, hint.horizontalAdvance(HINT_TEXT)]
+                      + [metrics.horizontalAdvance(line) for line in lines])
+        height = (TOP_PAD + ICON_SIZE + ICON_GAP + 2 * metrics.lineSpacing()
+                  + HINT_GAP + hint.lineSpacing() + BOTTOM_PAD)
+        return (int(round(content * 1.5)), int(height))
+
     def place(self, *_):
         available = self.available()
         self.offset = clamp_offset(self.offset, available[3])
-        self.setGeometry(*tab_rect(available, self.offset, self.expanded))
+        self.setGeometry(*tab_rect(available, self.offset, self.expanded, self.expanded_size()))
         self.update()
 
     def _set_expanded(self, expanded):
+        self.hover_timer.stop()
         if self.expanded != expanded:
             self.expanded = expanded
             self.place()
@@ -211,6 +240,7 @@ class DropTab(QWidget):
     # Clicking and moving the tab ----------------------------------------
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
+            self.hover_timer.stop()
             self.press_y = event.globalPosition().y()
             self.press_offset = self.offset
             self.moved = False
@@ -231,15 +261,25 @@ class DropTab(QWidget):
         self.press_y = None
         if self.moved:
             self.settings.setValue("drop_tab/offset", self.offset)
-        else:
+        elif self.expanded:
             self.open_paths()
+        else:
+            # A click on the slim tab shows what it is; a click on the panel opens the app.
+            self._set_expanded(True)
 
     def enterEvent(self, event):
         self.hovered = True
+        self.collapse_timer.stop()
+        if not self.expanded:
+            self.hover_timer.start()
         self.update()
 
     def leaveEvent(self, event):
         self.hovered = False
+        self.hover_timer.stop()
+        if self.expanded and not self.opening:
+            # Growing the panel can send a brief leave/enter pair; the delay absorbs it.
+            self.collapse_timer.start(300)
         self.update()
 
     def contextMenuEvent(self, event):
@@ -267,16 +307,21 @@ class DropTab(QWidget):
         background = QColor(palette.window().color())
         background.setAlpha(245)
         painter.fillPath(path, background)
-        pen = QPen(accent, 2, Qt.PenStyle.SolidLine if self.opening else Qt.PenStyle.DashLine)
-        painter.setPen(pen)
+        # A smooth solid border: accent while a file is over the tab, quieter otherwise.
+        border = QColor(accent) if (self.opening or not self.hovered) else QColor(palette.mid().color())
+        painter.setPen(QPen(border, 1.5))
         painter.drawPath(path)
-        icon_size = 48
-        icon_top = 22
-        app_icon().paint(painter, int((self.width() - icon_size) / 2), icon_top, icon_size, icon_size)
+        app_icon().paint(painter, int((self.width() - ICON_SIZE) / 2), TOP_PAD, ICON_SIZE, ICON_SIZE)
+        centre = Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop
+        text_top = TOP_PAD + ICON_SIZE + ICON_GAP
+        line = QFontMetrics(self.font()).lineSpacing()
         painter.setPen(palette.windowText().color())
-        text = "Opening…" if self.opening else "Drop to open in\nComic Stitcher"
-        painter.drawText(QRectF(8, icon_top + icon_size + 8, self.width() - 16, 48),
-                         Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop, text)
+        painter.drawText(QRectF(0, text_top, self.width(), 2 * line), centre,
+                         OPENING_TEXT if self.opening else MAIN_TEXT)
+        if self.hovered and not self.opening:
+            painter.setFont(self._hint_font())
+            painter.setPen(palette.placeholderText().color())
+            painter.drawText(QRectF(0, text_top + 2 * line + HINT_GAP, self.width(), line), centre, HINT_TEXT)
 
 
 def build_menu(tab, app):

@@ -14,7 +14,7 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from .drop_tab import DropTab, DropTabControl, local_paths
-from .drop_tab_support import COLLAPSED_SIZE, EXPANDED_SIZE
+from .drop_tab_support import COLLAPSED_SIZE
 
 
 def mime_for(*urls):
@@ -73,7 +73,7 @@ class DropTabTests(unittest.TestCase):
         self.assertEqual((self.tab.width(), self.tab.height()), COLLAPSED_SIZE)
         self.assertTrue(drag_enter(self.tab, mime_for("/comics/one.cbz")).isAccepted())
         self.assertTrue(self.tab.expanded)
-        self.assertEqual((self.tab.width(), self.tab.height()), EXPANDED_SIZE)
+        self.assertEqual((self.tab.width(), self.tab.height()), self.tab.expanded_size())
         self.tab.dragLeaveEvent(None)
         self.assertTrue(wait_for(lambda: not self.tab.expanded))
 
@@ -84,9 +84,32 @@ class DropTabTests(unittest.TestCase):
         self.assertTrue(wait_for(lambda: self.opened))
         self.assertEqual(self.opened, [[Path("/comics/one.cbz"), Path("/comics/two folder")]])
 
-    def test_click_opens_comic_stitcher_without_files(self):
+    def test_first_click_explains_second_click_opens(self):
         QTest.mouseClick(self.tab, Qt.MouseButton.LeftButton, pos=QPoint(4, 40))
+        self.assertTrue(self.tab.expanded)
+        self.assertEqual(self.opened, [])
+        QTest.mouseClick(self.tab, Qt.MouseButton.LeftButton, pos=QPoint(20, 40))
         self.assertEqual(self.opened, [[]])
+
+    def test_hover_expands_after_a_delay_and_leaving_collapses(self):
+        self.tab.hover_timer.setInterval(30)
+        self.tab.enterEvent(None)
+        self.assertFalse(self.tab.expanded)
+        self.assertTrue(wait_for(lambda: self.tab.expanded))
+        self.tab.leaveEvent(None)
+        self.assertTrue(wait_for(lambda: not self.tab.expanded))
+
+    def test_leaving_before_the_delay_keeps_it_slim(self):
+        self.tab.hover_timer.setInterval(30)
+        self.tab.enterEvent(None)
+        self.tab.leaveEvent(None)
+        self.assertFalse(wait_for(lambda: self.tab.expanded, seconds=0.2))
+
+    def test_panel_is_fitted_to_its_content(self):
+        width, height = self.tab.expanded_size()
+        self.assertLess(width, 220)
+        self.assertGreater(width, 48 * 1.5 - 1)
+        self.assertGreater(height, 48)
 
     def test_dragging_the_tab_moves_and_remembers_it(self):
         start = self.tab.offset

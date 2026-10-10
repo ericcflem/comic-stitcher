@@ -65,7 +65,7 @@ At the last comic's confirmation, start exports directly or choose **Review batc
 The optional drop tab is a slim strip on the right edge of the screen, a little below the corner. Drag a comic, PDF or folder onto it and the tab slides out; let go and the comic opens in Comic Stitcher, or joins the window that is already open. You never need to arrange windows to reach the drop zone.
 
 * **Turn it on:** tick **Show a drop tab on the right edge of the screen** in the installer, or run `ComicStitcher.exe --drop-tab` (`python launch.py --drop-tab` from source).
-* **Use it:** click the tab to open Comic Stitcher, drag it up or down to move it, and right-click it (or its tray icon) to choose **Start when I sign in** or **Close drop tab**.
+* **Use it:** rest the mouse on the tab for a second, or click it, to see what it is; click the open panel to start Comic Stitcher. Drag the tab up or down to move it, and right-click it (or its tray icon) to choose **Start when I sign in** or **Close drop tab**.
 * **Linux:** on Wayland the tab runs through XWayland, because Wayland does not let ordinary windows stay pinned to a screen edge. Ubuntu may need the `libxcb-cursor0` package for that.
 
 ### PDF Processing
