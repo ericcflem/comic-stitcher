@@ -35,6 +35,8 @@ BOTTOM_PAD = 14
 MAIN_TEXT = "Drop to open in\nComic Stitcher"
 OPENING_TEXT = "Opening…"
 HINT_TEXT = "or click to open"
+OPENING_SHOWN_MS = 900  # How long "Opening…" shows after a drop.
+WATCH_INTERVAL_MS = 400  # How often an open panel checks the pointer is still over it.
 QUIT_MESSAGE = b"quit\n"
 SHOW_MESSAGE = b"show\n"
 
@@ -158,6 +160,16 @@ class DropTab(QWidget):
         self.collapse_timer = QTimer(self)
         self.collapse_timer.setSingleShot(True)
         self.collapse_timer.timeout.connect(self._collapse)
+        self.opening_timer = QTimer(self)
+        self.opening_timer.setSingleShot(True)
+        self.opening_timer.setInterval(OPENING_SHOWN_MS)
+        self.opening_timer.timeout.connect(self._opening_done)
+        # A safety net: an open panel closes once the pointer is gone, even if a
+        # "mouse left" signal was missed (menus and other windows can swallow it).
+        self.watch_timer = QTimer(self)
+        self.watch_timer.setInterval(WATCH_INTERVAL_MS)
+        self.watch_timer.timeout.connect(self._watch_pointer)
+        self.drag_over = False
         self.hover_timer = QTimer(self)
         self.hover_timer.setSingleShot(True)
         self.hover_timer.setInterval(self.hover_delay)
@@ -241,6 +253,10 @@ class DropTab(QWidget):
 
     def _set_expanded(self, expanded):
         self.hover_timer.stop()
+        if expanded:
+            self.watch_timer.start()
+        else:
+            self.watch_timer.stop()
         if self.expanded != expanded:
             self.expanded = expanded
             self.place()
@@ -249,20 +265,38 @@ class DropTab(QWidget):
         return self.frameGeometry().contains(QCursor.pos())
 
     def _collapse(self):
-        if self.expanded and not self.opening and self._pointer_inside():
+        if self.opening:
+            return  # "Opening…" finishes on its own timer.
+        if self.expanded and self._pointer_inside():
             # Windows can report a "leave" when the panel grows under the pointer,
             # most noticeably on the first reveal. Keep it open and check again shortly.
             self.collapse_timer.start(300)
             return
-        self.opening = False
         self._set_expanded(False)
+
+    def _opening_done(self):
+        self.opening = False
+        self.update()
+        self._watch_pointer()
+
+    def _watch_pointer(self):
+        if not self.expanded:
+            self.watch_timer.stop()
+            return
+        if self.opening or self.drag_over or self.press_y is not None:
+            return
+        if not self._pointer_inside():
+            self.collapse_timer.stop()
+            self._set_expanded(False)
 
     # Dragging files ------------------------------------------------------
     def dragEnterEvent(self, event):
         if local_paths(event.mimeData()):
             event.acceptProposedAction()
             self.collapse_timer.stop()
+            self.opening_timer.stop()
             self.opening = False
+            self.drag_over = True
             if not self.expanded:
                 self._expand(self.mapToGlobal(event.position().toPoint()).y())
         else:
@@ -275,6 +309,7 @@ class DropTab(QWidget):
             event.ignore()
 
     def dragLeaveEvent(self, event):
+        self.drag_over = False
         # A short delay absorbs the leave/enter pair some platforms send when the tab grows.
         self.collapse_timer.start(150)
 
@@ -284,16 +319,19 @@ class DropTab(QWidget):
             event.ignore()
             return
         event.acceptProposedAction()
+        self.drag_over = False
         self.opening = True
         self.update()
         # Windows Explorer waits for dropEvent to return before ending its drag.
         QTimer.singleShot(0, lambda: self.open_paths(paths))
-        self.collapse_timer.start(900)
+        # Not tied to mouse movement, so nothing the pointer does can cancel it.
+        self.opening_timer.start()
 
     def hide_tab(self):
-        self.hover_timer.stop()
-        self.collapse_timer.stop()
+        for timer in (self.hover_timer, self.collapse_timer, self.opening_timer, self.watch_timer):
+            timer.stop()
         self.opening = False
+        self.drag_over = False
         self.expanded = False
         self.hide()
 
@@ -355,7 +393,7 @@ class DropTab(QWidget):
     def leaveEvent(self, event):
         self.hovered = False
         self.hover_timer.stop()
-        if self.expanded and not self.opening:
+        if self.expanded:
             # Growing the panel can send a brief leave/enter pair; the delay absorbs it.
             self.collapse_timer.start(300)
         self.update()
@@ -363,6 +401,7 @@ class DropTab(QWidget):
     def contextMenuEvent(self, event):
         if self.menu is not None:
             self.menu.exec(event.globalPos())
+            self._watch_pointer()  # Close straight away if the menu was dismissed elsewhere.
 
     # Drawing -------------------------------------------------------------
     def paintEvent(self, event):

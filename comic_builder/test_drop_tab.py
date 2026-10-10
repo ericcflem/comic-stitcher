@@ -85,6 +85,29 @@ class DropTabTests(unittest.TestCase):
         self.assertTrue(wait_for(lambda: self.opened))
         self.assertEqual(self.opened, [[Path("/comics/one.cbz"), Path("/comics/two folder")]])
 
+    def test_mouse_returning_after_a_drop_does_not_leave_it_stuck_open(self):
+        self.tab.opening_timer.setInterval(30)
+        data = mime_for("/comics/one.pdf")
+        drag_enter(self.tab, data)
+        drop(self.tab, data)
+        with patch.object(self.tab, "_pointer_inside", lambda: False):
+            # Opening a right-click menu and dismissing it sends enter and leave events.
+            self.tab.enterEvent(None)
+            self.tab.leaveEvent(None)
+            self.tab.enterEvent(None)
+            self.assertTrue(wait_for(lambda: not self.tab.expanded, seconds=2))
+        self.assertFalse(self.tab.opening)
+
+    def test_open_panel_closes_when_pointer_is_gone_even_without_a_leave(self):
+        self.tab._expand()
+        with patch.object(self.tab, "_pointer_inside", lambda: False):
+            self.assertTrue(wait_for(lambda: not self.tab.expanded, seconds=2))
+
+    def test_open_panel_stays_while_pointer_is_over_it(self):
+        self.tab._expand()
+        with patch.object(self.tab, "_pointer_inside", lambda: True):
+            self.assertFalse(wait_for(lambda: not self.tab.expanded, seconds=1))
+
     def test_first_click_explains_second_click_opens(self):
         QTest.mouseClick(self.tab, Qt.MouseButton.LeftButton, pos=QPoint(4, 40))
         self.assertTrue(self.tab.expanded)
