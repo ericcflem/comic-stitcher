@@ -1,0 +1,27 @@
+{
+  "review_date_utc": "2026-10-09",
+  "runtime_version": "14.51.36247.0",
+  "runtime_sha256": "843068991daaa1f73ad9f6239bce4d0f6a07a51f18c37ea2a867e9beca71295c",
+  "official_download": "https://aka.ms/vc14/vc_redist.x64.exe",
+  "reviewed_download_url": "https://download.visualstudio.microsoft.com/download/pr/ebdab8e5-1d7b-4d9f-a11b-cbb1720c3b12/843068991DAAA1F73AD9F6239BCE4D0F6A07A51F18C37EA2A867E9BECA71295C/VC_redist.x64.exe",
+  "license_url_in_bootstrapper": "https://aka.ms/VCRedistLicense",
+  "resolved_license_page": "https://visualstudio.microsoft.com/license-terms/vs2026-ga-visualcpp-v14-redist-runtime/",
+  "official_license_document": "https://visualstudio.microsoft.com/wp-content/uploads/2025/10/Visual-C-V14-License-Redistributable_and_Runtime_ENU.docx",
+  "eula_id": "Cpp_v14_ENU.1033",
+  "document_last_updated": "October 1, 2025",
+  "bootstrap_cab_offset": 479744,
+  "bootstrap_payload_hashes": {
+    "0": "e82e62b82a1b09568e74a224c454bdcd41240b9f24cfc42fb2c5e0783345af7f",
+    "u17": "0af0673e1f3ca87701e3c00d5ff004fccb00e2a983df1d72671c429cfef7f3c5",
+    "u2": "21a76eb702fe727ca06de6632be2294ed1caa9e1d3798d01ed1428e0f40e19ea"
+  },
+  "basis": "Downloaded EXE matches the retained Windows-verified signature/hash record. Its bootstrapper links to the online EULA; no embedded agreement text was claimed. Official linked document retained with a paragraph transcription.",
+  "windows_terms_ui_validation": "Reported passed by Eric on regular account and VM; latest supplied installed payload comparison passed 625 files. That earlier report does not verify this later review-package build.",
+  "legal_certification": false,
+  "files": {
+    "assets/licenses/microsoft/Runtime-LICENSE.docx": "08651651a7602fc7c0e2763de0fde1ff9f868df2780597cd1775ee9d6441c783",
+    "assets/licenses/microsoft/Runtime-LICENSE.txt": "9db77189d3ff582c6ca4e90ca09dae2b96283679535b16feeffd268f6f8813c1",
+    "installer/component-terms.txt": "1551d0cdd2a6d5cee97bd01de233f4095ba4212bc5a301021ca9f87954396499",
+    "audit/microsoft-runtime/bootstrapper-findings.json": "3fe649faba8d1bf3444e493a47f0a63622ae3f466d1906688f2623adbb57ec72"
+  }
+}

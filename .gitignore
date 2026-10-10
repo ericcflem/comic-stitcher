@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.venv*/
+.ruff_cache/
+.pytest_cache/
+release-wheelhouse/
+dist/
+build/
+installer_dist/
+runtime-integration/
+*.log
+vendor/microsoft/
+third_party_sources/*.tar.*
+vendor/unrar.exe

@@ -1,0 +1,29 @@
+{
+  "runtime_sha256": "843068991daaa1f73ad9f6239bce4d0f6a07a51f18c37ea2a867e9beca71295c",
+  "cab_offset": 479744,
+  "facts": [
+    {
+      "element": "WixBundleProperties",
+      "attributes": {
+        "DisplayName": "Microsoft Visual C++ v14 Redistributable (x64) - 14.51.36247",
+        "LogPathVariable": "WixBundleLog",
+        "Compressed": "yes",
+        "Id": "{0e3bb569-69d6-4c34-bff9-c2f81db5e5f0}",
+        "UpgradeCode": "{C146EF48-4D31-3C3D-A2C5-1E91AF8A0A9B}",
+        "PerMachine": "yes"
+      }
+    },
+    {
+      "element": "WixStdbaInformation",
+      "attributes": {
+        "LicenseUrl": "https://aka.ms/VCRedistLicense"
+      }
+    }
+  ],
+  "payload_sha256": {
+    "0": "e82e62b82a1b09568e74a224c454bdcd41240b9f24cfc42fb2c5e0783345af7f",
+    "u17": "0af0673e1f3ca87701e3c00d5ff004fccb00e2a983df1d72671c429cfef7f3c5",
+    "u2": "21a76eb702fe727ca06de6632be2294ed1caa9e1d3798d01ed1428e0f40e19ea"
+  },
+  "method": "Read exact EXE CAB without executing it; full extracted XML/theme are not redistributed. Reproduce with verify_microsoft_terms.py --runtime PATH."
+}

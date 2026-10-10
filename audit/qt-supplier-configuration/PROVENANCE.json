@@ -1,0 +1,202 @@
+{
+  "basis": "Official SDK generated headers/configuration. Five Qt DLLs have exactly matching raw PE section bytes in the pinned PySide wheel; complete file hashes differ. No claim of complete compiler cache or all supplier patches.",
+  "supplier_url": "https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_6112/qt6_6112_msvc2022_64/qt.qt6.6112.win64_msvc2022_64/6.11.2-0-202608131017qtbase-Windows-Windows_11_24H2-MSVC2022-Windows-Windows_11_24H2-X86_64.7z",
+  "sdk_archive_sha256": "fd984b7264361b4dd3fd2a417702ca1258e4086268f2ee6a69b9a393d9c3f6bb",
+  "sdk_archive_bytes": 39618573,
+  "section_comparison": [
+    {
+      "name": "Qt6Core.dll",
+      "matches_raw_sections": true,
+      "matching_sections": [
+        ".text",
+        ".rdata",
+        ".data",
+        ".pdata",
+        ".qtmimed",
+        ".rsrc",
+        ".reloc"
+      ],
+      "different_sections": [],
+      "sdk_sections": {
+        ".text": "7d78b6f31bb4cd640bd84855c960083421d35705345af62228d0444e49ba2592",
+        ".rdata": "1624ef0128dac3b5865ae2d3d04ba2e4b862ea390bb379de2388905920f332a5",
+        ".data": "27593cdfb0c96101271e2fe5e3afa061cbe1d21df92ae56977a9f9e95f6997df",
+        ".pdata": "27d4a46b84b85f57fab1501646eb4f092bd9d18c8c3c5aba6463dde09e3ebfa7",
+        ".qtmimed": "8bba7c4f9fb9a7d8380a28e4efb16051c8e71f5ad7465acc7e5a4b5b6350ed17",
+        ".rsrc": "3d548561a6b942ca9e9006cf9412a6f5f35b120cb25c5d793d94482981ddc519",
+        ".reloc": "6e2609476f5b2705452ff0bbf5085454781a6e8a447903c3a336112805b16e87"
+      },
+      "wheel_sections": {
+        ".text": "7d78b6f31bb4cd640bd84855c960083421d35705345af62228d0444e49ba2592",
+        ".rdata": "1624ef0128dac3b5865ae2d3d04ba2e4b862ea390bb379de2388905920f332a5",
+        ".data": "27593cdfb0c96101271e2fe5e3afa061cbe1d21df92ae56977a9f9e95f6997df",
+        ".pdata": "27d4a46b84b85f57fab1501646eb4f092bd9d18c8c3c5aba6463dde09e3ebfa7",
+        ".qtmimed": "8bba7c4f9fb9a7d8380a28e4efb16051c8e71f5ad7465acc7e5a4b5b6350ed17",
+        ".rsrc": "3d548561a6b942ca9e9006cf9412a6f5f35b120cb25c5d793d94482981ddc519",
+        ".reloc": "6e2609476f5b2705452ff0bbf5085454781a6e8a447903c3a336112805b16e87"
+      }
+    },
+    {
+      "name": "Qt6Gui.dll",
+      "matches_raw_sections": true,
+      "matching_sections": [
+        ".text",
+        ".rdata",
+        ".data",
+        ".pdata",
+        "_RDATA",
+        ".rsrc",
+        ".reloc"
+      ],
+      "different_sections": [],
+      "sdk_sections": {
+        ".text": "32d17b499ae5a589910b9645f8aa48ed460ec982274542ef686d434edf48860c",
+        ".rdata": "dafde7cf83da5069d603f3044e2a64534d5a0fbe7af227d3b4fa4d450dc0f64d",
+        ".data": "5955f4b645f2923e39d76c3eae1b0041b1919611323f97ecad98c5d34e2b9848",
+        ".pdata": "5e58b19e78e4e38960184878ffbeddc4c92288be4f36c46ea01fc36a0a0e983d",
+        "_RDATA": "07ece48289db544c44faf74a6e85d8668adee8b0bbc7b702043079d3adab5556",
+        ".rsrc": "4f99c181e6ad671d4765bb589bf1fe422770c3482821eecbdc72cbbc1abbefe9",
+        ".reloc": "36882cb1a6aec19f83adedb5a13d92dbe8de8a5e59e857192347b75e2e5d7bda"
+      },
+      "wheel_sections": {
+        ".text": "32d17b499ae5a589910b9645f8aa48ed460ec982274542ef686d434edf48860c",
+        ".rdata": "dafde7cf83da5069d603f3044e2a64534d5a0fbe7af227d3b4fa4d450dc0f64d",
+        ".data": "5955f4b645f2923e39d76c3eae1b0041b1919611323f97ecad98c5d34e2b9848",
+        ".pdata": "5e58b19e78e4e38960184878ffbeddc4c92288be4f36c46ea01fc36a0a0e983d",
+        "_RDATA": "07ece48289db544c44faf74a6e85d8668adee8b0bbc7b702043079d3adab5556",
+        ".rsrc": "4f99c181e6ad671d4765bb589bf1fe422770c3482821eecbdc72cbbc1abbefe9",
+        ".reloc": "36882cb1a6aec19f83adedb5a13d92dbe8de8a5e59e857192347b75e2e5d7bda"
+      }
+    },
+    {
+      "name": "Qt6Network.dll",
+      "matches_raw_sections": true,
+      "matching_sections": [
+        ".text",
+        ".rdata",
+        ".data",
+        ".pdata",
+        ".rsrc",
+        ".reloc"
+      ],
+      "different_sections": [],
+      "sdk_sections": {
+        ".text": "80a1702406c296bbab5bb8650ad2108eaa2c824a0bcad19487b019817c393841",
+        ".rdata": "b69c12b2b4e82f916736b0a998ae909174b73aff55b33317c0e1c9f1b442ddc5",
+        ".data": "8a95729572eb40dc2210996b231c4cccd2dfca9e8160ecee3dc3ccc2d06b9397",
+        ".pdata": "10e9faa46adfdcfb9dd94a923dd248ffec66c8e1156138e37d2d478c4ae8374a",
+        ".rsrc": "25245c56242e3497b945f23df8c3157550b1fbc75ec93cca67c888319967a6ed",
+        ".reloc": "725e8301aa3b010abf2461f5a1f2b88a3f3f8bdd0550a1c56f79c38237da3581"
+      },
+      "wheel_sections": {
+        ".text": "80a1702406c296bbab5bb8650ad2108eaa2c824a0bcad19487b019817c393841",
+        ".rdata": "b69c12b2b4e82f916736b0a998ae909174b73aff55b33317c0e1c9f1b442ddc5",
+        ".data": "8a95729572eb40dc2210996b231c4cccd2dfca9e8160ecee3dc3ccc2d06b9397",
+        ".pdata": "10e9faa46adfdcfb9dd94a923dd248ffec66c8e1156138e37d2d478c4ae8374a",
+        ".rsrc": "25245c56242e3497b945f23df8c3157550b1fbc75ec93cca67c888319967a6ed",
+        ".reloc": "725e8301aa3b010abf2461f5a1f2b88a3f3f8bdd0550a1c56f79c38237da3581"
+      }
+    },
+    {
+      "name": "Qt6OpenGL.dll",
+      "matches_raw_sections": true,
+      "matching_sections": [
+        ".text",
+        ".rdata",
+        ".data",
+        ".pdata",
+        ".rsrc",
+        ".reloc"
+      ],
+      "different_sections": [],
+      "sdk_sections": {
+        ".text": "77bb41f1151c249140ea3f9bd4f446129ab8787a8ca8abe85363ba85d0711eec",
+        ".rdata": "6d7aa44698591ce064299b3c504303e79ee90ef50a2d9291321eef823fea7329",
+        ".data": "b39e240ca231b888d001c48443e78b4ce9d9a5f1afb297c66316f524e29e9b6a",
+        ".pdata": "3fc3662089d7e87a0d8b0df130545aee0dfedceee03915364591be66da18333a",
+        ".rsrc": "a94138ff51926c940f27500486c78bda27a5a17573a70790f9d06967bf4eda7c",
+        ".reloc": "d1e685c61cd46b1fa62008a3b1d2c2688a0b4cbe63460a83ad9bc08075f704ed"
+      },
+      "wheel_sections": {
+        ".text": "77bb41f1151c249140ea3f9bd4f446129ab8787a8ca8abe85363ba85d0711eec",
+        ".rdata": "6d7aa44698591ce064299b3c504303e79ee90ef50a2d9291321eef823fea7329",
+        ".data": "b39e240ca231b888d001c48443e78b4ce9d9a5f1afb297c66316f524e29e9b6a",
+        ".pdata": "3fc3662089d7e87a0d8b0df130545aee0dfedceee03915364591be66da18333a",
+        ".rsrc": "a94138ff51926c940f27500486c78bda27a5a17573a70790f9d06967bf4eda7c",
+        ".reloc": "d1e685c61cd46b1fa62008a3b1d2c2688a0b4cbe63460a83ad9bc08075f704ed"
+      }
+    },
+    {
+      "name": "Qt6Widgets.dll",
+      "matches_raw_sections": true,
+      "matching_sections": [
+        ".text",
+        ".rdata",
+        ".data",
+        ".pdata",
+        ".rsrc",
+        ".reloc"
+      ],
+      "different_sections": [],
+      "sdk_sections": {
+        ".text": "5b56a5b51e7f9b6a15b95d402813e784d163d7eb33bfa1d5674bfa5f9e761979",
+        ".rdata": "60ecaab81eb0a7049eec87059d3730082183ea51f1d8e6272fe662cc6fe25a8c",
+        ".data": "fd28e26510169d300fd00b7228d78439e90a0bd7bed83fc8ec14288b2e91577f",
+        ".pdata": "eb368e27dace583def2b553854f7612cda51a9f730b84c73d5f433bc72ad9657",
+        ".rsrc": "6029cdb19c89096e159158e1ff102a215ca11167b24df44f5b1f3c6763a784d2",
+        ".reloc": "e75de3ef9b16d5f478238a064540c3f086b8b46b7675ed0e5881e42bae59f5e2"
+      },
+      "wheel_sections": {
+        ".text": "5b56a5b51e7f9b6a15b95d402813e784d163d7eb33bfa1d5674bfa5f9e761979",
+        ".rdata": "60ecaab81eb0a7049eec87059d3730082183ea51f1d8e6272fe662cc6fe25a8c",
+        ".data": "fd28e26510169d300fd00b7228d78439e90a0bd7bed83fc8ec14288b2e91577f",
+        ".pdata": "eb368e27dace583def2b553854f7612cda51a9f730b84c73d5f433bc72ad9657",
+        ".rsrc": "6029cdb19c89096e159158e1ff102a215ca11167b24df44f5b1f3c6763a784d2",
+        ".reloc": "e75de3ef9b16d5f478238a064540c3f086b8b46b7675ed0e5881e42bae59f5e2"
+      }
+    }
+  ],
+  "configuration_files": [
+    {
+      "path": "include/QtXml/qtxml-config.h",
+      "sha256": "18f96b7db53d9896faa0665852a3f0d6cb737179dd46248409e6ea5dab1af40c"
+    },
+    {
+      "path": "include/QtWidgets/qtwidgets-config.h",
+      "sha256": "1cfe20dd58ab5b99fe991704747cc8c73106282f2a02e2a5149d0d9910c1eeb3"
+    },
+    {
+      "path": "include/QtTest/qttestlib-config.h",
+      "sha256": "734f70b24a2a9a263e236293f2a8e7c7a63c7ffe089bf70e5cf66ed93155e5a8"
+    },
+    {
+      "path": "include/QtSql/qtsql-config.h",
+      "sha256": "d98abb2f587de30e9222f7ac599c092440f56008995950b98498408764b63d82"
+    },
+    {
+      "path": "include/QtPrintSupport/qtprintsupport-config.h",
+      "sha256": "689c3a0c97838c170847b621e040a90ec444f20e666404cea8d2704763e46cf1"
+    },
+    {
+      "path": "include/QtNetwork/qtnetwork-config.h",
+      "sha256": "962b6bc37cbd7d3baa01059f9940a08bb478e3efe02a445b057f29fd4b745b2d"
+    },
+    {
+      "path": "include/QtGui/qtgui-config.h",
+      "sha256": "3e16e51d0e5fb3e5cf8ba442b0fe532e58bebeab06ede1544f1e6ed2dd767c29"
+    },
+    {
+      "path": "include/QtCore/qconfig.h",
+      "sha256": "ab7be4924aeedc09b6a5d18642bbcbb4a80f7d428e8a7fb3425dcbe99ff01b27"
+    },
+    {
+      "path": "include/QtCore/qtcore-config.h",
+      "sha256": "bb855fef6cdd7364b0546768f99bb8f723611e35ab8036f79a9c2ac44df63511"
+    },
+    {
+      "path": "mkspecs/qconfig.pri",
+      "sha256": "709a167ec64027dfeba7ddbd3429dc39a497a3b84cb6861460df3990616991e1"
+    }
+  ],
+  "release_clearance": false
+}

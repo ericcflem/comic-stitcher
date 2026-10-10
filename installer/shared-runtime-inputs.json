@@ -1,0 +1,63 @@
+{
+  "minimum_runtime_version": "14.44.35211.0",
+  "runtime_files": [
+    {
+      "path": "_internal/numpy.libs/msvcp140-a4c2229bdc2a2a630acdc095b4d86008.dll",
+      "sha256": "a4c2229bdc2a2a630acdc095b4d86008e5c3e3bc7773174354f3da4f5beb9cde"
+    },
+    {
+      "path": "_internal/PySide6/MSVCP140.dll",
+      "sha256": "4c667b706893593812cd111b369ba6a77f54d1f1b1ae87cf3bf37692663cfba2"
+    },
+    {
+      "path": "_internal/PySide6/MSVCP140_1.dll",
+      "sha256": "d419d24b0a76366f5c9d908b0e45fe70e9e9154bb8ad5f3de42070f2337f857b"
+    },
+    {
+      "path": "_internal/PySide6/MSVCP140_2.dll",
+      "sha256": "89917964abb6ca16a260cab258e180c3abc239b5af00eed659d0edf0efdd339c"
+    },
+    {
+      "path": "_internal/PySide6/VCRUNTIME140.dll",
+      "sha256": "f893ae75a1a24eea174d982f94bc80ce2448201eaa919a73c0653a5657685de4"
+    },
+    {
+      "path": "_internal/PySide6/VCRUNTIME140_1.dll",
+      "sha256": "48aa2783793ea18ab3c2c71d420d4fff9814e662a1ff810053c6e5250061a716"
+    },
+    {
+      "path": "_internal/shiboken6/MSVCP140.dll",
+      "sha256": "fd4a8c046fa3fea9ca6132f50cf8a56cf1e783b2d3093ba5c85fa063bc6b3845"
+    },
+    {
+      "path": "_internal/shiboken6/VCRUNTIME140.dll",
+      "sha256": "de617641d82eac15595d2e39394163ac33e49bb032cf2c2ea0044ed39d3675e9"
+    },
+    {
+      "path": "_internal/shiboken6/VCRUNTIME140_1.dll",
+      "sha256": "fa577d54bd10a91e52472da784a619da6cf241af45f0a0c48b27e91fa0fe6104"
+    },
+    {
+      "path": "_internal/VCRUNTIME140.dll",
+      "sha256": "052ad6a20d375957e82aa6a3c441ea548d89be0981516ca7eb306e063d5027f4"
+    },
+    {
+      "path": "_internal/VCRUNTIME140_1.dll",
+      "sha256": "6a99bc0128e0c7d6cbbf615fcc26909565e17d4ca3451b97f8987f9c6acbc6c8"
+    }
+  ],
+  "numpy_consumers": [
+    {
+      "path": "_internal/numpy/_core/_multiarray_umath.cp314-win_amd64.pyd",
+      "sha256": "b95589a363451f9695640b8f177dc07b71c845be81f2df6d1ee1c680797912af",
+      "patched_sha256": "da9dd31cda89b90a9364d2117e8831cc657d676a30ca640599ac5ab6fa5d9000"
+    },
+    {
+      "path": "_internal/numpy/fft/_pocketfft_umath.cp314-win_amd64.pyd",
+      "sha256": "33e546545a830506c9fde2ea7c389fecbf1c1bb32609a6ff9967661557c923d9",
+      "patched_sha256": "3d2ee595bba9065a66f0f221dddc585dc7d0004f6067bcb699760db67a732bb2"
+    }
+  ],
+  "renamed_import": "msvcp140-a4c2229bdc2a2a630acdc095b4d86008.dll",
+  "standard_import": "MSVCP140.dll"
+}

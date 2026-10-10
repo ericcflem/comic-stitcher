@@ -1,0 +1,2 @@
+# Developer-only lint tool; not bundled with the application.
+ruff==0.16.10

@@ -1,0 +1,17 @@
+Comic Stitcher uses Qt and Qt for Python (PySide6/Shiboken6) under LGPLv3.
+Qt copyright belongs to The Qt Company Ltd. and other contributors.
+The full GPLv3 and LGPLv3 license texts accompany this notice.
+
+You may replace the LGPL libraries and reverse engineer for debugging
+modifications to those libraries, subject to their applicable license terms.
+Matching versions are recorded in licenses/build-inventory.json.
+
+Matching library sources and replacement information are described in
+SOURCE_ACCESS.md and REBUILDING_AND_REPLACING_LIBRARIES.md in the application
+folder. SOURCE_ACCESS.md identifies the versioned matching source download.
+The source package includes the selected complete library archives, build
+instructions and component notices. Preserve matching source access and
+native component notices when redistributing the application.
+
+Official guidance:
+https://www.qt.io/development/open-source-lgpl-obligations

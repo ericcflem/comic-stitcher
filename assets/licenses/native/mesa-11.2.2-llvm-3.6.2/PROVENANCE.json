@@ -1,0 +1,27 @@
+{
+  "scope": "Version-specific source notices for software renderer shipped in the pinned official PySide6 Essentials wheel. Source strings establish Mesa/LLVM versions, not every compiler option or incorporated file. Conservative supplementary notices retained; exact supplier configuration remains unverified.",
+  "dll_sha256": "34b444c016289b560662ff896deceb7f4b2c0723aed3d319ae167c9186ce42b3",
+  "supplier_wheel": "pyside6_essentials-6.11.2-cp310-abi3-win_amd64.whl",
+  "supplier_wheel_sha256": "c8a29def77032773a30879f7f24415b5395ad08592d147c170824ef4c735dfc1",
+  "embedded_version_strings": [
+    "Mesa 11.2.2",
+    "llvm-mc (based on LLVM 3.6.2)"
+  ],
+  "sources": [
+    {
+      "url": "https://archive.mesa3d.org/older-versions/11.x/11.2.2/mesa-11.2.2.tar.xz",
+      "sha256": "40e148812388ec7c6d7b6657d5a16e2e8dabba8b97ddfceea5197947647bdfb4",
+      "size_bytes": 7860932,
+      "full_archive_in_release": false,
+      "reason": "Notice source; no blanket obligation to republish all permissive upstream source."
+    },
+    {
+      "url": "https://releases.llvm.org/3.6.2/llvm-3.6.2.src.tar.xz",
+      "sha256": "f60dc158bfda6822de167e87275848969f0558b3134892ff54fced87e4667b94",
+      "size_bytes": 12802380,
+      "full_archive_in_release": false,
+      "reason": "Notice source; no blanket obligation to republish all permissive upstream source."
+    }
+  ],
+  "public_release_clearance": false
+}
