@@ -201,7 +201,9 @@ class DropTabControl(QObject):
                 QCoreApplication.processEvents()
             time.sleep(.05)
         socket.write(message)
-        sent = socket.waitForBytesWritten(1000)
+        # On Windows a small write can finish at once, and then waitForBytesWritten
+        # reports False because nothing is left to wait for.
+        sent = socket.waitForBytesWritten(1000) or socket.bytesToWrite() == 0
         socket.disconnectFromServer()
         return sent
 
