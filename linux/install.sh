@@ -37,6 +37,25 @@ step() { printf '\n==> %s\n' "$*"; }
 warn() { printf 'Note: %s\n' "$*" >&2; }
 die()  { printf '\nError: %s\n' "$*" >&2; exit 1; }
 
+# Show a desktop notification, if the desktop offers them.
+notify() {
+    if command -v notify-send >/dev/null 2>&1; then
+        timeout 5 notify-send --app-name="Comic Stitcher" --icon=comic-stitcher "$1" "$2" >/dev/null 2>&1 || true
+    fi
+}
+
+# When the script ends, wait for Enter so a terminal window that closes on exit
+# (as when the script is started from Files) can't hide the result or an error.
+# shellcheck disable=SC2317  # Called by the EXIT trap.
+pause_before_closing() {
+    local status=$?
+    if [ "$ASSUME_YES" -eq 0 ] && [ -t 0 ] && [ -t 1 ]; then
+        printf '\n'
+        read -r -p "Press Enter to finish. " _ || true
+    fi
+    exit "$status"
+}
+
 # ask "Question?" Y|N  -> succeeds for yes.
 ask() {
     local question=$1 default=$2 reply
@@ -366,6 +385,7 @@ install_folder_menu() {
 }
 
 main() {
+    trap pause_before_closing EXIT
     while [ "$#" -gt 0 ]; do
         case "$1" in
             -y|--yes) ASSUME_YES=1 ;;
@@ -385,7 +405,8 @@ main() {
     write_desktop_entry
     install_folder_menu
 
-    step "Done"
+    step "Comic Stitcher was installed successfully."
+    notify "Comic Stitcher is installed" "Find it in your app menu, or right-click a comic and choose Open With."
     say "Start Comic Stitcher from your app menu (search for \"Comic Stitcher\"),"
     say "or right-click a comic and choose Open With > Comic Stitcher."
     say "To update later, download the new version and run its linux/install.sh again."

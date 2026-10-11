@@ -33,6 +33,25 @@ ASSUME_YES=0
 say() { printf '%s\n' "$*"; }
 die() { printf '\nError: %s\n' "$*" >&2; exit 1; }
 
+# Show a desktop notification, if the desktop offers them.
+notify() {
+    if command -v notify-send >/dev/null 2>&1; then
+        timeout 5 notify-send --app-name="Comic Stitcher" --icon=comic-stitcher "$1" "$2" >/dev/null 2>&1 || true
+    fi
+}
+
+# When the script ends, wait for Enter so a terminal window that closes on exit
+# (as when the script is started from Files) can't hide the result or an error.
+# shellcheck disable=SC2317  # Called by the EXIT trap.
+pause_before_closing() {
+    local status=$?
+    if [ "$ASSUME_YES" -eq 0 ] && [ -t 0 ] && [ -t 1 ]; then
+        printf '\n'
+        read -r -p "Press Enter to finish. " _ || true
+    fi
+    exit "$status"
+}
+
 ask() {
     local question=$1 reply
     if [ "$ASSUME_YES" -eq 1 ]; then return 0; fi
@@ -57,6 +76,7 @@ PY
 }
 
 main() {
+    trap pause_before_closing EXIT
     while [ "$#" -gt 0 ]; do
         case "$1" in
             --purge) PURGE=1 ;;
@@ -102,7 +122,12 @@ main() {
         say "Kept your settings ($USER_SETTINGS) and logs ($USER_DATA)."
         say "Run with --purge to remove those too."
     fi
-    say "Comic Stitcher has been uninstalled."
+    printf '\n==> %s\n' "Comic Stitcher was removed successfully."
+    if [ "$PURGE" -eq 1 ]; then
+        notify "Comic Stitcher was removed" "Its settings and logs were removed too."
+    else
+        notify "Comic Stitcher was removed" "Your settings were kept, in case you reinstall."
+    fi
 }
 
 main "$@"
