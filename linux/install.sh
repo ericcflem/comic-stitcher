@@ -192,8 +192,9 @@ check_system() {
 
 copy_app() {
     step "Copying Comic Stitcher to $APP"
-    [ -f "$SOURCE/launch.py" ] && [ -d "$SOURCE/comic_builder" ] && [ -f "$SOURCE/requirements.txt" ] \
-        || die "Run this script from inside the downloaded Comic Stitcher folder (it was run from $SOURCE)."
+    if [ ! -f "$SOURCE/launch.py" ] || [ ! -d "$SOURCE/comic_builder" ] || [ ! -f "$SOURCE/requirements.txt" ]; then
+        die "Run this script from inside the downloaded Comic Stitcher folder (it was run from $SOURCE)."
+    fi
     mkdir -p "$PREFIX"
     local stage="$PREFIX/app.new"
     rm -rf "$stage" "$PREFIX/app.old"

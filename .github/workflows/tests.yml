@@ -112,6 +112,7 @@ jobs:
 
       - name: Check the scripts with ShellCheck
         # Findings are shown as annotations on the pull request.
+        shell: bash
         run: >
           shellcheck -f gcc linux/install.sh linux/uninstall.sh linux/nautilus/open-in-comic-stitcher.sh
           | sed -E 's/^([^:]+):([0-9]+):([0-9]+): [a-z]+: (.*)$/::error file=\1,line=\2,col=\3::\4/'

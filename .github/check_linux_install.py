@@ -20,10 +20,17 @@ SETTINGS = Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config") / "ComicS
 failures = []
 
 
-def check(condition, message):
+def annotate(title, text):
+    """Show text on the pull request (GitHub workflow annotation)."""
+    text = text[-3000:].replace("%", "%25").replace("\r", "").replace("\n", "%0A")
+    print(f"::error title={title}::{text}")
+
+
+def check(condition, message, details=""):
     print(("ok    " if condition else "FAIL  ") + message)
     if not condition:
         failures.append(message)
+        annotate("Installer check failed", message + ("\n" + details if details else ""))
 
 
 def venv_python(code):
@@ -45,21 +52,22 @@ def installed():
     check("inode/directory" not in text, "desktop entry does not claim folders")
     result = subprocess.run(["desktop-file-validate", str(DESKTOP)], capture_output=True, text=True)
     print(result.stdout + result.stderr, end="")
-    check(result.returncode == 0, "desktop-file-validate passes")
+    check(result.returncode == 0, "desktop-file-validate passes", result.stdout + result.stderr)
 
     probe = venv_python(
         "import importlib.metadata as m, sys\n"
         "names = {d.metadata['Name'].lower() for d in m.distributions()}\n"
         "print('essentials' if 'pyside6-essentials' in names else 'no-essentials')\n"
         "print('addons' if 'pyside6-addons' in names else 'no-addons')\n")
-    check("essentials" in probe.stdout.split(), "PySide6-Essentials is installed")
+    check("essentials" in probe.stdout.split(), "PySide6-Essentials is installed", probe.stdout + probe.stderr)
     check("no-addons" in probe.stdout.split(), "the large PySide6-Addons package is not installed")
 
     plugins = list(VENV.glob("lib/python3*/site-packages/PySide6/Qt/plugins/platforms/*.so"))
     names = {plugin.name for plugin in plugins}
     print("Qt platform plugins:", ", ".join(sorted(names)) or "(none)")
-    check("libqxcb.so" in names, "the X11/XWayland plugin is present")
-    check(any(name.startswith("libqwayland") for name in names), "a native Wayland plugin is present")
+    check("libqxcb.so" in names, "the X11/XWayland plugin is present", ", ".join(sorted(names)))
+    check(any(name.startswith("libqwayland") for name in names), "a native Wayland plugin is present",
+          ", ".join(sorted(names)))
 
     start = venv_python(
         "import sys; sys.path.insert(0, sys.argv[1])\n"
@@ -69,7 +77,7 @@ def installed():
         "window = ComicWindow(); window.show(); app.processEvents(); window.close()\n"
         "print('started')\n")
     print(start.stdout + start.stderr, end="")
-    check("started" in start.stdout, "the installed app starts with the trimmed Qt")
+    check("started" in start.stdout, "the installed app starts with the trimmed Qt", start.stdout + start.stderr)
 
 
 def removed():
