@@ -47,7 +47,7 @@ remove_if_ours() {
 }
 
 forget_comicvine_key() {
-    [ -x "$VENV/bin/python" ] && [ -d "$APP/comic_builder" ] || return 0
+    if [ ! -x "$VENV/bin/python" ] || [ ! -d "$APP/comic_builder" ]; then return 0; fi
     "$VENV/bin/python" - "$APP" <<'PY' || true
 import sys
 sys.path.insert(0, sys.argv[1])

@@ -241,6 +241,7 @@ write_launcher() {
         printf '# Starts Comic Stitcher. Written by %s; re-run it to update.\n' "$MARKER"
         printf '# Matches the window to its app-menu entry on X11/XWayland desktops.\n'
         printf 'RESOURCE_NAME=%s\nexport RESOURCE_NAME\n' "$APP_ID"
+        # shellcheck disable=SC2016  # "$@" is meant literally, for the launcher.
         printf 'exec %s %s "$@"\n' "$(sh_quote "$VENV/bin/python")" "$(sh_quote "$APP/launch.py")"
     } > "$LAUNCHER"
     chmod +x "$LAUNCHER"
