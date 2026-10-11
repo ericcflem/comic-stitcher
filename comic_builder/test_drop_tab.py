@@ -266,8 +266,8 @@ class ControlTests(unittest.TestCase):
                     app.processEvents()
                     time.sleep(.005)
                 sender.join(1)
+                self.assertEqual(received, [True], f"message not received; sender returned {results}")
                 self.assertEqual(results, [True])
-                self.assertEqual(received, [True])
         finally:
             first.close()
             for control in (first, second):

@@ -200,12 +200,14 @@ class DropTabControl(QObject):
             if QCoreApplication.instance() is not None:
                 QCoreApplication.processEvents()
             time.sleep(.05)
-        socket.write(message)
-        # On Windows a small write can finish at once, and then waitForBytesWritten
-        # reports False because nothing is left to wait for.
-        sent = socket.waitForBytesWritten(1000) or socket.bytesToWrite() == 0
+        written = socket.write(message) == len(message)
+        socket.waitForBytesWritten(1000)  # Its result is unreliable on Windows pipes.
+        # Closing waits for anything still pending, so the message is not lost if
+        # this process exits straight away (as the uninstaller does).
         socket.disconnectFromServer()
-        return sent
+        if socket.state() != QLocalSocket.LocalSocketState.UnconnectedState:
+            socket.waitForDisconnected(1000)
+        return written
 
 
 class DropTab(QWidget):
