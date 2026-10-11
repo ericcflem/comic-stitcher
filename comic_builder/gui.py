@@ -2053,14 +2053,16 @@ class ComicWindow(QMainWindow):
             # Wrapped explanations need more lines with larger fonts (for example
             # Ubuntu's default), so grow to fit the content rather than overlap it.
             page = self.export_page
+            needed = page.minimumSizeHint().height()
             if page.hasHeightForWidth():
-                size.setHeight(max(size.height(), page.heightForWidth(size.width())))
-            size = size.expandedTo(page.minimumSizeHint())
-            screen = self.screen() or QApplication.primaryScreen()
-            if screen:
-                frame = self.frameGeometry().size() - self.geometry().size()
-                room = screen.availableGeometry().size() - frame
-                size = size.boundedTo(room)
+                needed = max(needed, page.heightForWidth(size.width()))
+            if needed > size.height():
+                # Only the height grows, and never beyond the screen's usable height.
+                screen = self.screen() or QApplication.primaryScreen()
+                if screen:
+                    frame = self.frameGeometry().height() - self.geometry().height()
+                    needed = min(needed, screen.availableGeometry().height() - frame)
+                size.setHeight(max(size.height(), needed))
         return size
 
     def _apply_compact_size(self, size, page):
