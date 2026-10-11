@@ -41,7 +41,7 @@ from .pdf_jpegs import inspect_pdf_jpegs
 from .metadata_dialog import MetadataDialog
 from .comicvine import ComicVineClient
 from .key_store import can_remember_key, forget_key, protect_key, retrieve_key
-from .window_outline import OutlinedDialog, OutlinedWindow
+from .window_outline import OutlinedDialog, OutlinedWindow, prefer_xwayland_on_gnome
 from .comicinfo import parse_xml
 from .review_report import save_report
 from .session import (cached_folder_scan, clear_session, read_session, restore_plan,
@@ -4742,6 +4742,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             super().closeEvent(event)
 
 def main():
+    prefer_xwayland_on_gnome()  # GNOME on Wayland: GNOME's own frame, shadow and centring
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     broker = LaunchBroker()

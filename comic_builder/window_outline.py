@@ -27,6 +27,31 @@ def wants_outlines(platform_name=None, environ=None):
     return platform_name == "wayland" and "GNOME" in desktops
 
 
+# Set to 1 to keep Qt's native Wayland route on GNOME (for example if XWayland looks
+# blurry with fractional display scaling). The window outline then applies instead.
+NATIVE_WAYLAND_VARIABLE = "COMIC_STITCHER_NATIVE_WAYLAND"
+
+
+def prefer_xwayland_on_gnome(environ=None, platform=None):
+    """On GNOME's Wayland session, ask Qt for XWayland first.
+
+    There GNOME draws the window frame and its shadow, and Comic Stitcher can
+    centre its windows again; drag-and-drop from Files and the desktop still
+    works. Qt falls back to native Wayland if XWayland cannot start. Call before
+    the QApplication is created. Returns True if it changed the platform.
+    """
+    import sys
+    environ = os.environ if environ is None else environ
+    platform = sys.platform if platform is None else platform
+    desktops = environ.get("XDG_CURRENT_DESKTOP", "").upper().split(":")
+    if (not platform.startswith("linux") or not environ.get("WAYLAND_DISPLAY")
+            or "GNOME" not in desktops or environ.get("QT_QPA_PLATFORM")
+            or environ.get(NATIVE_WAYLAND_VARIABLE, "").strip() not in ("", "0")):
+        return False
+    environ["QT_QPA_PLATFORM"] = "xcb;wayland"
+    return True
+
+
 class OutlinedWindow:
     """Mix in before QMainWindow or QDialog, and call _setup_outline() in __init__."""
 
