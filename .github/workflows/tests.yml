@@ -15,6 +15,7 @@ jobs:
   test:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -40,15 +41,24 @@ jobs:
             libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3
 
       - name: Install Comic Stitcher's requirements
-        # packaging and pefile are pure-Python release tools that some tests use,
-        # pinned to the versions in requirements-release.txt.
-        run: python -m pip install -r requirements.txt packaging==26.3 pefile==2024.8.26
+        # The packaging tests also use these release tools, pinned to the versions
+        # in requirements-release.txt.
+        run: >
+          python -m pip install -r requirements.txt
+          packaging==26.3 pefile==2024.8.26
+          pyinstaller==6.22.3 pyinstaller-hooks-contrib==2026.8
 
       - name: Run the tests
         # Tests of a built Windows release (verify_*.py, test_installed_runtime_verifier)
         # need a packaged build and are not run here.
         shell: bash
-        run: python -m unittest discover -s comic_builder -t . -v 2>&1 | tee test-output.txt; exit ${PIPESTATUS[0]}
+        # If a test hangs, faulthandler prints where every thread is waiting after
+        # 15 minutes and stops the run, so the report shows the culprit.
+        run: >
+          python -u -c "import faulthandler, sys, unittest;
+          faulthandler.dump_traceback_later(900, exit=True);
+          unittest.main(module=None, argv=['unittest', 'discover', '-s', 'comic_builder', '-t', '.', '-v'])"
+          2>&1 | tee test-output.txt; exit ${PIPESTATUS[0]}
 
       - name: Attach failures to the run summary
         # Puts each failing test's report where it shows on the pull request.
@@ -69,6 +79,9 @@ jobs:
           # Which tests did not pass, from unittest's verbose "... ERROR" / "... FAIL" lines.
           bad = [l for l in lines if re.search(r"\.\.\. (ERROR|FAIL)$", l) or re.match(r"(ERROR|FAIL): ", l)]
           emit("Failing tests", "\n".join(bad) or "(none reported; the run may have stopped early)")
+          started = [l for l in lines if re.match(r"test\w* \(.*\) \.\.\.", l)]
+          if started and not re.search(r"\.\.\. (ok|ERROR|FAIL|skipped.*|expected failure)$", started[-1]):
+              emit("Stuck test", "Still running when the run stopped:\n" + started[-1])
           ran = [l for l in lines if re.match(r"(Ran \d+ tests|OK|FAILED \()", l)]
           emit("Result", "\n".join(ran) or "(no result line; the test process may have crashed)")
           # Each traceback block, then the end of the log.
