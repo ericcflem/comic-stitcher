@@ -56,7 +56,7 @@ def installed():
 
     probe = venv_python(
         "import importlib.metadata as m, sys\n"
-        "names = {d.metadata['Name'].lower() for d in m.distributions()}\n"
+        "names = {d.metadata['Name'].lower().replace('_', '-') for d in m.distributions()}\n"
         "print('essentials' if 'pyside6-essentials' in names else 'no-essentials')\n"
         "print('addons' if 'pyside6-addons' in names else 'no-addons')\n")
     check("essentials" in probe.stdout.split(), "PySide6-Essentials is installed", probe.stdout + probe.stderr)
