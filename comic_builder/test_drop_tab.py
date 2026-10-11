@@ -1,6 +1,7 @@
 """Behaviour of the screen-edge drop tab widget."""
 import os
 import tempfile
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -247,34 +248,26 @@ class ControlTests(unittest.TestCase):
         name = "cs-droptab-test-" + uuid4().hex[:8]
         first = DropTabControl(name)
         second = DropTabControl(name)
-        quits = []
+        quits, shows = [], []
         first.quit_requested.connect(lambda: quits.append(True))
+        first.show_requested.connect(lambda: shows.append(True))
         try:
             if not first.claim():
                 self.skipTest("This execution environment blocks local sockets")
             self.assertFalse(second.claim())
-            if not DropTabControl.send_quit(name):
-                from PySide6.QtNetwork import QLocalSocket
-                probe = QLocalSocket()
-                probe.connectToServer(name)
-                connected = probe.waitForConnected(1000)
-                self.fail(f"send_quit failed; listening={first.server.isListening()} "
-                          f"server={first.server.fullServerName()!r} error={first.server.errorString()!r} "
-                          f"probe_connected={connected} probe_error={probe.errorString()!r} "
-                          f"second_listening={second.server.isListening()}")
-            deadline = time.monotonic() + 2
-            while not quits and time.monotonic() < deadline:
-                app.processEvents()
-                time.sleep(.005)
-            self.assertEqual(quits, [True])
-            shows = []
-            first.show_requested.connect(lambda: shows.append(True))
-            self.assertTrue(DropTabControl.send_show(name))
-            deadline = time.monotonic() + 2
-            while not shows and time.monotonic() < deadline:
-                app.processEvents()
-                time.sleep(.005)
-            self.assertEqual(shows, [True])
+            # Send from another thread, as another program would: on Windows a pipe
+            # write only completes once the listening side reads it.
+            for send, received in ((DropTabControl.send_quit, quits), (DropTabControl.send_show, shows)):
+                results = []
+                sender = threading.Thread(target=lambda send=send, results=results: results.append(send(name)))
+                sender.start()
+                deadline = time.monotonic() + 5
+                while (sender.is_alive() or not received) and time.monotonic() < deadline:
+                    app.processEvents()
+                    time.sleep(.005)
+                sender.join(1)
+                self.assertEqual(results, [True])
+                self.assertEqual(received, [True])
         finally:
             first.close()
             for control in (first, second):
