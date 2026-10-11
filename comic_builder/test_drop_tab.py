@@ -172,6 +172,7 @@ class DropTabTests(unittest.TestCase):
         dialog.reset()
         self.assertEqual((self.tab.thickness, self.tab.tab_height, self.tab.hover_delay, self.tab.colour_mode),
                          (8, self.tab.expanded_size()[1], 450, "accent"))
+        dialog.deleteLater()
 
     def test_gray_colour_is_saved_and_used(self):
         from PySide6.QtGui import QColor
@@ -189,7 +190,6 @@ class DropTabTests(unittest.TestCase):
         reopened = DropTab(self.settings, opener=lambda paths: True)
         self.assertEqual(reopened.tab_height, 120)
         reopened.deleteLater()
-        dialog.deleteLater()
 
     def test_hide_and_show_again(self):
         self.tab.toggle_visible()

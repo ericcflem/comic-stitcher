@@ -294,13 +294,15 @@ check_window_libraries() {
 
 write_launcher() {
     step "Creating the launcher"
+    local launcher_value
+    launcher_value=$(sh_quote "$LAUNCHER")   # The launcher's own path, written into it.
     {
         printf '#!/bin/sh\n'
         printf '# Starts Comic Stitcher. Written by %s; re-run it to update.\n' "$MARKER"
         printf '# Matches the window to its app-menu entry on X11/XWayland desktops.\n'
         printf 'RESOURCE_NAME=%s\nexport RESOURCE_NAME\n' "$APP_ID"
         printf '# Lets the drop tab start itself at sign-in through this launcher.\n'
-        printf 'COMIC_STITCHER_LAUNCHER=%s\nexport COMIC_STITCHER_LAUNCHER\n' "$(sh_quote "$LAUNCHER")"
+        printf 'COMIC_STITCHER_LAUNCHER=%s\nexport COMIC_STITCHER_LAUNCHER\n' "$launcher_value"
         # shellcheck disable=SC2016  # "$@" is meant literally, for the launcher.
         printf 'exec %s %s "$@"\n' "$(sh_quote "$VENV/bin/python")" "$(sh_quote "$APP/launch.py")"
     } > "$LAUNCHER"
