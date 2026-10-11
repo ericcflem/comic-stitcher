@@ -142,10 +142,15 @@ class DropTabTests(unittest.TestCase):
         self.assertFalse(wait_for(lambda: self.tab.expanded, seconds=0.2))
 
     def test_panel_is_fitted_to_its_content(self):
+        # Half again as wide as its widest line or the icon, whatever the fonts.
+        from PySide6.QtGui import QFontMetrics
+        from .drop_tab import HINT_TEXT, ICON_SIZE, MAIN_TEXT, OPENING_TEXT
+        metrics = QFontMetrics(self.tab.font())
+        widest = max([ICON_SIZE, QFontMetrics(self.tab._hint_font()).horizontalAdvance(HINT_TEXT)]
+                     + [metrics.horizontalAdvance(line) for line in MAIN_TEXT.split("\n") + [OPENING_TEXT]])
         width, height = self.tab.expanded_size()
-        self.assertLess(width, 220)
-        self.assertGreater(width, 48 * 1.5 - 1)
-        self.assertGreater(height, 48)
+        self.assertEqual(width, round(widest * 1.5))
+        self.assertGreater(height, ICON_SIZE + 2 * metrics.lineSpacing())
 
     def test_settings_apply_live_and_are_saved(self):
         self.tab.apply_settings(thickness=20, height=300, offset=250, hover_delay=900)
@@ -228,9 +233,11 @@ class XWaylandTests(unittest.TestCase):
         menu = QMenu()
         menu.addAction("Something")
         closer = MenuAutoClose(menu)
-        closer.IF_NEVER_ENTERED_MS = 30
-        menu.popup(QPoint(10, 10))
-        self.assertTrue(wait_for(lambda: not menu.isVisible()))
+        menu.aboutToShow.emit()  # As when the menu opens.
+        self.assertTrue(closer.timer.isActive())
+        self.assertEqual(closer.timer.interval(), MenuAutoClose.IF_NEVER_ENTERED_MS)
+        QApplication.sendEvent(menu, QEvent(QEvent.Type.Enter))
+        self.assertFalse(closer.timer.isActive())
         menu.deleteLater()
 
 
@@ -262,6 +269,9 @@ class ControlTests(unittest.TestCase):
             self.assertEqual(shows, [True])
         finally:
             first.close()
+            for control in (first, second):
+                control.deleteLater()
+            app.processEvents()
 
 
 if __name__ == "__main__":

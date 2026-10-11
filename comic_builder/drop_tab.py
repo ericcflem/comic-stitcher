@@ -9,11 +9,13 @@ import hashlib
 import os
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QLockFile, QObject, QProcess, QRectF, QSettings, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QColor, QCursor, QFont, QFontMetrics, QGuiApplication, QIcon, QPainter, QPainterPath, QPen
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
+from shiboken6 import isValid
 from PySide6.QtWidgets import (
     QApplication, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout, QLabel, QMenu,
     QMessageBox, QPushButton, QSlider, QSpinBox, QSystemTrayIcon, QVBoxLayout, QWidget,
@@ -124,6 +126,7 @@ class DropTabControl(QObject):
         self.lock = QLockFile(str(Path(tempfile.gettempdir()) / (self.name + ".lock")))
         self.server = QLocalServer(self)
         self.server.newConnection.connect(self._accept)
+        self.sockets = []
 
     def claim(self):
         if not self.lock.tryLock(0):
@@ -137,11 +140,20 @@ class DropTabControl(QObject):
     def _accept(self):
         while self.server.hasPendingConnections():
             socket = self.server.nextPendingConnection()
+            self.sockets.append(socket)
             socket.readyRead.connect(lambda s=socket: self._read(s))
-            socket.disconnected.connect(socket.deleteLater)
+            socket.disconnected.connect(lambda s=socket: self._discard(s))
             self._read(socket)
 
+    def _discard(self, socket):
+        if socket in self.sockets:
+            self.sockets.remove(socket)
+        if isValid(socket):
+            socket.deleteLater()
+
     def _read(self, socket):
+        if not isValid(socket):
+            return
         message = bytes(socket.readAll())
         if message.startswith(QUIT_MESSAGE.strip()):
             self.quit_requested.emit()
@@ -149,6 +161,18 @@ class DropTabControl(QObject):
             self.show_requested.emit()
 
     def close(self):
+        # Detach and close connections first; left for Qt to delete with the server,
+        # they report "disconnected" while half-deleted, which crashes on Linux.
+        for socket in self.sockets:
+            if isValid(socket):
+                for signal in (socket.readyRead, socket.disconnected):
+                    try:
+                        signal.disconnect()
+                    except (RuntimeError, TypeError):
+                        pass
+                socket.abort()
+                socket.deleteLater()
+        self.sockets.clear()
         self.server.close()
         self.lock.unlock()
 
@@ -161,11 +185,21 @@ class DropTabControl(QObject):
         return DropTabControl.send(SHOW_MESSAGE, name)
 
     @staticmethod
-    def send(message, name=None):
+    def send(message, name=None, seconds=3):
+        """Send a message to the running tab, retrying while it starts up."""
+        from PySide6.QtCore import QCoreApplication
         socket = QLocalSocket()
-        socket.connectToServer(name or control_name())
-        if not socket.waitForConnected(1000):
-            return False
+        deadline = time.monotonic() + seconds
+        while True:
+            socket.connectToServer(name or control_name())
+            if socket.waitForConnected(250):
+                break
+            socket.abort()
+            if time.monotonic() >= deadline:
+                return False
+            if QCoreApplication.instance() is not None:
+                QCoreApplication.processEvents()
+            time.sleep(.05)
         socket.write(message)
         sent = socket.waitForBytesWritten(1000)
         socket.disconnectFromServer()
