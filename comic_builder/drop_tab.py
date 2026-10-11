@@ -135,12 +135,20 @@ class DropTabControl(QObject):
 
 class DropTab(QWidget):
     def __init__(self, settings=None, opener=open_in_comic_stitcher, parent=None):
-        flags = (Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint
-                 | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.WindowDoesNotAcceptFocus)
+        # TEMPORARY test switch for Linux, to find which window settings stop drops
+        # under XWayland: COMIC_STITCHER_TAB_STYLE=a (default), b or c.
+        style = os.environ.get("COMIC_STITCHER_TAB_STYLE", "a").strip().lower()
+        flags = Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint
+        if style in ("a", "b"):
+            flags |= Qt.WindowType.Tool
+        if style == "a":
+            flags |= Qt.WindowType.WindowDoesNotAcceptFocus
         super().__init__(parent, flags)
         self.setWindowTitle("Comic Stitcher drop tab")
-        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        if style == "a":
+            self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        if style in ("a", "b"):
+            self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAcceptDrops(True)
         self.setToolTip("Drag comics, PDFs or folders here to open them in Comic Stitcher.\n"
                         "Drag up or down to move. Right-click for options.")
