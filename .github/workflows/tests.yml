@@ -24,6 +24,16 @@ jobs:
       QT_QPA_PLATFORM: offscreen
       PYTHONUTF8: "1"
     steps:
+      - name: Use a temporary folder without a shortened name
+        # GitHub's Windows machines give the default temp folder an old-style
+        # short name (RUNNER~1). The app resolves it to the full name and some
+        # tests then see two spellings of one folder, which an ordinary PC avoids.
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          echo "TEMP=$RUNNER_TEMP" >> "$GITHUB_ENV"
+          echo "TMP=$RUNNER_TEMP" >> "$GITHUB_ENV"
+
       - uses: actions/checkout@v5
 
       - uses: actions/setup-python@v6
