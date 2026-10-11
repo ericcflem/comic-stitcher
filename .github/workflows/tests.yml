@@ -52,13 +52,8 @@ jobs:
         # Tests of a built Windows release (verify_*.py, test_installed_runtime_verifier)
         # need a packaged build and are not run here.
         shell: bash
-        # If a test hangs, faulthandler prints where every thread is waiting after
-        # 15 minutes and stops the run, so the report shows the culprit.
-        run: >
-          python -u -c "import faulthandler, sys, unittest;
-          faulthandler.dump_traceback_later(900, exit=True);
-          unittest.main(module=None, argv=['unittest', 'discover', '-s', 'comic_builder', '-t', '.', '-v'])"
-          2>&1 | tee test-output.txt; exit ${PIPESTATUS[0]}
+        # run_tests.py prints each failure as it happens and stops a test that hangs.
+        run: python -u .github/run_tests.py 2>&1 | tee test-output.txt; exit ${PIPESTATUS[0]}
 
       - name: Attach failures to the run summary
         # Puts each failing test's report where it shows on the pull request.
@@ -84,9 +79,10 @@ jobs:
               emit("Stuck test", "Still running when the run stopped:\n" + started[-1])
           ran = [l for l in lines if re.match(r"(Ran \d+ tests|OK|FAILED \()", l)]
           emit("Result", "\n".join(ran) or "(no result line; the test process may have crashed)")
-          # Each traceback block, then the end of the log.
-          blocks = re.split(r"\n(?==+\n(?:ERROR|FAIL): )", text)
-          for block in [b for b in blocks if re.match(r"=+\n(?:ERROR|FAIL): ", b)][:5]:
-              emit("Test failure", block.strip("=\n"))
+          # Each failure as run_tests.py printed it, then the end of the log.
+          blocks = re.split(r"\n(?=----- (?:ERROR|FAIL): )", text)
+          for block in [b for b in blocks if re.match(r"----- (?:ERROR|FAIL): ", b)][:8]:
+              block = re.split(r"\ntest\w* \(", block)[0]  # stop at the next test's line
+              emit("Test failure", block[:3500])
           emit("End of log", text[-3500:])
           EOF
