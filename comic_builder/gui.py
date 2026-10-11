@@ -2076,7 +2076,10 @@ class ComicWindow(QMainWindow):
 
     def _compact_window(self):
         was_maximized = self.isMaximized() or self.isFullScreen()
-        self.showNormal()
+        if was_maximized or self.isMinimized():
+            # Only ask when needed: on Wayland this is a request to the desktop, whose
+            # reply restates the current size and would undo the resize below.
+            self.showNormal()
         size = self._compact_target_size()
         page = self.pages.currentWidget()
         self.resize(size)
