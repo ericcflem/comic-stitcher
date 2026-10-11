@@ -20,10 +20,29 @@ It imports PDFs, image folders, compressed archives, existing comic book files a
 
 ## Installation & Requirements
 
-- **Windows:** The official Windows installer includes the Python runtime and all necessary dependencies. No external installations of ImageMagick, Ghostscript, Poppler, or FFmpeg are required. At the moment, Comic Stitcher is Windows-only.
+- **Windows:** The official Windows installer includes the Python runtime and all necessary dependencies. No external installations of ImageMagick, Ghostscript, Poppler, or FFmpeg are required.
 - **UnRAR:** RAR/CBR import relies on the companion UnRAR utility bundled with the installer. Exporting to CBR/RAR is not supported.
 - **System Dependencies:** If needed, the installer will prompt to install the Microsoft Visual C++ x64 runtime.
-- **Linux (from source, in progress):** Comic Stitcher runs from source on Linux; an installer is planned. RAR/CBR import uses whichever RAR extractor is installed (UnRAR, unar, 7-Zip or bsdtar); on Ubuntu or Debian, `sudo apt install unar` adds one. A remembered ComicVine key is kept in the desktop keyring (such as GNOME Keyring or KDE Wallet). On GNOME's Wayland desktop Comic Stitcher runs through XWayland, so GNOME draws its window frame and shadow; set `COMIC_STITCHER_NATIVE_WAYLAND=1` to use native Wayland instead (for example if text looks blurry with fractional display scaling).
+- **Linux:** Install from the source download with `linux/install.sh` (see [Installing on Linux](#installing-on-linux)). An AppImage is planned.
+
+### Installing on Linux
+
+1. Download Comic Stitcher's source (on GitHub: **Code > Download ZIP**) and extract it.
+2. Open a terminal in the extracted folder and run:
+
+   ```bash
+   linux/install.sh
+   ```
+
+   Run it as yourself, not with `sudo`. If a system package is missing, such as `python3-venv` on Ubuntu, it lists what it needs and asks before installing it, which needs your password. Comic Stitcher's own libraries go in a private folder in your home folder, about 120 MB to download the first time.
+3. Start Comic Stitcher from your app menu, or right-click a comic and choose **Open With > Comic Stitcher**. In Files, right-click a folder and choose **Open in Comic Stitcher**. If Files' Python add-on support is not installed, this is under **Scripts** instead.
+
+You can delete the downloaded folder afterwards. To update, download the new version and run its `linux/install.sh` again. To uninstall, run `~/.local/share/comic-stitcher/uninstall.sh`. Add `--purge` to also remove your settings, logs and a remembered ComicVine key.
+
+Notes:
+- **RAR/CBR import** uses whichever RAR extractor is installed (UnRAR, unar, 7-Zip or bsdtar). On Ubuntu or Debian, `sudo apt install unar` adds one.
+- **A remembered ComicVine key** is kept in the desktop keyring, such as GNOME Keyring or KDE Wallet.
+- **On GNOME's Wayland desktop,** Comic Stitcher runs through XWayland, so GNOME draws its window frame and shadow. To use native Wayland instead, set `COMIC_STITCHER_NATIVE_WAYLAND=1`. You might want this if text looks blurry with fractional display scaling.
 
 *For developer build instructions, see [BUILDING.md](docs/BUILDING.md). For version history, see [CHANGELOG.md](docs/CHANGELOG.md).*
 
