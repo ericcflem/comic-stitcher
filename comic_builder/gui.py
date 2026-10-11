@@ -2044,18 +2044,66 @@ class ComicWindow(QMainWindow):
             self.settings.setValue("hide_source_notice", not notice.isChecked())
             self.encoder_workers.setValue(counts["encoder_workers"].value())
 
-    def _compact_window(self):
-        self.showNormal()
+    def _compact_target_size(self):
         progress = hasattr(self, "progress_page") and self.pages.currentWidget() is self.progress_page
         finished = progress and not self.done_button.isHidden()
         size = QSize(580, 240) if progress and not finished else self.compact_size
         if hasattr(self, "export_page") and self.pages.currentWidget() is self.export_page:
             size = QSize(800, 560)
+            # Wrapped explanations need more lines with larger fonts (for example
+            # Ubuntu's default), so grow to fit the content rather than overlap it.
+            page = self.export_page
+            needed = page.minimumSizeHint().height()
+            if page.hasHeightForWidth():
+                needed = max(needed, page.heightForWidth(size.width()))
+            if needed > size.height():
+                # Only the height grows, and never beyond the screen's usable height.
+                screen = self.screen() or QApplication.primaryScreen()
+                if screen:
+                    frame = self.frameGeometry().height() - self.geometry().height()
+                    needed = min(needed, screen.availableGeometry().height() - frame)
+                size.setHeight(max(size.height(), needed))
+        return size
+
+    def _apply_compact_size(self, size, page):
+        if self.pages.currentWidget() is not page or self.isMaximized() or self.isFullScreen():
+            return  # The screen has changed since, or the window was maximized on purpose.
         self.resize(size)
         screen = self.screen() or QApplication.primaryScreen()
         if screen:
             bounds = screen.availableGeometry()
             self.move(bounds.center() - self.rect().center())
+
+    def _compact_window(self):
+        was_maximized = self.isMaximized() or self.isFullScreen()
+        if was_maximized or self.isMinimized():
+            # Only ask when needed: on Wayland this is a request to the desktop, whose
+            # reply restates the current size and would undo the resize below.
+            self.showNormal()
+        size = self._compact_target_size()
+        page = self.pages.currentWidget()
+        self.resize(size)
+        screen = self.screen() or QApplication.primaryScreen()
+        if screen:
+            bounds = screen.availableGeometry()
+            self.move(bounds.center() - self.rect().center())
+        if sys.platform != "win32":
+            # Linux window managers (Wayland in particular) finish leaving the maximized
+            # state after this returns and then restore the old size, undoing the resize
+            # above. Apply it again once they have caught up. Windows applies it at once.
+            self._pending_compact = (size, page)
+            QTimer.singleShot(0, lambda: self._apply_compact_size(size, page))
+            QTimer.singleShot(250, lambda: self._apply_compact_size(size, page))
+            if was_maximized:
+                QTimer.singleShot(600, lambda: self._apply_compact_size(size, page))
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        pending = getattr(self, "_pending_compact", None)
+        if (pending and event.type() == QEvent.Type.WindowStateChange
+                and not (self.isMaximized() or self.isFullScreen())):
+            self._pending_compact = None
+            QTimer.singleShot(0, lambda: self._apply_compact_size(*pending))
 
     def _expand_window(self):
         self.showMaximized()

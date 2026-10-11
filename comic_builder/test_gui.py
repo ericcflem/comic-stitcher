@@ -4,6 +4,7 @@ import shutil
 import json
 import zipfile
 import tempfile
+import sys
 import time
 import unittest
 from pathlib import Path
@@ -910,6 +911,44 @@ class ThumbnailTest(unittest.TestCase):
             window._compact_window()
             self.app.processEvents()
             self.assertGreaterEqual(window.height(), 500)
+        finally:
+            window.close()
+
+    @unittest.skipIf(sys.platform == "win32", "Windows applies window sizes immediately")
+    def test_compact_size_survives_a_window_manager_restoring_the_old_size(self):
+        window = ComicWindow()
+        try:
+            window.show()
+            window.pages.setCurrentWidget(window.progress_page)
+            window._compact_window()
+            # Simulate a Linux window manager finishing "un-maximize" late and
+            # putting back the earlier, larger size.
+            window.resize(1100, 800)
+            deadline = time.monotonic() + 1.5
+            while window.height() > 260 and time.monotonic() < deadline:
+                self.app.processEvents()
+                time.sleep(.01)
+            self.assertLessEqual(window.width(), 600)
+            self.assertLessEqual(window.height(), 260)
+        finally:
+            window.close()
+
+    def test_create_comic_screen_grows_to_fit_wrapped_text(self):
+        window = ComicWindow()
+        try:
+            window.show()
+            window.pages.setCurrentWidget(window.export_page)
+            screen = window.screen() or QApplication.primaryScreen()
+            room = screen.availableGeometry().height()
+            if room <= 600:
+                self.skipTest("The test screen is too short to show the difference")
+            # Pretend larger fonts make the content need 600 px at this width.
+            with patch.object(window.export_page, "hasHeightForWidth", return_value=True), \
+                 patch.object(window.export_page, "heightForWidth", return_value=600):
+                window._compact_window()
+                self.app.processEvents()
+            self.assertGreaterEqual(window.height(), 600)
+            self.assertLessEqual(window.height(), room)
         finally:
             window.close()
 
