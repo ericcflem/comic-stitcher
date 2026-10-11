@@ -45,4 +45,26 @@ jobs:
       - name: Run the tests
         # Tests of a built Windows release (verify_*.py, test_installed_runtime_verifier)
         # need a packaged build and are not run here.
-        run: python -m unittest discover -s comic_builder -t . -v
+        shell: bash
+        run: python -m unittest discover -s comic_builder -t . -v 2>&1 | tee test-output.txt; exit ${PIPESTATUS[0]}
+
+      - name: Attach failures to the run summary
+        # Puts each failing test's report where it shows on the pull request.
+        if: failure()
+        shell: bash
+        run: |
+          python - <<'EOF'
+          import re, sys
+          try:
+              text = open("test-output.txt", encoding="utf-8", errors="replace").read()
+          except FileNotFoundError:
+              print("::error title=Setup failed::The tests did not start; an earlier step failed.")
+              sys.exit(0)
+          blocks = re.split(r"\n(?==+\n(?:ERROR|FAIL): )", text)
+          reports = [b.strip("=\n") for b in blocks if re.match(r"=+\n(?:ERROR|FAIL): ", b)] or [text[-6000:]]
+          for report in reports[:9]:
+              body = report[-3500:].replace("%", "%25").replace("\r", "").replace("\n", "%0A")
+              print(f"::error title=Test failure::{body}")
+          summary = text.strip().splitlines()[-3:]
+          print("::error title=Summary::" + "%0A".join(summary))
+          EOF
