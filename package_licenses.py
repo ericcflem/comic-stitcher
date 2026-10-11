@@ -59,8 +59,11 @@ def license_label(dist):
 
 
 def runtime_distributions(requirements):
-    pending = [Requirement(line).name for line in requirements.read_text().splitlines()
-               if line.strip() and not line.lstrip().startswith('#')]
+    lines = [Requirement(line) for line in requirements.read_text().splitlines()
+             if line.strip() and not line.lstrip().startswith('#')]
+    # A line limited to another platform (for example "; sys_platform == 'linux'")
+    # is not part of this build.
+    pending = [req.name for req in lines if req.marker is None or req.marker.evaluate()]
     found = {}
     while pending:
         name = pending.pop(0)

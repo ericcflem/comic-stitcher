@@ -416,6 +416,31 @@ class BookFlowTest(unittest.TestCase):
                     import_archive(source, root / "unsafe")
                 self.assertFalse((root / "escape.png").exists())
 
+    def test_rar_extractor_choice_per_platform(self):
+        from comic_builder import archive_import
+        with patch("comic_builder.archive_import._unrar_tool", return_value="C:/App/unrar.exe"), \
+             patch("comic_builder.archive_import.rarfile.tool_setup") as setup:
+            archive_import._setup_rar_tools(windows=True)
+            self.assertEqual(archive_import.rarfile.UNRAR_TOOL, "C:/App/unrar.exe")
+            self.assertEqual(setup.call_args.kwargs, dict(unrar=True, unar=False, bsdtar=False,
+                                                          sevenzip=False, sevenzip2=False, force=True))
+        with patch("comic_builder.archive_import._unrar_tool") as windows_lookup, \
+             patch("comic_builder.archive_import.rarfile.tool_setup") as setup:
+            archive_import._setup_rar_tools(windows=False)
+            windows_lookup.assert_not_called()
+            self.assertEqual(setup.call_args.kwargs, dict(unrar=True, unar=True, bsdtar=True,
+                                                          sevenzip=True, sevenzip2=True, force=True))
+
+    def test_missing_rar_extractor_names_packages_outside_windows(self):
+        from comic_builder import archive_import
+        with patch("comic_builder.archive_import.rarfile.tool_setup",
+                   side_effect=archive_import.rarfile.RarCannotExec("none")):
+            with self.assertRaisesRegex(ValueError, "sudo apt install unar"):
+                archive_import._setup_rar_tools(windows=False)
+            with self.assertRaisesRegex(ValueError, "UnRAR could not start"):
+                with patch("comic_builder.archive_import._unrar_tool", return_value="unrar.exe"):
+                    archive_import._setup_rar_tools(windows=True)
+
     def test_cb7_both_sizes_preserves_order_and_source_pages(self):
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp)

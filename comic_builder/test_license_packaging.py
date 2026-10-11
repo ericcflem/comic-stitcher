@@ -44,6 +44,21 @@ class LicensePackagingTests(unittest.TestCase):
                 found = package_licenses.runtime_distributions(path)
             self.assertEqual(set(found), {'root', 'child'})
 
+    def test_runtime_closure_skips_other_platforms_requirements(self):
+        import sys
+        other = 'linux' if sys.platform == 'win32' else 'win32'
+        def dist(name):
+            if name == 'elsewhere':
+                raise AssertionError('a requirement for another platform was looked up')
+            return SimpleNamespace(metadata={'Name': name}, requires=[])
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'requirements.txt'
+            path.write_text(f'root>=1\nelsewhere>=1; sys_platform == "{other}"\n'
+                            f'here>=1; sys_platform == "{sys.platform}"\n')
+            with patch.object(package_licenses.metadata, 'distribution', side_effect=dist):
+                found = package_licenses.runtime_distributions(path)
+            self.assertEqual(set(found), {'root', 'here'})
+
     def test_notices_include_nested_native_notices_and_keep_index_local(self):
         from pathlib import PurePosixPath
         self.assertTrue(package_licenses.notice_member(PurePosixPath('wheel/licenses/native/libjpeg.txt')))
