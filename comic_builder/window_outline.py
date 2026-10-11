@@ -33,6 +33,11 @@ class WindowOutline(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        # Owned by the outline, so it can never fire after the window is gone.
+        self._refit = QTimer(self)
+        self._refit.setSingleShot(True)
+        self._refit.setInterval(0)
+        self._refit.timeout.connect(self.fit)
         window.installEventFilter(self)
         self.fit()
 
@@ -41,7 +46,7 @@ class WindowOutline(QWidget):
             self.fit()
         elif event.type() == QEvent.Type.ChildAdded:
             # Widgets added later would otherwise be stacked above the outline.
-            QTimer.singleShot(0, self.fit)
+            self._refit.start()
         return False
 
     def fit(self):
