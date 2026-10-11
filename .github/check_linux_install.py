@@ -35,8 +35,12 @@ def check(condition, message, details=""):
 
 def venv_python(code):
     env = dict(os.environ, QT_QPA_PLATFORM="offscreen")
-    return subprocess.run([str(VENV / "bin" / "python"), "-c", code, str(APP)],
-                          env=env, capture_output=True, text=True)
+    try:
+        return subprocess.run([str(VENV / "bin" / "python"), "-c", code, str(APP)],
+                              env=env, capture_output=True, text=True, timeout=180)
+    except subprocess.TimeoutExpired as exc:
+        out = lambda data: data.decode(errors="replace") if isinstance(data, bytes) else (data or "")
+        return subprocess.CompletedProcess(exc.cmd, 1, out(exc.stdout), out(exc.stderr) + "\n(timed out)")
 
 
 def installed():
@@ -74,6 +78,7 @@ def installed():
         "from PySide6.QtWidgets import QApplication\n"
         "app = QApplication([])\n"
         "from comic_builder.gui import ComicWindow\n"
+        "ComicWindow.show_startup_notice = lambda self: None  # A first-run dialog waits for a click.\n"
         "window = ComicWindow(); window.show(); app.processEvents(); window.close()\n"
         "print('started')\n")
     print(start.stdout + start.stderr, end="")
