@@ -5,15 +5,21 @@ draw a shadow yet and uses an almost-white border, so a window disappears
 against a light background. This adds a 1 px gray outline around each
 window's content, matching the border Fusion draws around buttons. Other
 platforms, including Windows and KDE, draw their own frames and are untouched.
+
+The outline is a plain styled QWidget (no Python overrides), and a single
+listener owned by the application keeps every outline sized and on top. Nothing
+per-window runs Python code while Qt is deleting a window.
 """
 import os
 
 from PySide6.QtCore import QEvent, QObject, Qt, QTimer
-from PySide6.QtGui import QColor, QGuiApplication, QPainter, QPen
+from PySide6.QtGui import QColor, QGuiApplication
 from PySide6.QtWidgets import QWidget
 from shiboken6 import isValid
 
 OUTLINE_COLOR = QColor(180, 180, 180)  # #b4b4b4, Fusion's button border
+OUTLINE_NAME = "windowOutline"
+_FIT_EVENTS = (QEvent.Type.Show, QEvent.Type.Resize, QEvent.Type.WindowStateChange)
 
 
 def wants_outlines(platform_name=None, environ=None):
@@ -24,85 +30,65 @@ def wants_outlines(platform_name=None, environ=None):
     return platform_name == "wayland" and "GNOME" in desktops
 
 
-class WindowOutline(QWidget):
-    """A click-through outline drawn on top of one window's content."""
-
-    def __init__(self, window):
-        super().__init__(window)
-        self.setObjectName("windowOutline")
-        # Clicks, drags and drops go straight through to the window underneath.
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
-        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        # Owned by the outline, so it can never fire after the window is gone.
-        self._refit = QTimer(self)
-        self._refit.setSingleShot(True)
-        self._refit.setInterval(0)
-        self._refit.timeout.connect(self.fit)
-        # The window's events are watched by a shared object that is not part of any
-        # window: a filter that is the window's own child would be called while the
-        # window deletes it, which crashes.
-        window.installEventFilter(_watcher())
-        self.fit()
-
-    def fit(self):
-        window = self.parentWidget()
-        if window is None:
-            return
-        self.setGeometry(window.rect())
-        # A maximized or full-screen window meets the screen edge; no outline needed.
-        self.setVisible(not (window.isMaximized() or window.isFullScreen()))
-        self.raise_()
-
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setPen(QPen(OUTLINE_COLOR, 1))
-        painter.drawRect(self.rect().adjusted(0, 0, -1, -1))
-
-
-class _OutlineWatcher(QObject):
-    """Keeps each window's outline sized to it and stacked on top."""
-
-    def eventFilter(self, watched, event):
-        kind = event.type()
-        if kind in (QEvent.Type.Resize, QEvent.Type.Show, QEvent.Type.WindowStateChange,
-                    QEvent.Type.ChildAdded) and isValid(watched):
-            outline = watched.findChild(WindowOutline, options=Qt.FindChildOption.FindDirectChildrenOnly)
-            if outline is not None and isValid(outline):
-                if kind == QEvent.Type.ChildAdded:
-                    # Widgets added later would otherwise be stacked above the outline.
-                    outline._refit.start()
-                else:
-                    outline.fit()
-        return False
-
-
-_WATCHER = None
-
-
-def _watcher():
-    global _WATCHER
-    if _WATCHER is None or not isValid(_WATCHER):
-        _WATCHER = _OutlineWatcher()
-    return _WATCHER
-
-
-def _wants_outline(widget):
+def wants_outline(widget):
+    """Normal windows and dialogs; not menus, tooltips, pop-ups or frameless windows."""
     if not widget.isWindow():
         return False
     if widget.windowType() not in (Qt.WindowType.Window, Qt.WindowType.Dialog):
-        return False  # Menus, tooltips and pop-ups are drawn differently.
+        return False
     return not widget.windowFlags() & Qt.WindowType.FramelessWindowHint
 
 
+def outline_of(window):
+    return window.findChild(QWidget, OUTLINE_NAME, Qt.FindChildOption.FindDirectChildrenOnly)
+
+
+def add_outline(window):
+    """Give a window its outline, if it does not have one, and return it."""
+    outline = outline_of(window)
+    if outline is None:
+        outline = QWidget(window)
+        outline.setObjectName(OUTLINE_NAME)
+        # Clicks, drags and drops go straight through to the window underneath.
+        outline.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        outline.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        outline.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        outline.setStyleSheet(f"QWidget#{OUTLINE_NAME} {{ background: transparent; "
+                              f"border: 1px solid {OUTLINE_COLOR.name()}; }}")
+    fit_outline(window)
+    return outline
+
+
+def fit_outline(window):
+    outline = outline_of(window)
+    if outline is None:
+        return
+    outline.setGeometry(window.rect())
+    # A maximized or full-screen window meets the screen edge; no outline needed.
+    outline.setVisible(not (window.isMaximized() or window.isFullScreen()))
+    outline.raise_()
+
+
+def _refit_later(window):
+    # Widgets added later would otherwise be stacked above the outline.
+    QTimer.singleShot(0, lambda: isValid(window) and fit_outline(window))
+
+
 class OutlineInstaller(QObject):
-    """Adds an outline to each normal window and dialog the first time it is shown."""
+    """Adds an outline to each window when shown, and keeps it sized and on top."""
 
     def eventFilter(self, watched, event):
-        if (event.type() == QEvent.Type.Show and isinstance(watched, QWidget)
-                and _wants_outline(watched)
-                and watched.findChild(WindowOutline, options=Qt.FindChildOption.FindDirectChildrenOnly) is None):
-            WindowOutline(watched)
+        kind = event.type()
+        if kind in _FIT_EVENTS or kind == QEvent.Type.ChildAdded:
+            if isinstance(watched, QWidget) and isValid(watched) and wants_outline(watched):
+                if kind == QEvent.Type.Show:
+                    add_outline(watched)
+                elif outline_of(watched) is not None:
+                    # A child was added. It may still be under construction, so it is
+                    # not touched here; the outline is simply raised again shortly.
+                    _refit_later(watched)
+                else:
+                    fit_outline(watched)
         return False
 
 
@@ -110,6 +96,6 @@ def install(app):
     """Outline every window on GNOME's Wayland desktop. Returns the installer, or None."""
     if not wants_outlines():
         return None
-    installer = OutlineInstaller(app)
+    installer = OutlineInstaller(app)  # Owned by the application, so it lives as long.
     app.installEventFilter(installer)
     return installer

@@ -8,13 +8,23 @@ from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QApplication, QDialog, QLabel, QMainWindow, QMenu, QWidget
 
-from .window_outline import OUTLINE_COLOR, OutlineInstaller, WindowOutline, wants_outlines
+from .window_outline import OUTLINE_COLOR, OutlineInstaller, add_outline, outline_of, wants_outlines
 
 
 class WindowOutlineTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app = QApplication.instance() or QApplication([])
+
+    def setUp(self):
+        # Owned by the application, as in the real program.
+        self.installer = OutlineInstaller(self.app)
+        self.app.installEventFilter(self.installer)
+
+    def tearDown(self):
+        self.app.removeEventFilter(self.installer)
+        self.installer.deleteLater()
+        self.app.processEvents()
 
     def test_only_gnome_on_wayland_gets_outlines(self):
         self.assertTrue(wants_outlines("wayland", {"XDG_CURRENT_DESKTOP": "ubuntu:GNOME"}))
@@ -28,10 +38,11 @@ class WindowOutlineTests(unittest.TestCase):
         window = QMainWindow()
         content = QLabel("content")
         window.setCentralWidget(content)
-        outline = WindowOutline(window)
         window.resize(400, 300)
         window.show()
         self.app.processEvents()
+        outline = outline_of(window)
+        self.assertIsNotNone(outline)
         self.assertEqual(outline.geometry(), window.rect())
         self.assertTrue(outline.testAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents))
         # The point under the outline belongs to the content, for clicks and drops.
@@ -39,10 +50,8 @@ class WindowOutlineTests(unittest.TestCase):
         # A red box added later over the left edge must not cover the outline.
         late = QWidget(window)
         late.setGeometry(0, 0, 60, 60)
-        late.setAutoFillBackground(True)
-        palette = late.palette()
-        palette.setColor(late.backgroundRole(), QColor("red"))
-        late.setPalette(palette)
+        late.setStyleSheet("background: red;")
+        late.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         late.show()
         self.app.processEvents()
         image = window.grab().toImage()
@@ -55,26 +64,28 @@ class WindowOutlineTests(unittest.TestCase):
         self.app.processEvents()
         self.assertFalse(outline.isVisible())
         window.close()
+        window.deleteLater()
+        self.app.processEvents()
 
-    def test_installer_outlines_windows_and_dialogs_once_but_not_menus(self):
-        installer = OutlineInstaller()
-        self.app.installEventFilter(installer)
+    def test_windows_and_dialogs_get_one_outline_but_menus_do_not(self):
         window, dialog, menu = QMainWindow(), QDialog(), QMenu()
         frameless = QWidget(None, Qt.WindowType.FramelessWindowHint)
-        try:
-            for widget in (window, dialog, menu, frameless):
-                widget.show()
-            window.hide(); window.show()
-            self.app.processEvents()
-            direct = Qt.FindChildOption.FindDirectChildrenOnly
-            self.assertEqual(len(window.findChildren(WindowOutline, options=direct)), 1)
-            self.assertEqual(len(dialog.findChildren(WindowOutline, options=direct)), 1)
-            self.assertEqual(menu.findChildren(WindowOutline), [])
-            self.assertEqual(frameless.findChildren(WindowOutline), [])
-        finally:
-            self.app.removeEventFilter(installer)
-            for widget in (window, dialog, menu, frameless):
-                widget.close()
+        widgets = (window, dialog, menu, frameless)
+        for widget in widgets:
+            widget.show()
+        window.hide()
+        window.show()
+        add_outline(window)  # Asking twice must not add a second outline.
+        self.app.processEvents()
+        named = lambda widget: [child for child in widget.findChildren(QWidget, "windowOutline")]
+        self.assertEqual(len(named(window)), 1)
+        self.assertEqual(len(named(dialog)), 1)
+        self.assertEqual(named(menu), [])
+        self.assertEqual(named(frameless), [])
+        for widget in widgets:
+            widget.close()
+            widget.deleteLater()
+        self.app.processEvents()
 
 
 if __name__ == "__main__":
