@@ -34,6 +34,11 @@ jobs:
           echo "TEMP=$RUNNER_TEMP" >> "$GITHUB_ENV"
           echo "TMP=$RUNNER_TEMP" >> "$GITHUB_ENV"
 
+      - name: Keep files byte-for-byte as stored
+        # Git on GitHub's Windows machines converts line endings on checkout, which
+        # changes the fingerprints the license checks compare against.
+        run: git config --global core.autocrlf false
+
       - uses: actions/checkout@v5
 
       - uses: actions/setup-python@v6
