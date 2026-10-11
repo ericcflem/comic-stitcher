@@ -60,11 +60,18 @@ jobs:
           except FileNotFoundError:
               print("::error title=Setup failed::The tests did not start; an earlier step failed.")
               sys.exit(0)
+          def emit(title, body):
+              body = body[-3500:].replace("%", "%25").replace("\r", "").replace("\n", "%0A")
+              print(f"::error title={title}::{body}")
+          lines = text.splitlines()
+          # Which tests did not pass, from unittest's verbose "... ERROR" / "... FAIL" lines.
+          bad = [l for l in lines if re.search(r"\.\.\. (ERROR|FAIL)$", l) or re.match(r"(ERROR|FAIL): ", l)]
+          emit("Failing tests", "\n".join(bad) or "(none reported; the run may have stopped early)")
+          ran = [l for l in lines if re.match(r"(Ran \d+ tests|OK|FAILED \()", l)]
+          emit("Result", "\n".join(ran) or "(no result line; the test process may have crashed)")
+          # Each traceback block, then the end of the log.
           blocks = re.split(r"\n(?==+\n(?:ERROR|FAIL): )", text)
-          reports = [b.strip("=\n") for b in blocks if re.match(r"=+\n(?:ERROR|FAIL): ", b)] or [text[-6000:]]
-          for report in reports[:9]:
-              body = report[-3500:].replace("%", "%25").replace("\r", "").replace("\n", "%0A")
-              print(f"::error title=Test failure::{body}")
-          summary = text.strip().splitlines()[-3:]
-          print("::error title=Summary::" + "%0A".join(summary))
+          for block in [b for b in blocks if re.match(r"=+\n(?:ERROR|FAIL): ", b)][:5]:
+              emit("Test failure", block.strip("=\n"))
+          emit("End of log", text[-3500:])
           EOF
