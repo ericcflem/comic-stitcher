@@ -17,18 +17,20 @@ from PySide6.QtGui import QAction, QColor, QCursor, QFont, QFontMetrics, QGuiApp
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from shiboken6 import isValid
 from PySide6.QtWidgets import (
-    QApplication, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout, QLabel, QMenu,
+    QApplication, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout, QLabel, QMenu,
     QMessageBox, QPushButton, QSlider, QSpinBox, QSystemTrayIcon, QVBoxLayout, QWidget,
 )
 
 from .drop_tab_support import (
-    DEFAULT_HEIGHT, DEFAULT_OFFSET, DEFAULT_THICKNESS, ENABLE_AUTOSTART_FLAG, HOVER_DELAY_MS,
+    DEFAULT_OFFSET, DEFAULT_THICKNESS, ENABLE_AUTOSTART_FLAG, HOVER_DELAY_MS,
     HOVER_RANGE, MIN_HEIGHT, THICKNESS_RANGE, UNINSTALL_FLAG, autostart_enabled,
     autostart_supported, clamp_height, clamp_hover_delay, clamp_offset, clamp_thickness,
     launch_command, max_height, needs_x11, offset_range, set_autostart, tab_rect,
 )
 
 CLICK_SLOP = 4
+COLOUR_MODES = ("accent", "gray")  # Match the system accent colour, or a neutral gray.
+TAB_GRAY = "#8c8c8c"
 ICON_SIZE = 48
 TOP_PAD = 16
 ICON_GAP = 8
@@ -212,27 +214,23 @@ class DropTabControl(QObject):
 
 class DropTab(QWidget):
     def __init__(self, settings=None, opener=open_in_comic_stitcher, parent=None):
-        # TEMPORARY test switch for Linux, to find which window settings stop drops
-        # under XWayland: COMIC_STITCHER_TAB_STYLE=a (default), b or c.
-        style = os.environ.get("COMIC_STITCHER_TAB_STYLE", "a").strip().lower()
-        flags = Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint
-        if style in ("a", "b"):
-            flags |= Qt.WindowType.Tool
-        if style == "a":
-            flags |= Qt.WindowType.WindowDoesNotAcceptFocus
+        flags = (Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint
+                 | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.WindowDoesNotAcceptFocus)
         super().__init__(parent, flags)
         self.setWindowTitle("Comic Stitcher drop tab")
-        if style == "a":
-            self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
-        if style in ("a", "b"):
-            self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAcceptDrops(True)
         self.setToolTip("Drag comics, PDFs or folders here to open them in Comic Stitcher.\n"
                         "Drag up or down to move. Right-click for options.")
         self.settings = settings or QSettings("ComicStitcher", "Comic Stitcher")
         self.opener = opener
         self.thickness = clamp_thickness(self.settings.value("drop_tab/thickness", DEFAULT_THICKNESS))
-        self.tab_height = clamp_height(self.settings.value("drop_tab/height", DEFAULT_HEIGHT), 1 << 30)
+        saved_height = self.settings.value("drop_tab/height", None)
+        self.tab_height = (self.default_height() if saved_height in (None, "")
+                           else clamp_height(saved_height, 1 << 30))
+        colour = str(self.settings.value("drop_tab/color", "accent"))
+        self.colour_mode = colour if colour in COLOUR_MODES else "accent"
         self.hover_delay = clamp_hover_delay(self.settings.value("drop_tab/hover_delay", HOVER_DELAY_MS))
         self.offset = self._stored_offset()
         self.anchor_y = None
@@ -315,12 +313,21 @@ class DropTab(QWidget):
                                    (self.thickness, height), self.anchor_y))
         self.update()
 
+    def default_height(self):
+        """Unless set otherwise, the tab is as tall as its open panel."""
+        return clamp_height(self.expanded_size()[1], 1 << 30)
+
+    def tab_colour(self):
+        if self.colour_mode == "gray":
+            return QColor(TAB_GRAY)
+        return QColor(self.palette().highlight().color())
+
     def _expand(self, anchor_y=None):
         """Open the panel; on a tall tab it opens where the pointer is."""
         self.anchor_y = anchor_y
         self._set_expanded(True)
 
-    def apply_settings(self, thickness=None, height=None, offset=None, hover_delay=None):
+    def apply_settings(self, thickness=None, height=None, offset=None, hover_delay=None, colour=None):
         """Change the tab's shape or timing, save it, and redraw it straight away."""
         if thickness is not None:
             self.thickness = clamp_thickness(thickness)
@@ -334,6 +341,9 @@ class DropTab(QWidget):
             self.hover_delay = clamp_hover_delay(hover_delay)
             self.hover_timer.setInterval(self.hover_delay)
             self.settings.setValue("drop_tab/hover_delay", self.hover_delay)
+        if colour in COLOUR_MODES:
+            self.colour_mode = colour
+            self.settings.setValue("drop_tab/color", colour)
         self.place()
         if offset is not None or height is not None:
             self.settings.setValue("drop_tab/offset", self.offset)
@@ -499,7 +509,7 @@ class DropTab(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         palette = self.palette()
-        accent = palette.highlight().color()
+        accent = self.tab_colour()
         rect = QRectF(self.rect()).adjusted(1, 1, 0, -1)
         if not self.expanded:
             # Rounded on the left only, flush with the screen edge on the right.
@@ -585,11 +595,16 @@ class DropTabSettingsDialog(QDialog):
                                  lambda v: tab.apply_settings(hover_delay=v))
         self.delay.slider.setSingleStep(50)
         self.delay.box.setSingleStep(50)
+        self.colour = QComboBox()
+        self.colour.addItems(["Match system accent", "Gray"])
+        self.colour.setCurrentIndex(COLOUR_MODES.index(tab.colour_mode))
+        self.colour.currentIndexChanged.connect(lambda i: tab.apply_settings(colour=COLOUR_MODES[i]))
         form = QFormLayout()
         form.addRow("How far it sticks out:", self.thickness)
         form.addRow("Height:", self.height_field)
         form.addRow("Distance from the top:", self.position)
         form.addRow("Open on hover after:", self.delay)
+        form.addRow("Color:", self.colour)
         note = QLabel("The tab stays clear of the top and bottom of the screen so it does not cover "
                       "window controls or the taskbar. You can also drag the tab to move it.")
         note.setWordWrap(True)
@@ -612,9 +627,10 @@ class DropTabSettingsDialog(QDialog):
 
     def reset(self):
         self.thickness.set_value(DEFAULT_THICKNESS)
-        self.height_field.set_value(DEFAULT_HEIGHT)
+        self.height_field.set_value(self.tab.default_height())
         self.position.set_value(DEFAULT_OFFSET)
         self.delay.set_value(HOVER_DELAY_MS)
+        self.colour.setCurrentIndex(COLOUR_MODES.index("accent"))
 
 
 def build_menu(tab, app):

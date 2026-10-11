@@ -17,7 +17,7 @@ from PySide6.QtWidgets import QApplication, QMenu
 
 from .drop_tab import (DropTab, DropTabControl, DropTabSettingsDialog, MenuAutoClose, local_paths,
                        mouse_position_unreliable)
-from .drop_tab_support import COLLAPSED_SIZE
+from .drop_tab_support import DEFAULT_THICKNESS
 
 
 def mime_for(*urls):
@@ -73,7 +73,9 @@ class DropTabTests(unittest.TestCase):
         self.assertFalse(self.tab.expanded)
 
     def test_drag_expands_and_leave_collapses(self):
-        self.assertEqual((self.tab.width(), self.tab.height()), COLLAPSED_SIZE)
+        # By default the slim tab is as tall as the panel it opens into.
+        self.assertEqual((self.tab.width(), self.tab.height()),
+                         (DEFAULT_THICKNESS, self.tab.expanded_size()[1]))
         self.assertTrue(drag_enter(self.tab, mime_for("/comics/one.cbz")).isAccepted())
         self.assertTrue(self.tab.expanded)
         self.assertEqual((self.tab.width(), self.tab.height()), self.tab.expanded_size())
@@ -165,10 +167,28 @@ class DropTabTests(unittest.TestCase):
         reopened.deleteLater()
 
     def test_settings_dialog_reset_restores_defaults(self):
-        self.tab.apply_settings(thickness=20, height=300, hover_delay=900)
+        self.tab.apply_settings(thickness=20, height=300, hover_delay=900, colour="gray")
         dialog = DropTabSettingsDialog(self.tab)
         dialog.reset()
-        self.assertEqual((self.tab.thickness, self.tab.tab_height, self.tab.hover_delay), (8, 96, 450))
+        self.assertEqual((self.tab.thickness, self.tab.tab_height, self.tab.hover_delay, self.tab.colour_mode),
+                         (8, self.tab.expanded_size()[1], 450, "accent"))
+
+    def test_gray_colour_is_saved_and_used(self):
+        from PySide6.QtGui import QColor
+        from .drop_tab import TAB_GRAY
+        self.assertEqual(self.tab.tab_colour(), self.tab.palette().highlight().color())
+        self.tab.apply_settings(colour="gray")
+        self.assertEqual(self.tab.tab_colour(), QColor(TAB_GRAY))
+        self.assertEqual(self.settings.value("drop_tab/color"), "gray")
+        reopened = DropTab(self.settings, opener=lambda paths: True)
+        self.assertEqual(reopened.colour_mode, "gray")
+        reopened.deleteLater()
+
+    def test_a_saved_height_is_kept(self):
+        self.tab.apply_settings(height=120)
+        reopened = DropTab(self.settings, opener=lambda paths: True)
+        self.assertEqual(reopened.tab_height, 120)
+        reopened.deleteLater()
         dialog.deleteLater()
 
     def test_hide_and_show_again(self):

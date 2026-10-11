@@ -64,11 +64,11 @@ At the last comic's confirmation, start exports directly or choose **Review batc
 
 The optional drop tab is a slim strip on the right edge of the screen, a little below the corner. Drag a comic, PDF or folder onto it and the tab slides out; let go and the comic opens in Comic Stitcher, or joins the window that is already open. You never need to arrange windows to reach the drop zone.
 
-* **Turn it on:** tick **Show a drop tab on the right edge of the screen** in the installer, or run `ComicStitcher.exe --drop-tab` (`python launch.py --drop-tab` from source).
+* **Turn it on:** on Windows, tick **Show a drop tab on the right edge of the screen** in the installer. On Linux, open **Comic Stitcher Drop Tab** from the app menu. From source, run `python launch.py --drop-tab`.
 * **Use it:** rest the mouse on the tab for a second, or click it, to see what it is; click the open panel to start Comic Stitcher. Drag the tab up or down to move it, and right-click it (or its tray icon) for **Start when I sign in**, **Hide drop tab** and **Close drop tab**.
-* **Adjust it:** right-click the tab and choose **Drop tab settings…** to set how far it sticks out (3–24 px), its height, its distance from the top and the hover delay. The tab changes as you move the sliders, and stays clear of the very top and bottom of the screen so it never covers window controls or the taskbar.
-* **Get it back:** click the tray icon to show a hidden tab, or use the **Comic Stitcher Drop Tab** Start menu shortcut, which starts the tab or shows it again.
-* **Linux:** on Wayland the tab runs through XWayland, because Wayland does not let ordinary windows stay pinned to a screen edge. Ubuntu may need the `libxcb-cursor0` package for that.
+* **Adjust it:** right-click the tab and choose **Drop tab settings…** to set how far it sticks out (3–24 px), its height (by default the same as the open panel), its distance from the top, the hover delay, and its color (the system accent color, or gray). The tab changes as you move the sliders, and stays clear of the very top and bottom of the screen so it never covers window controls or the taskbar.
+* **Get it back:** click the tray icon to show a hidden tab, or use the **Comic Stitcher Drop Tab** shortcut (Start menu on Windows, app menu on Linux), which starts the tab or shows it again.
+* **Linux:** on Wayland the tab runs through XWayland, because Wayland does not let ordinary windows stay pinned to a screen edge. `linux/install.sh` installs the libraries this needs.
 
 ### PDF Processing
 * **Lossless Extraction:** If a PDF contains compatible embedded JPEGs that can be extracted without re-encoding, Comic Stitcher offers direct extraction to preserve original quality.

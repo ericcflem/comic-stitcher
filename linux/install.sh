@@ -22,6 +22,7 @@ VENV="$PREFIX/venv"
 LAUNCHER="$PREFIX/$APP_ID"
 BIN_LINK="$HOME/.local/bin/$APP_ID"
 DESKTOP_FILE="$DATA_HOME/applications/$APP_ID.desktop"
+DROP_TAB_DESKTOP_FILE="$DATA_HOME/applications/$APP_ID-drop-tab.desktop"
 ICON_ROOT="$DATA_HOME/icons/hicolor"
 ICON_SIZES=(256 128 64 48)   # uninstall.sh removes the same sizes
 NAUTILUS_EXTENSION="$DATA_HOME/nautilus-python/extensions/$APP_ID-folder-menu.py"
@@ -298,6 +299,8 @@ write_launcher() {
         printf '# Starts Comic Stitcher. Written by %s; re-run it to update.\n' "$MARKER"
         printf '# Matches the window to its app-menu entry on X11/XWayland desktops.\n'
         printf 'RESOURCE_NAME=%s\nexport RESOURCE_NAME\n' "$APP_ID"
+        printf '# Lets the drop tab start itself at sign-in through this launcher.\n'
+        printf 'COMIC_STITCHER_LAUNCHER=%s\nexport COMIC_STITCHER_LAUNCHER\n' "$(sh_quote "$LAUNCHER")"
         # shellcheck disable=SC2016  # "$@" is meant literally, for the launcher.
         printf 'exec %s %s "$@"\n' "$(sh_quote "$VENV/bin/python")" "$(sh_quote "$APP/launch.py")"
     } > "$LAUNCHER"
@@ -354,6 +357,20 @@ Keywords=comic;cbz;cbr;cb7;pdf;manga;spread;stitch;
 MimeType=$MIME_TYPES
 StartupNotify=true
 StartupWMClass=$APP_ID
+X-ComicStitcher-Installer=$MARKER
+EOF
+    # The drop tab: a strip on the right screen edge that comics can be dropped onto.
+    cat > "$DROP_TAB_DESKTOP_FILE" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Comic Stitcher Drop Tab
+Comment=Show a drop tab on the right edge of the screen; drop comics onto it to open them
+Exec=$(desktop_quote "$LAUNCHER") --drop-tab
+Icon=$icon
+Terminal=false
+Categories=Graphics;
+Keywords=comic;drop;tab;
+StartupNotify=false
 X-ComicStitcher-Installer=$MARKER
 EOF
     if command -v update-desktop-database >/dev/null 2>&1; then

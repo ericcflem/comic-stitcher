@@ -21,6 +21,8 @@ VENV="$PREFIX/venv"
 LAUNCHER="$PREFIX/$APP_ID"
 BIN_LINK="$HOME/.local/bin/$APP_ID"
 DESKTOP_FILE="$DATA_HOME/applications/$APP_ID.desktop"
+DROP_TAB_DESKTOP_FILE="$DATA_HOME/applications/$APP_ID-drop-tab.desktop"
+DROP_TAB_AUTOSTART="$CONFIG_HOME/autostart/$APP_ID-drop-tab.desktop"
 ICON_ROOT="$DATA_HOME/icons/hicolor"
 ICON_SIZES=(256 128 64 48)
 NAUTILUS_EXTENSION="$DATA_HOME/nautilus-python/extensions/$APP_ID-folder-menu.py"
@@ -97,7 +99,16 @@ main() {
 
     if [ "$PURGE" -eq 1 ]; then forget_comicvine_key; fi
 
+    # Close a running drop tab and remove its sign-in entry.
+    if [ -x "$LAUNCHER" ]; then
+        "$LAUNCHER" --uninstall-drop-tab >/dev/null 2>&1 || true
+    fi
+    if [ -f "$DROP_TAB_AUTOSTART" ] && grep -qF "$PREFIX" "$DROP_TAB_AUTOSTART"; then
+        rm -f "$DROP_TAB_AUTOSTART"
+    fi
+
     remove_if_ours "$DESKTOP_FILE"
+    remove_if_ours "$DROP_TAB_DESKTOP_FILE"
     if command -v update-desktop-database >/dev/null 2>&1; then
         update-desktop-database "$(dirname "$DESKTOP_FILE")" >/dev/null 2>&1 || true
     fi

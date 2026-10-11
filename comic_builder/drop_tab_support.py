@@ -117,7 +117,16 @@ def launch_command(paths=(), frozen=None, executable=None, source_root=None):
     return executable, [str(root / "launch.py"), *arguments]
 
 
-def drop_tab_command(frozen=None, executable=None, source_root=None):
+def drop_tab_command(frozen=None, executable=None, source_root=None, environ=None):
+    """The command that starts the drop tab (used for starting it at sign-in).
+
+    When started through the Linux installer's launcher, use the launcher, so
+    the sign-in entry keeps working after updates rebuild the private Python.
+    """
+    environ = os.environ if environ is None else environ
+    launcher = environ.get("COMIC_STITCHER_LAUNCHER")
+    if launcher and os.access(launcher, os.X_OK):
+        return [launcher, DROP_TAB_FLAG]
     program, arguments = launch_command((), frozen, executable, source_root)
     return [program, *arguments, DROP_TAB_FLAG]
 

@@ -1,4 +1,5 @@
 """Layout, launch and sign-in rules for the drop tab (no Qt needed)."""
+import os
 import shlex
 import tempfile
 import unittest
@@ -97,8 +98,23 @@ class LaunchTests(unittest.TestCase):
         self.assertEqual(program, "/usr/bin/python3")
         self.assertEqual(arguments, [str(Path("/src/cs") / "launch.py"), "/home/me/x.cbz"])
 
+    def test_drop_tab_prefers_the_installed_launcher(self):
+        with tempfile.TemporaryDirectory() as folder:
+            launcher = Path(folder) / "comic-stitcher"
+            launcher.write_text("#!/bin/sh\n")
+            launcher.chmod(0o755)
+            command = drop_tab_command(frozen=False, executable="/venv/bin/python",
+                                       environ={"COMIC_STITCHER_LAUNCHER": str(launcher)})
+            if os.name == "nt":
+                self.assertEqual(command[-1], DROP_TAB_FLAG)  # Windows has no launcher script.
+            else:
+                self.assertEqual(command, [str(launcher), DROP_TAB_FLAG])
+        command = drop_tab_command(frozen=True, executable="ComicStitcher.exe",
+                                   environ={"COMIC_STITCHER_LAUNCHER": "/missing/launcher"})
+        self.assertEqual(command, ["ComicStitcher.exe", DROP_TAB_FLAG])
+
     def test_drop_tab_command_and_mode_detection(self):
-        command = drop_tab_command(frozen=True, executable="ComicStitcher.exe")
+        command = drop_tab_command(frozen=True, executable="ComicStitcher.exe", environ={})
         self.assertEqual(command, ["ComicStitcher.exe", DROP_TAB_FLAG])
         self.assertTrue(wants_drop_tab(command))
         self.assertTrue(wants_drop_tab(["exe", UNINSTALL_FLAG]))
