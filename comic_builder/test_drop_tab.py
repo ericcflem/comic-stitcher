@@ -253,7 +253,15 @@ class ControlTests(unittest.TestCase):
             if not first.claim():
                 self.skipTest("This execution environment blocks local sockets")
             self.assertFalse(second.claim())
-            self.assertTrue(DropTabControl.send_quit(name))
+            if not DropTabControl.send_quit(name):
+                from PySide6.QtNetwork import QLocalSocket
+                probe = QLocalSocket()
+                probe.connectToServer(name)
+                connected = probe.waitForConnected(1000)
+                self.fail(f"send_quit failed; listening={first.server.isListening()} "
+                          f"server={first.server.fullServerName()!r} error={first.server.errorString()!r} "
+                          f"probe_connected={connected} probe_error={probe.errorString()!r} "
+                          f"second_listening={second.server.isListening()}")
             deadline = time.monotonic() + 2
             while not quits and time.monotonic() < deadline:
                 app.processEvents()
