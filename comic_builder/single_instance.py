@@ -91,5 +91,19 @@ class LaunchBroker(QObject):
         self.paths_received.emit(paths)
 
     def close(self):
+        # Detach and close accepted connections first. Otherwise Qt deletes them along
+        # with the server, and each one announces "disconnected" while half-deleted;
+        # reading it then crashes on Linux.
+        for socket in list(self.sockets):
+            if isValid(socket):
+                for signal in (socket.readyRead, socket.disconnected):
+                    try:
+                        signal.disconnect()
+                    except (RuntimeError, TypeError):
+                        pass
+                socket.abort()
+                socket.deleteLater()
+        self.sockets.clear()
+        self.timer.stop()
         self.server.close()
         self.lock.unlock()
