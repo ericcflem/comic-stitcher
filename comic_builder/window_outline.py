@@ -11,6 +11,7 @@ import os
 from PySide6.QtCore import QEvent, QObject, Qt, QTimer
 from PySide6.QtGui import QColor, QGuiApplication, QPainter, QPen
 from PySide6.QtWidgets import QWidget
+from shiboken6 import isValid
 
 OUTLINE_COLOR = QColor(180, 180, 180)  # #b4b4b4, Fusion's button border
 
@@ -38,16 +39,11 @@ class WindowOutline(QWidget):
         self._refit.setSingleShot(True)
         self._refit.setInterval(0)
         self._refit.timeout.connect(self.fit)
-        window.installEventFilter(self)
+        # The window's events are watched by a shared object that is not part of any
+        # window: a filter that is the window's own child would be called while the
+        # window deletes it, which crashes.
+        window.installEventFilter(_watcher())
         self.fit()
-
-    def eventFilter(self, watched, event):
-        if event.type() in (QEvent.Type.Resize, QEvent.Type.Show, QEvent.Type.WindowStateChange):
-            self.fit()
-        elif event.type() == QEvent.Type.ChildAdded:
-            # Widgets added later would otherwise be stacked above the outline.
-            self._refit.start()
-        return False
 
     def fit(self):
         window = self.parentWidget()
@@ -62,6 +58,33 @@ class WindowOutline(QWidget):
         painter = QPainter(self)
         painter.setPen(QPen(OUTLINE_COLOR, 1))
         painter.drawRect(self.rect().adjusted(0, 0, -1, -1))
+
+
+class _OutlineWatcher(QObject):
+    """Keeps each window's outline sized to it and stacked on top."""
+
+    def eventFilter(self, watched, event):
+        kind = event.type()
+        if kind in (QEvent.Type.Resize, QEvent.Type.Show, QEvent.Type.WindowStateChange,
+                    QEvent.Type.ChildAdded) and isValid(watched):
+            outline = watched.findChild(WindowOutline, options=Qt.FindChildOption.FindDirectChildrenOnly)
+            if outline is not None and isValid(outline):
+                if kind == QEvent.Type.ChildAdded:
+                    # Widgets added later would otherwise be stacked above the outline.
+                    outline._refit.start()
+                else:
+                    outline.fit()
+        return False
+
+
+_WATCHER = None
+
+
+def _watcher():
+    global _WATCHER
+    if _WATCHER is None or not isValid(_WATCHER):
+        _WATCHER = _OutlineWatcher()
+    return _WATCHER
 
 
 def _wants_outline(widget):
