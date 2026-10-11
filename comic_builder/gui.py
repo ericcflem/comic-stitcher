@@ -41,6 +41,7 @@ from .pdf_jpegs import inspect_pdf_jpegs
 from .metadata_dialog import MetadataDialog
 from .comicvine import ComicVineClient
 from .key_store import can_remember_key, forget_key, protect_key, retrieve_key
+from .window_outline import install as install_window_outlines
 from .comicinfo import parse_xml
 from .review_report import save_report
 from .session import (cached_folder_scan, clear_session, read_session, restore_plan,
@@ -4738,6 +4739,8 @@ class ComicWindow(QMainWindow):
 def main():
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
+    # GNOME on Wayland: Qt's frame has no shadow, so give windows a visible edge.
+    outlines = install_window_outlines(app)  # noqa: F841  (kept alive for the app's lifetime)
     broker = LaunchBroker()
     try:
         if not broker.start([Path(argument) for argument in sys.argv[1:]]):
