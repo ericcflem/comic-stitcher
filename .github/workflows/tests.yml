@@ -101,3 +101,37 @@ jobs:
               emit("Test failure", block[:3500])
           emit("End of log", text[-3500:])
           EOF
+
+  linux-install:
+    # Runs linux/install.sh and uninstall.sh the way a user would, on Ubuntu's own Python.
+    name: linux-install
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check the scripts with ShellCheck
+        run: shellcheck linux/install.sh linux/uninstall.sh linux/nautilus/open-in-comic-stitcher.sh
+
+      - name: Install the desktop-file checker
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends desktop-file-utils
+
+      - name: Install Comic Stitcher
+        run: linux/install.sh --yes
+
+      - name: Check the installation
+        run: python3 .github/check_linux_install.py installed
+
+      - name: Install again, as an update would
+        run: linux/install.sh --yes
+
+      - name: Check the installation again
+        run: python3 .github/check_linux_install.py installed
+
+      - name: Uninstall with --purge
+        run: |
+          mkdir -p ~/.config/ComicStitcher && touch ~/.config/ComicStitcher/settings-test
+          ~/.local/share/comic-stitcher/uninstall.sh --yes --purge
+
+      - name: Check everything was removed
+        run: python3 .github/check_linux_install.py removed

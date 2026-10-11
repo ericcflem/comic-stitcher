@@ -4744,6 +4744,9 @@ class ComicWindow(OutlinedWindow, QMainWindow):
 def main():
     prefer_xwayland_on_gnome()  # GNOME on Wayland: GNOME's own frame, shadow and centring
     app = QApplication(sys.argv)
+    if sys.platform.startswith("linux"):
+        # Matches windows to the app-menu entry linux/install.sh creates (Wayland app id).
+        QApplication.setDesktopFileName("comic-stitcher")
     app.setStyle("Fusion")
     broker = LaunchBroker()
     try:
