@@ -9,12 +9,13 @@ from uuid import uuid4
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QMimeData, QPoint, QPointF, QSettings, Qt, QUrl
+from PySide6.QtCore import QEvent, QMimeData, QPoint, QPointF, QSettings, Qt, QUrl
 from PySide6.QtGui import QDragEnterEvent, QDropEvent
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMenu
 
-from .drop_tab import DropTab, DropTabControl, DropTabSettingsDialog, local_paths
+from .drop_tab import (DropTab, DropTabControl, DropTabSettingsDialog, MenuAutoClose, local_paths,
+                       mouse_position_unreliable)
 from .drop_tab_support import COLLAPSED_SIZE
 
 
@@ -179,6 +180,58 @@ class DropTabTests(unittest.TestCase):
         self.assertEqual(self.opened, [])
         self.assertNotEqual(self.tab.offset, start)
         self.assertEqual(int(self.settings.value("drop_tab/offset")), self.tab.offset)
+
+
+class XWaylandTests(unittest.TestCase):
+    """Under XWayland the mouse position goes stale over native Wayland windows."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QApplication.instance() or QApplication([])
+
+    def test_xwayland_is_recognised(self):
+        self.assertTrue(mouse_position_unreliable("xcb", {"WAYLAND_DISPLAY": "wayland-0"}))
+        self.assertFalse(mouse_position_unreliable("xcb", {"DISPLAY": ":0"}))
+        self.assertFalse(mouse_position_unreliable("wayland", {"WAYLAND_DISPLAY": "wayland-0"}))
+        self.assertFalse(mouse_position_unreliable("windows", {}))
+
+    def test_leaving_closes_the_panel_even_when_the_position_is_stale(self):
+        with tempfile.TemporaryDirectory() as folder:
+            settings = QSettings(str(Path(folder) / "settings.ini"), QSettings.Format.IniFormat)
+            tab = DropTab(settings, opener=lambda paths: True)
+            tab.show()
+            tab.mouse_position_unreliable = True
+            tab._expand()
+            tab.enterEvent(None)
+            stale = tab.frameGeometry().center()  # The last place XWayland saw the mouse.
+            with patch("comic_builder.drop_tab.QCursor.pos", return_value=stale):
+                self.assertFalse(wait_for(lambda: not tab.expanded, seconds=0.6))  # Still hovered.
+                tab.leaveEvent(None)
+                self.assertTrue(wait_for(lambda: not tab.expanded, seconds=2))
+            tab.close()
+            tab.deleteLater()
+
+    def test_menu_closes_after_the_pointer_leaves_it(self):
+        menu = QMenu()
+        menu.addAction("Something")
+        closer = MenuAutoClose(menu)
+        closer.AFTER_LEAVING_MS = 20
+        menu.popup(QPoint(10, 10))
+        self.assertTrue(wait_for(menu.isVisible))
+        QApplication.sendEvent(menu, QEvent(QEvent.Type.Enter))
+        self.assertFalse(wait_for(lambda: not menu.isVisible(), seconds=0.3))
+        QApplication.sendEvent(menu, QEvent(QEvent.Type.Leave))
+        self.assertTrue(wait_for(lambda: not menu.isVisible()))
+        menu.deleteLater()
+
+    def test_menu_closes_if_the_pointer_never_reaches_it(self):
+        menu = QMenu()
+        menu.addAction("Something")
+        closer = MenuAutoClose(menu)
+        closer.IF_NEVER_ENTERED_MS = 30
+        menu.popup(QPoint(10, 10))
+        self.assertTrue(wait_for(lambda: not menu.isVisible()))
+        menu.deleteLater()
 
 
 class ControlTests(unittest.TestCase):

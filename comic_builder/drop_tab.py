@@ -11,7 +11,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from PySide6.QtCore import QLockFile, QObject, QProcess, QRectF, QSettings, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QLockFile, QObject, QProcess, QRectF, QSettings, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QColor, QCursor, QFont, QFontMetrics, QGuiApplication, QIcon, QPainter, QPainterPath, QPen
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import (
@@ -39,6 +39,45 @@ OPENING_SHOWN_MS = 900  # How long "Opening…" shows after a drop.
 WATCH_INTERVAL_MS = 400  # How often an open panel checks the pointer is still over it.
 QUIT_MESSAGE = b"quit\n"
 SHOW_MESSAGE = b"show\n"
+
+
+def mouse_position_unreliable(platform_name=None, environ=None):
+    """True for an X11 window on a Wayland desktop (XWayland).
+
+    There the mouse position is only updated while the pointer is over an
+    XWayland window; over native Wayland windows and the desktop it stays at
+    the last place it was seen. Enter and leave events are still delivered.
+    """
+    platform_name = QGuiApplication.platformName() if platform_name is None else platform_name
+    environ = os.environ if environ is None else environ
+    return platform_name == "xcb" and bool(environ.get("WAYLAND_DISPLAY"))
+
+
+class MenuAutoClose(QObject):
+    """Closes a menu after the pointer has left it, for XWayland.
+
+    There a menu cannot see clicks on native Wayland windows, so clicking
+    elsewhere would not close it.
+    """
+    AFTER_LEAVING_MS = 700
+    IF_NEVER_ENTERED_MS = 2500
+
+    def __init__(self, menu, parent=None):
+        super().__init__(parent)
+        self.menu = menu
+        self.timer = QTimer(self)
+        self.timer.setSingleShot(True)
+        self.timer.timeout.connect(menu.close)
+        menu.aboutToShow.connect(lambda: self.timer.start(self.IF_NEVER_ENTERED_MS))
+        menu.aboutToHide.connect(self.timer.stop)
+        menu.installEventFilter(self)
+
+    def eventFilter(self, watched, event):
+        if event.type() == QEvent.Type.Enter:
+            self.timer.stop()
+        elif event.type() == QEvent.Type.Leave:
+            self.timer.start(self.AFTER_LEAVING_MS)
+        return False
 
 
 def control_name():
@@ -178,6 +217,8 @@ class DropTab(QWidget):
         self.watch_timer.setInterval(WATCH_INTERVAL_MS)
         self.watch_timer.timeout.connect(self._watch_pointer)
         self.drag_over = False
+        self.mouse_position_unreliable = mouse_position_unreliable()
+        self.menu_closer = None
         self.hover_timer = QTimer(self)
         self.hover_timer.setSingleShot(True)
         self.hover_timer.setInterval(self.hover_delay)
@@ -270,6 +311,8 @@ class DropTab(QWidget):
             self.place()
 
     def _pointer_inside(self):
+        if self.mouse_position_unreliable:
+            return self.hovered  # Under XWayland, trust enter/leave events instead.
         return self.frameGeometry().contains(QCursor.pos())
 
     def _collapse(self):
@@ -408,6 +451,8 @@ class DropTab(QWidget):
 
     def contextMenuEvent(self, event):
         if self.menu is not None:
+            if self.mouse_position_unreliable and self.menu_closer is None:
+                self.menu_closer = MenuAutoClose(self.menu, self)
             self.menu.exec(event.globalPos())
             self._watch_pointer()  # Close straight away if the menu was dismissed elsewhere.
 
