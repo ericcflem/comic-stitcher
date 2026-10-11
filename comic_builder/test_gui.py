@@ -385,8 +385,9 @@ class ThumbnailTest(unittest.TestCase):
                      patch.object(QDialog, 'exec', inspect), \
                      patch.object(QDesktopServices, 'openUrl', return_value=True) as opener:
                     window.show_about()
-                self.assertEqual([call.args[0].toLocalFile() for call in opener.call_args_list],
-                                 [str(index), str(licenses)])
+                # Qt writes local paths with forward slashes on every platform.
+                self.assertEqual([Path(call.args[0].toLocalFile()) for call in opener.call_args_list],
+                                 [index, licenses])
             finally:
                 window.close()
 
@@ -1906,7 +1907,7 @@ class ThumbnailTest(unittest.TestCase):
                 with zipfile.ZipFile(second) as archive:
                     expected_page = f"{folder.name} - Test 2 - 01.webp"
                     self.assertEqual(archive.namelist(), [expected_page])
-                    with Image.open(archive.open(expected_page)) as reduced:
+                    with archive.open(expected_page) as member, Image.open(member) as reduced:
                         self.assertEqual(reduced.size, (51, 64))
                 second.unlink()
                 self.wait_for(lambda: not window.worker.isRunning())

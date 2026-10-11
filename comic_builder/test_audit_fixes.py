@@ -1,5 +1,6 @@
 """Regression and fault-injection checks for the first release code audit."""
 import errno
+import os
 import io
 import tempfile
 import unittest
@@ -102,16 +103,24 @@ class AuditFixTests(unittest.TestCase):
             target = root / 'target'
             with patch('comic_builder.backend.os.link', side_effect=OSError(errno.EOPNOTSUPP, 'unsupported')):
                 publish_archive(source, target)
-                self.assertEqual(target.read_bytes(), source.read_bytes())
+                self.assertEqual(target.read_bytes(), b'verified archive')
+                if os.name == 'nt':
+                    # Windows publishes by renaming, so the staged copy has moved into place.
+                    self.assertFalse(source.exists())
+                    source.write_bytes(b'second archive')
+                else:
+                    self.assertEqual(source.read_bytes(), b'verified archive')
                 with self.assertRaises(FileExistsError): publish_archive(source, target)
                 self.assertEqual(target.read_bytes(), b'verified archive')
-                failed = root / 'failed'
-                def partial_copy(origin, output):
-                    output.write(b'partial'); raise OSError('disk full')
-                with patch('comic_builder.backend.shutil.copyfileobj', side_effect=partial_copy):
-                    with self.assertRaises(OSError): publish_archive(source, failed)
-                self.assertFalse(failed.exists())
-                self.assertEqual(source.read_bytes(), b'verified archive')
+                if os.name != 'nt':
+                    # Elsewhere the archive is copied; a failed copy must leave nothing behind.
+                    failed = root / 'failed'
+                    def partial_copy(origin, output):
+                        output.write(b'partial'); raise OSError('disk full')
+                    with patch('comic_builder.backend.shutil.copyfileobj', side_effect=partial_copy):
+                        with self.assertRaises(OSError): publish_archive(source, failed)
+                    self.assertFalse(failed.exists())
+                    self.assertEqual(source.read_bytes(), b'verified archive')
 
     def test_export_cleanup_failure_keeps_completed_archive(self):
         with tempfile.TemporaryDirectory() as d:

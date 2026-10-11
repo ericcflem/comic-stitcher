@@ -107,7 +107,10 @@ class LicensePackagingTests(unittest.TestCase):
                     package_licenses.metadata, 'version', return_value='1.2'):
                 package_licenses.collect(destination)
             data = json.loads((destination / 'licenses/build-inventory.json').read_text())
-            self.assertEqual(len(data['runtime_tool_notices']), 2)
+            # Two build tools that may embed runtime code, plus the Microsoft prerequisite.
+            self.assertEqual([tool['name'] for tool in data['runtime_tool_notices']],
+                             ['pyinstaller', 'pyinstaller-hooks-contrib',
+                              'Microsoft Visual C++ x64 prerequisite'])
             self.assertFalse(data['release_clearance'])
             self.assertEqual(data['application_license']['id'], 'MIT')
             self.assertEqual((destination / 'LICENSE').read_bytes(), (package_licenses.ROOT / 'LICENSE').read_bytes())

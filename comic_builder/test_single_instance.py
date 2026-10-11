@@ -21,6 +21,11 @@ class BrokerTests(unittest.TestCase):
         received = []
         broker.paths_received.connect(received.append)
         try:
+            # The test connects every client before it lets Qt process anything, which a
+            # running app never does. Hold the batching window open meanwhile, so a slow
+            # machine's connection time is not mistaken for the end of the burst.
+            interval = broker.timer.interval()
+            broker.timer.setInterval(60_000)
             self.assertTrue(broker.start([Path('first.cbz')]))
             sockets = []
             for n in range(12):
@@ -30,6 +35,8 @@ class BrokerTests(unittest.TestCase):
                 socket.write(('["book%d.cbz"]\n' % n).encode())
                 socket.waitForBytesWritten(1000)
                 sockets.append(socket)
+            broker.timer.setInterval(interval)
+            broker.timer.start()
             deadline = time.monotonic() + 3
             while not received and time.monotonic() < deadline:
                 app.processEvents()

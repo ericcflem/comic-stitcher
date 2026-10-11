@@ -488,13 +488,13 @@ class BookFlowTest(unittest.TestCase):
             with zipfile.ZipFile(full) as archive:
                 self.assertEqual(archive.namelist(), ["01.png", "02.png"])
                 self.assertEqual(archive.read("01.png"), originals["p00.png"])
-                with Image.open(archive.open("02.png")) as spread:
+                with archive.open("02.png") as member, Image.open(member) as spread:
                     self.assertEqual(spread.size, (240, 150))
             with zipfile.ZipFile(reduced) as archive:
                 self.assertEqual(archive.namelist(), ["01.jpg", "02.jpg"])
-                with Image.open(archive.open("01.jpg")) as page:
+                with archive.open("01.jpg") as member, Image.open(member) as page:
                     self.assertEqual(page.size, (60, 75))
-                with Image.open(archive.open("02.jpg")) as spread:
+                with archive.open("02.jpg") as member, Image.open(member) as spread:
                     self.assertEqual(spread.size, (120, 75))
             self.assertEqual(originals, {p.name: p.read_bytes() for p in folder.glob("*.png")})
             self.assertFalse(any(p.name.startswith("__ComicStitcher_work") for p in folder.iterdir()))
@@ -513,7 +513,7 @@ class BookFlowTest(unittest.TestCase):
             self.assertEqual(archive.name, "Tablet.cbz")
             with zipfile.ZipFile(archive) as contents:
                 self.assertEqual(contents.namelist(), ["01.png"])
-                with Image.open(contents.open("01.png")) as image:
+                with contents.open("01.png") as member, Image.open(member) as image:
                     self.assertEqual(image.size, (50, 100))
 
     def test_parallel_webp_export_keeps_order_and_originals(self):
@@ -531,7 +531,7 @@ class BookFlowTest(unittest.TestCase):
             with zipfile.ZipFile(result) as archive:
                 self.assertEqual(archive.namelist(), ["01.webp", "02.webp", "03.webp", "04.webp"])
                 for filename in archive.namelist():
-                    with Image.open(archive.open(filename)) as decoded:
+                    with archive.open(filename) as member, Image.open(member) as decoded:
                         self.assertEqual(decoded.size, (256, 192))
             self.assertEqual(progress[-1], (5, 5))
             self.assertEqual([n for n, _ in progress], sorted(n for n, _ in progress))
@@ -699,7 +699,7 @@ class BookFlowTest(unittest.TestCase):
             with zipfile.ZipFile(archive) as zf:
                 self.assertEqual(zf.namelist(), ["00.jpg", "01.png"])
                 self.assertEqual(zf.read("00.jpg"), originals["page001.jpg"])
-                with Image.open(zf.open("01.png")) as spread:
+                with zf.open("01.png") as member, Image.open(member) as spread:
                     self.assertEqual(spread.size, (240, 150))
             self.assertEqual({p.name: p.read_bytes() for p in folder.glob("*.jpg")}, originals)
             self.assertFalse(any(p.name.startswith("__ComicStitcher_work") for p in folder.iterdir()))
