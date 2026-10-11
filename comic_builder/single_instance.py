@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 from PySide6.QtCore import QObject, Signal, QLockFile, QTimer
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
+from shiboken6 import isValid
 
 
 class LaunchBroker(QObject):
@@ -63,7 +64,8 @@ class LaunchBroker(QObject):
 
     def _read(self, socket):
         data = self.sockets.get(socket)
-        if data is None:
+        if data is None or not isValid(socket):
+            # Qt may already have deleted a connection it closed (for example at shutdown).
             return
         data.extend(bytes(socket.readAll()))
         if len(data) > 1024 * 1024:
@@ -81,7 +83,8 @@ class LaunchBroker(QObject):
     def _discard(self, socket):
         self._read(socket)
         self.sockets.pop(socket, None)
-        socket.deleteLater()
+        if isValid(socket):
+            socket.deleteLater()
 
     def _flush(self):
         paths, self.pending = self.pending, []

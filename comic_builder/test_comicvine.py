@@ -1,10 +1,13 @@
 import json
+import os
 import threading
 import unittest
+from unittest.mock import patch
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit, parse_qs
 from .comicvine import ComicVineClient, ComicVineError, LookupCancelled, issue_fields, site_url
-from .key_store import can_remember_key, protect_key, retrieve_key
+from . import key_store
+from .key_store import KEYRING_MARKER, forget_key, protect_key, retrieve_key
 
 ISSUE = {'id': 123, 'name': 'Book &amp; title', 'issue_number': '0',
          'volume': {'id': 456, 'name': 'A series'}, 'cover_date': '2021-05-01',
@@ -112,8 +115,69 @@ class ComicVineTests(unittest.TestCase):
         for url in ('https://evil.example/', 'javascript:alert(1)', 'https://secret@comicvine.gamespot.com/'):
             self.assertEqual(site_url(url), '')
 
-    @unittest.skipUnless(can_remember_key(), 'Windows DPAPI requires Windows')
+    @unittest.skipUnless(os.name == 'nt', 'Windows DPAPI requires Windows')
     def test_windows_remembered_key_is_protected(self):
         protected = protect_key('test-key-only')
         self.assertNotIn('test-key-only', protected)
         self.assertEqual(retrieve_key(protected), 'test-key-only')
+
+
+class FakeKeyring:
+    """Stands in for the desktop keyring, so these tests never touch a real one."""
+    priority = 1
+
+    def __init__(self):
+        self.items = {}
+
+    def set_password(self, service, account, secret):
+        self.items[(service, account)] = secret
+
+    def get_password(self, service, account):
+        return self.items.get((service, account))
+
+    def delete_password(self, service, account):
+        del self.items[(service, account)]
+
+
+class KeyringTests(unittest.TestCase):
+    def test_keyring_keeps_the_key_and_settings_keep_only_a_marker(self):
+        ring = FakeKeyring()
+        with patch.object(key_store, '_windows', return_value=False), \
+             patch.object(key_store, '_keyring', return_value=ring):
+            self.assertTrue(key_store.can_remember_key())
+            stored = protect_key('test-key-only')
+            self.assertEqual(stored, KEYRING_MARKER)
+            self.assertNotIn('test-key-only', stored)
+            self.assertEqual(retrieve_key(stored), 'test-key-only')
+            forget_key(stored)
+            self.assertEqual(ring.items, {})
+            self.assertEqual(retrieve_key(stored), '')
+            forget_key(stored)  # Forgetting twice is harmless.
+
+    def test_without_a_keyring_nothing_is_remembered(self):
+        with patch.object(key_store, '_windows', return_value=False), \
+             patch.object(key_store, '_keyring', return_value=None):
+            self.assertFalse(key_store.can_remember_key())
+            with self.assertRaisesRegex(ValueError, 'No desktop keyring'):
+                protect_key('test-key-only')
+            self.assertEqual(retrieve_key(KEYRING_MARKER), '')
+            self.assertEqual(retrieve_key('some-windows-value'), '')
+
+    def test_locked_keyring_is_reported_not_crashed(self):
+        ring = FakeKeyring()
+        ring.set_password = lambda *args: (_ for _ in ()).throw(RuntimeError('locked'))
+        with patch.object(key_store, '_windows', return_value=False), \
+             patch.object(key_store, '_keyring', return_value=ring):
+            with self.assertRaisesRegex(ValueError, 'could not store'):
+                protect_key('test-key-only')
+
+    def test_placeholder_backends_count_as_no_keyring(self):
+        class Placeholder:
+            priority = 0
+        try:
+            import keyring  # noqa: F401  (installed on Linux only)
+        except ImportError:
+            self.skipTest('keyring is installed on Linux only')
+        with patch.object(key_store, '_windows', return_value=False), \
+             patch('keyring.get_keyring', return_value=Placeholder()):
+            self.assertIsNone(key_store._keyring())

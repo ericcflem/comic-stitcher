@@ -23,6 +23,7 @@ It imports PDFs, image folders, compressed archives, existing comic book files a
 - **Windows:** The official Windows installer includes the Python runtime and all necessary dependencies. No external installations of ImageMagick, Ghostscript, Poppler, or FFmpeg are required. At the moment, Comic Stitcher is Windows-only.
 - **UnRAR:** RAR/CBR import relies on the companion UnRAR utility bundled with the installer. Exporting to CBR/RAR is not supported.
 - **System Dependencies:** If needed, the installer will prompt to install the Microsoft Visual C++ x64 runtime.
+- **Linux (from source, in progress):** Comic Stitcher runs from source on Linux; an installer is planned. RAR/CBR import uses whichever RAR extractor is installed (UnRAR, unar, 7-Zip or bsdtar); on Ubuntu or Debian, `sudo apt install unar` adds one. A remembered ComicVine key is kept in the desktop keyring (such as GNOME Keyring or KDE Wallet).
 
 *For developer build instructions, see [BUILDING.md](docs/BUILDING.md). For version history, see [CHANGELOG.md](docs/CHANGELOG.md).*
 

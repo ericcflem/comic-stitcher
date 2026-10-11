@@ -40,7 +40,7 @@ from .pdf_import import import_pdf, pdf_workers, rendered_dimensions
 from .pdf_jpegs import inspect_pdf_jpegs
 from .metadata_dialog import MetadataDialog
 from .comicvine import ComicVineClient
-from .key_store import can_remember_key, protect_key, retrieve_key
+from .key_store import can_remember_key, forget_key, protect_key, retrieve_key
 from .comicinfo import parse_xml
 from .review_report import save_report
 from .session import (cached_folder_scan, clear_session, read_session, restore_plan,
@@ -1990,11 +1990,19 @@ class ComicWindow(QMainWindow):
         api_key.setPlaceholderText("Your ComicVine API key")
         api_key.setToolTip(tooltip_text("Used only when you search ComicVine from the metadata editor. The key is not included in comics, queued jobs, review reports or diagnostic logs."))
         key_form.addRow("API key", api_key)
-        remember_key = QCheckBox("Remember on this Windows account")
+        rememberable = can_remember_key()
+        if os.name == "nt":
+            remember_key = QCheckBox("Remember on this Windows account")
+            remember_help = "Windows protects the remembered key for your user account."
+        else:
+            remember_key = QCheckBox("Remember in this computer's keyring")
+            remember_help = ("Your desktop keyring (such as GNOME Keyring or KDE Wallet) protects the remembered key."
+                             if rememberable else
+                             "No desktop keyring was found, so the key can only be kept until Comic Stitcher closes.")
         remember_key.setObjectName("remember_comicvine_key")
-        remember_key.setChecked(can_remember_key() and bool(self.settings.value("comicvine_key_protected", "")))
-        remember_key.setEnabled(can_remember_key())
-        remember_key.setToolTip(tooltip_text("Windows protects the remembered key for your user account. Unchecked: retain it only until Comic Stitcher closes. Clear the API key and click OK to remove it."))
+        remember_key.setChecked(rememberable and bool(self.settings.value("comicvine_key_protected", "")))
+        remember_key.setEnabled(rememberable)
+        remember_key.setToolTip(tooltip_text(remember_help + " Unchecked: retain it only until Comic Stitcher closes. Clear the API key and click OK to remove it."))
         key_form.addRow("", remember_key)
         key_link = QLabel('<a href="https://comicvine.gamespot.com/api/">Get an API key / ComicVine API terms</a>')
         key_link.setOpenExternalLinks(True); key_form.addRow("", key_link)
@@ -2025,6 +2033,8 @@ class ComicWindow(QMainWindow):
             if protected:
                 self.settings.setValue("comicvine_key_protected", protected)
             else:
+                # A keyring keeps the key outside the settings file, so remove it there too.
+                forget_key(self.settings.value("comicvine_key_protected", ""))
                 self.settings.remove("comicvine_key_protected")
             if entered_key != self.comicvine_session_key:
                 self.comicvine_client.set_key(entered_key)

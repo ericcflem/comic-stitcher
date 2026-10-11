@@ -88,13 +88,37 @@ def _unrar_tool() -> str:
                      "ComicStitcher.exe (or launch.py), or install WinRAR/UnRAR, then retry.")
 
 
-def _import_rar(source: Path, destination: Path, progress, total_steps: int = 3) -> list[tuple[str, int]]:
-    rarfile.UNRAR_TOOL = _unrar_tool()
+# Shown on Linux and other non-Windows systems when no RAR extractor is installed.
+RAR_TOOL_HELP = ("RAR/CBR import needs a RAR extractor, and none was found. Install one, "
+                 "then retry: for example 'sudo apt install unar' on Ubuntu or Debian, "
+                 "'sudo dnf install unar' on Fedora, or 'sudo pacman -S unarchiver' on Arch. "
+                 "UnRAR, 7-Zip and bsdtar also work.")
+
+
+def _setup_rar_tools(windows: bool | None = None) -> None:
+    """Choose the program that extracts RAR archives.
+
+    Windows uses the official UnRAR shipped beside Comic Stitcher (or WinRAR's).
+    Elsewhere nothing is bundled: rarfile tries the installed extractors in its
+    own order (UnRAR, unar, 7-Zip, bsdtar) and uses the first that works.
+    """
+    if windows is None:
+        windows = os.name == "nt"
+    if windows:
+        rarfile.UNRAR_TOOL = _unrar_tool()
+        backends = dict(unrar=True, unar=False, bsdtar=False, sevenzip=False, sevenzip2=False)
+        failure = "UnRAR could not start. Install an up-to-date UnRAR executable and retry."
+    else:
+        backends = dict(unrar=True, unar=True, bsdtar=True, sevenzip=True, sevenzip2=True)
+        failure = RAR_TOOL_HELP
     try:
-        rarfile.tool_setup(unrar=True, unar=False, bsdtar=False,
-                           sevenzip=False, sevenzip2=False, force=True)
+        rarfile.tool_setup(**backends, force=True)
     except rarfile.RarCannotExec as exc:
-        raise ValueError("UnRAR could not start. Install an up-to-date UnRAR executable and retry.") from exc
+        raise ValueError(failure) from exc
+
+
+def _import_rar(source: Path, destination: Path, progress, total_steps: int = 3) -> list[tuple[str, int]]:
+    _setup_rar_tools()
     try:
         with rarfile.RarFile(source) as archive:
             if len(archive.volumelist()) > 1:
