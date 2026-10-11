@@ -8,7 +8,7 @@ from PySide6.QtCore import QMargins, Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QApplication, QVBoxLayout, QWidget
 
-from .window_outline import OUTLINE_COLOR, OutlinedDialog, wants_outlines
+from .window_outline import OUTLINE_COLOR, OutlinedDialog, prefer_xwayland_on_gnome, wants_outlines
 
 
 class WindowOutlineTests(unittest.TestCase):
@@ -23,6 +23,26 @@ class WindowOutlineTests(unittest.TestCase):
         self.assertFalse(wants_outlines("xcb", {"XDG_CURRENT_DESKTOP": "ubuntu:GNOME"}))
         self.assertFalse(wants_outlines("windows", {}))
         self.assertFalse(wants_outlines("offscreen", {}))
+
+    def test_gnome_wayland_asks_for_xwayland_with_a_fallback(self):
+        gnome = {"WAYLAND_DISPLAY": "wayland-0", "XDG_CURRENT_DESKTOP": "ubuntu:GNOME"}
+        environ = dict(gnome)
+        self.assertTrue(prefer_xwayland_on_gnome(environ, "linux"))
+        self.assertEqual(environ["QT_QPA_PLATFORM"], "xcb;wayland")
+
+    def test_xwayland_is_not_forced_elsewhere_or_against_a_choice(self):
+        gnome = {"WAYLAND_DISPLAY": "wayland-0", "XDG_CURRENT_DESKTOP": "ubuntu:GNOME"}
+        cases = [
+            (dict(gnome), "win32"),
+            ({"WAYLAND_DISPLAY": "wayland-0", "XDG_CURRENT_DESKTOP": "KDE"}, "linux"),
+            ({"DISPLAY": ":0", "XDG_CURRENT_DESKTOP": "GNOME"}, "linux"),
+            (dict(gnome, QT_QPA_PLATFORM="wayland"), "linux"),
+            (dict(gnome, COMIC_STITCHER_NATIVE_WAYLAND="1"), "linux"),
+        ]
+        for environ, platform in cases:
+            before = dict(environ)
+            self.assertFalse(prefer_xwayland_on_gnome(environ, platform), environ)
+            self.assertEqual(environ, before)
 
     def test_elsewhere_windows_are_unchanged(self):
         dialog = OutlinedDialog()
