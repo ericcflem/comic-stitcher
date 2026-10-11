@@ -41,7 +41,7 @@ from .pdf_jpegs import inspect_pdf_jpegs
 from .metadata_dialog import MetadataDialog
 from .comicvine import ComicVineClient
 from .key_store import can_remember_key, forget_key, protect_key, retrieve_key
-from .window_outline import install as install_window_outlines
+from .window_outline import OutlinedDialog, OutlinedWindow
 from .comicinfo import parse_xml
 from .review_report import save_report
 from .session import (cached_folder_scan, clear_session, read_session, restore_plan,
@@ -745,11 +745,12 @@ class ResizeSettingsWidget(QWidget):
                 "filter": self.filter.currentText().lower()}
 
 
-class OutputOptionsDialog(QDialog):
+class OutputOptionsDialog(OutlinedWindow, QDialog):
     """Edit a copy of the output settings; apply nothing until OK."""
 
     def __init__(self, opt: ExportOptions, resize_values: dict, parent=None, *, size_limits=None):
         super().__init__(parent)
+        self._setup_outline()  # GNOME on Wayland: a visible window edge
         self.setWindowTitle("Output options")
         self.resize(650, 450)
         self.setStyleSheet("QTabWidget::pane { border:1px solid #ccd5dd; } "
@@ -985,10 +986,11 @@ class PdfPreviewWorker(QThread):
             self.failed.emit(str(exc))
 
 
-class PdfImportDialog(QDialog):
+class PdfImportDialog(OutlinedWindow, QDialog):
     def __init__(self, source: Path, dpi: int, workers: int,
                  smooth_images: bool = True, parent=None, *, manual: bool = False, right_to_left: bool = False):
         super().__init__(parent)
+        self._setup_outline()  # GNOME on Wayland: a visible window edge
         self.source = source
         self.preview_generation = 0
         self.current_size = None
@@ -1153,11 +1155,12 @@ class CropThumbnailList(QListWidget):
         self.doItemsLayout()
 
 
-class ScreenshotCropDialog(QDialog):
+class ScreenshotCropDialog(OutlinedWindow, QDialog):
     """Review the book's crop guide over the full capture before staging."""
 
     def __init__(self, proposals, single_size=None, parent=None, calibration=None):
         super().__init__(parent)
+        self._setup_outline()  # GNOME on Wayland: a visible window edge
         self.setWindowTitle("Review screenshot crops")
         self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint)
         self.setSizeGripEnabled(True)
@@ -1655,12 +1658,13 @@ class ImportDropZone(QFrame):
             QTimer.singleShot(0, lambda: self.dropped.emit(paths))
 
 
-class ImportChoiceDialog(QDialog):
+class ImportChoiceDialog(OutlinedWindow, QDialog):
     """Confirm the detected folder workflow and the pair review style."""
 
     def __init__(self, source: Path, *, folder: bool, screenshot_hint: bool = False,
                  sampled: int = 0, pdf_smooth_images: bool = True, parent=None):
         super().__init__(parent)
+        self._setup_outline()  # GNOME on Wayland: a visible window edge
         self.setWindowTitle("Start comic import")
         self.resize(540, 310)
         self.setStyleSheet("QComboBox { min-height:28px; } QPushButton { padding:7px 14px; }")
@@ -1793,9 +1797,10 @@ def queued_outputs(plan: BookPlan, opt: ExportOptions) -> list[Path]:
     return paths
 
 
-class ComicWindow(QMainWindow):
+class ComicWindow(OutlinedWindow, QMainWindow):
     def __init__(self):
         super().__init__()
+        self._setup_outline()  # GNOME on Wayland: a visible window edge
         self.setWindowTitle("Comic Stitcher")
         icon_root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
         icon_path = icon_root / "comic-stitcher.png"
@@ -1917,7 +1922,7 @@ class ComicWindow(QMainWindow):
         self.settings.setValue("hide_source_notice", checkbox.isChecked())
 
     def show_about(self):
-        dialog = QDialog(self)
+        dialog = OutlinedDialog(self)
         dialog.setWindowTitle("About Comic Stitcher")
         dialog.resize(590, 380)
         layout = QVBoxLayout(dialog)
@@ -1959,7 +1964,7 @@ class ComicWindow(QMainWindow):
         dialog.exec()
 
     def show_settings(self):
-        dialog = QDialog(self)
+        dialog = OutlinedDialog(self)
         dialog.setWindowTitle("Settings")
         dialog.resize(540, 510)
         layout = QVBoxLayout(dialog)
@@ -4271,7 +4276,7 @@ class ComicWindow(QMainWindow):
         return "Queue comic and review next" if self.pending_imports else "Queue comic and start exports"
 
     def confirm_export(self, opt: ExportOptions, *, queue: bool = False) -> bool:
-        dialog = QDialog(self)
+        dialog = OutlinedDialog(self)
         dialog.setWindowTitle("Review queued comic" if queue else "Review comic export")
         dialog.resize(780 if opt.size_output == "both" else 620, 540)
         dialog.setStyleSheet(
@@ -4490,7 +4495,7 @@ class ComicWindow(QMainWindow):
         self.next_import_button.setVisible(bool(waiting))
 
     def show_queue(self, *, batch_review=False):
-        dialog = QDialog(self)
+        dialog = OutlinedDialog(self)
         dialog.setWindowTitle("Review batch" if batch_review else "Comics ready to export")
         dialog.resize(760, 480)
         dialog.setStyleSheet("QListWidget { font-size:14px; } "
@@ -4739,8 +4744,6 @@ class ComicWindow(QMainWindow):
 def main():
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
-    # GNOME on Wayland: Qt's frame has no shadow, so give windows a visible edge.
-    outlines = install_window_outlines(app)  # noqa: F841  (kept alive for the app's lifetime)
     broker = LaunchBroker()
     try:
         if not broker.start([Path(argument) for argument in sys.argv[1:]]):

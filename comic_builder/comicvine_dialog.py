@@ -5,6 +5,7 @@ from PySide6.QtCore import QObject, Signal, Slot, QRunnable, QThreadPool, Qt
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLineEdit, QComboBox, QPushButton,
     QLabel, QListWidget, QListWidgetItem, QPlainTextEdit, QCheckBox, QSplitter)
 from .comicvine import ComicVineError, LookupCancelled, site_url, plain_text
+from .window_outline import OutlinedWindow
 
 
 class _Signals(QObject):
@@ -27,9 +28,10 @@ class _Job(QRunnable):
             if not self.cancel.is_set(): self.signals.failed.emit('The lookup could not be completed. Manual metadata editing is still available.')
 
 
-class ComicVineDialog(QDialog):
+class ComicVineDialog(OutlinedWindow, QDialog):
     def __init__(self, client, search_hint='', parent=None):
         super().__init__(parent)
+        self._setup_outline()  # GNOME on Wayland: a visible window edge
         self.client = client
         self.result_fields = {}
         self.replace_existing = False
