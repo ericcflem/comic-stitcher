@@ -5,9 +5,10 @@ import unittest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QPoint, Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QApplication, QDialog, QLabel, QMainWindow, QMenu, QWidget
 
-from .window_outline import OutlineInstaller, WindowOutline, wants_outlines
+from .window_outline import OUTLINE_COLOR, OutlineInstaller, WindowOutline, wants_outlines
 
 
 class WindowOutlineTests(unittest.TestCase):
@@ -25,26 +26,35 @@ class WindowOutlineTests(unittest.TestCase):
 
     def test_outline_covers_the_window_stays_on_top_and_lets_clicks_through(self):
         window = QMainWindow()
-        try:
-            window.setCentralWidget(QLabel("content"))
-            outline = WindowOutline(window)
-            window.resize(400, 300)
-            window.show()
-            self.app.processEvents()
-            self.assertEqual(outline.geometry(), window.rect())
-            self.assertTrue(outline.testAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents))
-            # A widget added later must not end up above the outline.
-            late = QWidget(window)
-            late.show()
-            self.app.processEvents()
-            self.assertIs(window.children()[-1], outline)
-            # The point under the outline belongs to the content, for clicks and drops.
-            self.assertIsNot(window.childAt(QPoint(200, 150)), outline)
-            window.resize(500, 350)
-            self.app.processEvents()
-            self.assertEqual(outline.geometry(), window.rect())
-        finally:
-            window.close()
+        content = QLabel("content")
+        window.setCentralWidget(content)
+        outline = WindowOutline(window)
+        window.resize(400, 300)
+        window.show()
+        self.app.processEvents()
+        self.assertEqual(outline.geometry(), window.rect())
+        self.assertTrue(outline.testAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents))
+        # The point under the outline belongs to the content, for clicks and drops.
+        self.assertIs(window.childAt(QPoint(200, 150)), content)
+        # A red box added later over the left edge must not cover the outline.
+        late = QWidget(window)
+        late.setGeometry(0, 0, 60, 60)
+        late.setAutoFillBackground(True)
+        palette = late.palette()
+        palette.setColor(late.backgroundRole(), QColor("red"))
+        late.setPalette(palette)
+        late.show()
+        self.app.processEvents()
+        image = window.grab().toImage()
+        self.assertEqual(image.pixelColor(0, 30).name(), OUTLINE_COLOR.name())
+        self.assertEqual(image.pixelColor(30, 30).name(), QColor("red").name())
+        window.resize(500, 350)
+        self.app.processEvents()
+        self.assertEqual(outline.geometry(), window.rect())
+        window.showMaximized()
+        self.app.processEvents()
+        self.assertFalse(outline.isVisible())
+        window.close()
 
     def test_installer_outlines_windows_and_dialogs_once_but_not_menus(self):
         installer = OutlineInstaller()
