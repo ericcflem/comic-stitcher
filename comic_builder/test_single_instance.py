@@ -63,3 +63,33 @@ class BrokerTests(unittest.TestCase):
             time.sleep(.005)
         self.assertEqual(received, [[Path('book%d.cbz' % n) for n in range(12)]])
         broker.close()
+
+    def test_closing_detaches_connections_before_qt_deletes_them(self):
+        # Qt deletes accepted connections with the server; a connection that then says
+        # "disconnected" must not be read, because it is half-deleted (a crash on Linux).
+        import gc
+        app = QCoreApplication.instance() or QCoreApplication([])
+        broker = LaunchBroker('cs-close-test-' + uuid4().hex[:8])
+        try:
+            self.assertTrue(broker.start([]))
+        except RuntimeError:
+            self.skipTest('This execution environment blocks local sockets')
+        client = QLocalSocket()
+        client.connectToServer(broker.name)
+        self.assertTrue(client.waitForConnected(1000))
+        deadline = time.monotonic() + 2
+        while not broker.sockets and time.monotonic() < deadline:
+            app.processEvents()
+            time.sleep(.005)
+        self.assertTrue(broker.sockets)
+        reads = []
+        broker._read = lambda socket: reads.append(socket)
+        broker.close()
+        self.assertEqual(broker.sockets, {})
+        client.abort()
+        del broker
+        gc.collect()
+        for _ in range(20):
+            app.processEvents()
+            time.sleep(.005)
+        self.assertEqual(reads, [])

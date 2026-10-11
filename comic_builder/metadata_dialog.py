@@ -3,11 +3,13 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QTabWi
     QScrollArea, QFormLayout, QCheckBox, QLineEdit, QPlainTextEdit, QComboBox, QPushButton, QMessageBox)
 from .comicinfo import BASIC, FIELDS, ENUMS, LABELS, parse_xml, edit_xml
 from .comicvine_dialog import ComicVineDialog
+from .window_outline import OutlinedWindow
 
 
-class MetadataDialog(QDialog):
+class MetadataDialog(OutlinedWindow, QDialog):
     def __init__(self, original=None, parent=None, *, search_hint="", lookup_provider=None):
         super().__init__(parent)
+        self._setup_outline()  # GNOME on Wayland: a visible window edge
         self.setWindowTitle('Comic metadata')
         self.resize(680, 640)
         self.search_hint = search_hint
