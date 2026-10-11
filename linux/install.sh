@@ -86,17 +86,13 @@ package_manager() {
     done
 }
 
-# package_name MANAGER (venv|xcb-cursor|nautilus-python)
+# package_name MANAGER (venv|nautilus-python)
 package_name() {
     case "$1:$2" in
         apt-get:venv)            printf 'python3-venv' ;;
-        apt-get:xcb-cursor)      printf 'libxcb-cursor0' ;;
         apt-get:nautilus-python) printf 'python3-nautilus' ;;
-        dnf:xcb-cursor)          printf 'xcb-util-cursor' ;;
         dnf:nautilus-python)     printf 'nautilus-python' ;;
-        pacman:xcb-cursor)       printf 'xcb-util-cursor' ;;
         pacman:nautilus-python)  printf 'python-nautilus' ;;
-        zypper:xcb-cursor)       printf 'libxcb-cursor0' ;;
     esac
 }
 
@@ -128,15 +124,6 @@ venv_works() {
     return "$status"
 }
 
-has_xcb_cursor() {
-    local library
-    for library in /usr/lib/libxcb-cursor.so.0 /usr/lib64/libxcb-cursor.so.0 \
-                   /usr/lib/*/libxcb-cursor.so.0 /lib/*/libxcb-cursor.so.0; do
-        [ -e "$library" ] && return 0
-    done
-    { ldconfig -p 2>/dev/null || /sbin/ldconfig -p 2>/dev/null; } | grep -q 'libxcb-cursor\.so\.0'
-}
-
 has_nautilus_python() {
     local module
     for module in /usr/lib/*/nautilus/extensions-*/libnautilus-python.so \
@@ -161,14 +148,6 @@ check_system() {
         name=$(package_name "$manager" venv)
         [ -n "$name" ] || die "Python cannot create private environments here (the 'venv' module is missing). Install your system's Python venv package, then run this again."
         needed+=("$name"); reasons+=("$name: lets Comic Stitcher keep its own private copy of its libraries (required)")
-    fi
-    if ! has_xcb_cursor; then
-        name=$(package_name "$manager" xcb-cursor)
-        if [ -n "$name" ]; then
-            needed+=("$name"); reasons+=("$name: gives Comic Stitcher the desktop's own window frame and shadows (recommended)")
-        else
-            warn "the libxcb-cursor library seems to be missing; Comic Stitcher will still run, without the desktop's window shadows."
-        fi
     fi
     if command -v nautilus >/dev/null 2>&1 && ! has_nautilus_python; then
         name=$(package_name "$manager" nautilus-python)
@@ -233,6 +212,64 @@ setup_environment() {
 
     say "Downloading and installing libraries (about 120 MB the first time; updates are quicker)..."
     "$VENV/bin/python" -m pip install --disable-pip-version-check -r "$requirements"
+}
+
+# Shared libraries that Qt's X11/XWayland plugin needs but cannot find.
+missing_window_libraries() {
+    local plugin
+    plugin=$(compgen -G "$VENV/lib/python3*/site-packages/PySide6/Qt/plugins/platforms/libqxcb.so" | head -n 1 || true)
+    [ -n "$plugin" ] || return 0
+    ldd "$plugin" 2>/dev/null | awk '/not found/ {print $1}' | sort -u
+}
+
+# The system package that provides a shared library, if one can be found.
+package_for_library() {
+    local manager=$1 library=$2 stem number guess
+    case "$manager" in
+        apt-get)
+            # Debian's naming rule: libfoo.so.4 -> libfoo4, libfoo-x11.so.0 -> libfoo-x11-0.
+            stem=${library%%.so*}; number=${library#*.so.}; number=${number%%.*}
+            if [[ $stem =~ [0-9]$ ]]; then guess="$stem-$number"; else guess="$stem$number"; fi
+            guess=${guess,,}
+            if apt-cache show "$guess" >/dev/null 2>&1; then printf '%s' "$guess"; fi ;;
+        dnf)
+            dnf repoquery --quiet --qf '%{name}\n' --whatprovides "$library()(64bit)" 2>/dev/null | head -n 1 ;;
+    esac
+}
+
+check_window_libraries() {
+    step "Checking the libraries for the desktop's own window frame"
+    local missing=() packages=() unknown=() library package manager
+    mapfile -t missing < <(missing_window_libraries)
+    if [ "${#missing[@]}" -eq 0 ]; then
+        say "All present."
+        return
+    fi
+    manager=$(package_manager)
+    for library in "${missing[@]}"; do
+        package=$(package_for_library "$manager" "$library" || true)
+        if [ -n "$package" ]; then packages+=("$package"); else unknown+=("$library"); fi
+    done
+    say "Without these, Comic Stitcher still works but uses a plainer window frame without shadows."
+    if [ "${#packages[@]}" -gt 0 ]; then
+        mapfile -t packages < <(printf '%s\n' "${packages[@]}" | sort -u)
+        say "Missing system packages: ${packages[*]}"
+        if ask "Install them now? This may ask for your password." Y; then
+            install_packages "$manager" "${packages[@]}" || warn "installing system packages did not finish."
+        else
+            say "Skipped. You can install them later with:"
+            say "  $(install_command "$manager" "${packages[@]}")"
+        fi
+    fi
+    if [ "${#unknown[@]}" -gt 0 ]; then
+        warn "no package was found for: ${unknown[*]}"
+    fi
+    mapfile -t missing < <(missing_window_libraries)
+    if [ "${#missing[@]}" -eq 0 ]; then
+        say "All present now."
+    else
+        warn "still missing: ${missing[*]}. Comic Stitcher will use its plainer window frame."
+    fi
 }
 
 write_launcher() {
@@ -343,6 +380,7 @@ main() {
     check_system
     copy_app
     setup_environment
+    check_window_libraries
     write_launcher
     write_desktop_entry
     install_folder_menu

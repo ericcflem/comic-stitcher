@@ -72,6 +72,11 @@ def installed():
     check("libqxcb.so" in names, "the X11/XWayland plugin is present", ", ".join(sorted(names)))
     check(any(name.startswith("libqwayland") for name in names), "a native Wayland plugin is present",
           ", ".join(sorted(names)))
+    xcb = [plugin for plugin in plugins if plugin.name == "libqxcb.so"]
+    if xcb:
+        linked = subprocess.run(["ldd", str(xcb[0])], capture_output=True, text=True).stdout
+        missing = [line.split()[0] for line in linked.splitlines() if "not found" in line]
+        check(not missing, "every library the X11/XWayland plugin needs is installed", " ".join(missing))
 
     start = venv_python(
         "import sys; sys.path.insert(0, sys.argv[1])\n"
