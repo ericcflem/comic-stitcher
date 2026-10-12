@@ -3,6 +3,8 @@
 #
 #   linux/install.sh          Install, or update an earlier install.
 #   linux/install.sh --yes    Answer yes to every question (for unattended use).
+#   linux/install.sh --no-drop-tab
+#                             Don't turn on the drop tab on a new install.
 #
 # Run it from the downloaded Comic Stitcher folder, as yourself (not with sudo).
 # Everything goes in your home folder; it asks for your password only if it
@@ -29,6 +31,9 @@ NAUTILUS_EXTENSION="$DATA_HOME/nautilus-python/extensions/$APP_ID-folder-menu.py
 NAUTILUS_SCRIPT="$DATA_HOME/nautilus/scripts/Open in Comic Stitcher"
 PYTHON="${PYTHON:-python3}"
 ASSUME_YES=0
+DROP_TAB=1          # Turn the drop tab on for a new install (--no-drop-tab: don't).
+FIRST_INSTALL=0
+DROP_TAB_AUTOSTART="${XDG_CONFIG_HOME:-$HOME/.config}/autostart/$APP_ID-drop-tab.desktop"
 
 # File types offered under "Open With" (the same set the Windows installer uses).
 MIME_TYPES="application/vnd.comicbook+zip;application/vnd.comicbook-rar;application/x-cb7;application/pdf;application/zip;application/vnd.rar;application/x-7z-compressed;"
@@ -403,12 +408,34 @@ install_folder_menu() {
     fi
 }
 
+# Turn on the drop tab for a new install, and keep an existing choice on updates.
+setup_drop_tab() {
+    local enable=0
+    if [ "$FIRST_INSTALL" -eq 1 ] && [ "$DROP_TAB" -eq 1 ]; then enable=1; fi
+    if [ -f "$DROP_TAB_AUTOSTART" ]; then enable=1; fi   # Already on: refresh its command.
+    [ "$enable" -eq 1 ] || return 0
+    step "Turning on the drop tab"
+    "$VENV/bin/python" - "$APP" "$LAUNCHER" <<'PY' || warn "could not set the drop tab to start when you sign in."
+import sys
+sys.path.insert(0, sys.argv[1])
+from comic_builder.drop_tab_support import DROP_TAB_FLAG, set_autostart
+set_autostart(True, [sys.argv[2], DROP_TAB_FLAG])
+PY
+    if [ -n "${WAYLAND_DISPLAY:-}${DISPLAY:-}" ]; then
+        # Its own session, so it keeps running after this terminal closes.
+        (setsid "$LAUNCHER" --drop-tab </dev/null >/dev/null 2>&1 &)
+        say "The drop tab is on the right edge of your screen. Drop comics onto it to open them."
+    fi
+    say "It starts when you sign in. To stop that, right-click the tab and untick 'Start when I sign in'."
+}
+
 main() {
     trap pause_before_closing EXIT
     while [ "$#" -gt 0 ]; do
         case "$1" in
             -y|--yes) ASSUME_YES=1 ;;
-            -h|--help) sed -n '2,12p' "${BASH_SOURCE[0]}"; exit 0 ;;
+            --no-drop-tab) DROP_TAB=0 ;;
+            -h|--help) sed -n '2,14p' "${BASH_SOURCE[0]}"; exit 0 ;;
             *) die "Unknown option: $1 (try --help)" ;;
         esac
         shift
@@ -417,12 +444,14 @@ main() {
     case "$(uname -s)" in Linux) ;; *) die "This installer is for Linux." ;; esac
 
     check_system
+    if [ ! -d "$APP" ]; then FIRST_INSTALL=1; fi
     copy_app
     setup_environment
     check_window_libraries
     write_launcher
     write_desktop_entry
     install_folder_menu
+    setup_drop_tab
 
     step "Comic Stitcher was installed successfully."
     notify "Comic Stitcher is installed" "Find it in your app menu, or right-click a comic and choose Open With."
