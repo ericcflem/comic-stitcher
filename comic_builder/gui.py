@@ -2563,7 +2563,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.metadata_button = QPushButton("Edit metadata…")
         self.metadata_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.metadata_button.setEnabled(False)
-        self.include_comicinfo.setToolTip(tooltip_text("Add optional comic metadata to each archive and saved PNG folder. Existing ComicInfo.xml information is retained unless you change or exclude it. Page count and existing page references are updated to match the final comic."))
+        self.include_comicinfo.setToolTip(tooltip_text("Add optional comic metadata to each archive and saved PNG folder. Existing ComicInfo.xml information is retained unless you change or exclude it. A page list is included that marks the front cover and two-page spreads for library apps; existing page details are kept and updated to match the final comic."))
         self.include_comicinfo.toggled.connect(self._metadata_toggled)
         self.metadata_button.clicked.connect(self.show_metadata)
         metadata_row = QHBoxLayout()

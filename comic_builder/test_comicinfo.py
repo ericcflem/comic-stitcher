@@ -75,6 +75,49 @@ class ComicInfoTests(unittest.TestCase):
                     cover = next(p for p in doc.find('Pages') if p.get('Type') == 'FrontCover')
                     self.assertEqual(cover.get('Image'), '3' if front else '0')
 
+    def test_new_metadata_lists_every_page_with_cover_and_spreads(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp) / 'pages'; folder.mkdir()
+            sizes = [(80, 120)] * 4 + [(160, 120), (80, 120)]  # Page 4 is already a wide spread.
+            for n, size in enumerate(sizes): Image.new('RGB', size, 'white').save(folder / f'{n:03}.png')
+            plan = BookPlan(scan_folder(folder, manual=True))
+            self.assertIsNone(plan.comicinfo_xml)
+            plan.join(1, override_boundary=True)
+            opt = ExportOptions('new', format='png', workers=1, comicinfo_xml='<ComicInfo/>')
+            with zipfile.ZipFile(export_book(plan, opt)) as z:
+                doc = ET.fromstring(z.read('ComicInfo.xml'))
+            self.assertEqual(doc.findtext('PageCount'), '5')
+            pages = doc.find('Pages').findall('Page')
+            self.assertEqual([p.get('Image') for p in pages], ['0', '1', '2', '3', '4'])
+            self.assertEqual([p.get('Type') for p in pages], ['FrontCover', None, None, None, None])
+            self.assertEqual([p.get('DoublePage') for p in pages], [None, 'true', None, 'true', None])
+            self.assertEqual((pages[1].get('ImageWidth'), pages[1].get('ImageHeight')), ('160', '120'))
+            self.assertTrue(all(int(p.get('ImageSize')) > 0 for p in pages))
+
+    def test_right_to_left_cover_follows_the_saved_page_order(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp) / 'pages'; folder.mkdir()
+            for n in range(3): Image.new('RGB', (80, 120), 'white').save(folder / f'{n:03}.png')
+            plan = BookPlan(scan_folder(folder, manual=True, right_to_left=True))
+            for front, cover in ((True, '0'), (False, '2')):
+                opt = ExportOptions(str(front), format='png', workers=1, front_to_back=front,
+                                    comicinfo_xml='<ComicInfo/>')
+                with zipfile.ZipFile(export_book(plan, opt)) as z:
+                    pages = ET.fromstring(z.read('ComicInfo.xml')).find('Pages').findall('Page')
+                marked = [p.get('Image') for p in pages if p.get('Type') == 'FrontCover']
+                self.assertEqual(marked, [cover])
+
+    def test_cover_marked_in_the_source_is_kept(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = self.source(Path(tmp))
+            (folder / 'ComicInfo.xml').write_text(XML.replace('Type="FrontCover" ', '').replace(
+                '<Page Image="2" ', '<Page Image="2" Type="FrontCover" '))
+            plan = BookPlan(scan_folder(folder, manual=True))
+            opt = ExportOptions('kept', format='png', workers=1, comicinfo_xml=plan.comicinfo_xml)
+            with zipfile.ZipFile(export_book(plan, opt)) as z:
+                pages = ET.fromstring(z.read('ComicInfo.xml')).find('Pages').findall('Page')
+            self.assertEqual([p.get('Image') for p in pages if 'FrontCover' in (p.get('Type') or '')], ['2'])
+
     def test_metadata_is_optional_and_session_keeps_edits(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); folder = self.source(root); plan = BookPlan(scan_folder(folder, manual=True))
