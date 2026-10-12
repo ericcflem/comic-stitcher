@@ -10,6 +10,8 @@
   apps show the right cover and display spreads correctly.
 - When importing a PDF whose pages are images, the rendering resolution is set to
   match them, with a note saying so. A resolution you choose yourself is kept.
+- PDFs made by Adobe Acrobat's image conversion are offered original JPEG
+  extraction again. Acrobat adds an empty form to them, which no longer blocks it.
 
 ## 0.6.38 — first public release
 

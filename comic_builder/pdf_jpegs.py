@@ -171,14 +171,28 @@ def _page_jpeg(page):
     return found if not stack and pending_path is None else None
 
 
+def _has_form(root):
+    """A fillable form with fields. Acrobat adds an empty form to many PDFs it
+    makes, which draws nothing and does not stop JPEG extraction."""
+    form = root.get('/AcroForm')
+    if form is None:
+        return False
+    form = form.get_object()
+    fields = form.get('/Fields')
+    return bool(fields.get_object() if fields is not None else None) or '/XFA' in form
+
+
+def _blocks_extraction(reader):
+    root = reader.trailer['/Root']
+    return bool(reader.is_encrypted or root.get('/OutputIntents') or root.get('/OCProperties')
+                or _has_form(root))
+
+
 def inspect_pdf_jpegs(source: Path, progress=None):
     """Return a summary only if EVERY page qualifies; otherwise stay silent."""
     try:
         reader = PdfReader(source)
-        if reader.is_encrypted or not 1 <= len(reader.pages) <= 10000:
-            return None
-        root = reader.trailer['/Root']
-        if root.get('/OutputIntents') or root.get('/OCProperties') or root.get('/AcroForm'):
+        if not 1 <= len(reader.pages) <= 10000 or _blocks_extraction(reader):
             return None
         sizes = []
         for index, page in enumerate(reader.pages, 1):
@@ -196,7 +210,7 @@ def inspect_pdf_jpegs(source: Path, progress=None):
 def import_pdf_jpegs(source: Path, destination: Path, manual=False, progress=None, *, right_to_left=False):
     source = Path(source).resolve(strict=True)
     reader = PdfReader(source)
-    if reader.is_encrypted or reader.trailer['/Root'].get('/OutputIntents') or reader.trailer['/Root'].get('/OCProperties') or reader.trailer['/Root'].get('/AcroForm'):
+    if _blocks_extraction(reader):
         raise ValueError('This PDF no longer qualifies for original JPEG extraction.')
     count = len(reader.pages)
     if not 1 <= count <= 10000:

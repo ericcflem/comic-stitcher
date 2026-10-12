@@ -37,6 +37,26 @@ class PdfJpegTests(unittest.TestCase):
             self.assertEqual([p.path.read_bytes() for p in scan.pages], expected[::-1])
             self.assertEqual(source.read_bytes(), original)
 
+    def test_empty_acrobat_form_allows_offer_but_real_fields_do_not(self):
+        from pypdf.generic import DictionaryObject, TextStringObject
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'book.pdf'
+            self.simple_pdf(source)
+            for fields, offered in (([], True), ([DictionaryObject({NameObject('/T'): TextStringObject('Name')})], False)):
+                writer = PdfWriter(clone_from=PdfReader(source))
+                # Acrobat adds a form like this, with no fields, to many PDFs it makes.
+                writer._root_object[NameObject('/AcroForm')] = writer._add_object(DictionaryObject({
+                    NameObject('/Fields'): ArrayObject([writer._add_object(f) for f in fields]),
+                    NameObject('/DA'): TextStringObject('/Helv 0 Tf 0 g ')}))
+                target = root / f'form-{offered}.pdf'
+                writer.write(target)
+                report = inspect_pdf_jpegs(target)
+                self.assertEqual(report is not None, offered)
+                if offered:
+                    scan = import_pdf_jpegs(target, root / 'stage', manual=True)
+                    self.assertEqual(len(scan.pages), 2)
+
     def test_any_extra_content_prevents_offer(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
