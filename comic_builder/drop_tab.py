@@ -23,9 +23,9 @@ from PySide6.QtWidgets import (
 
 from .drop_tab_support import (
     DEFAULT_OFFSET, DEFAULT_THICKNESS, ENABLE_AUTOSTART_FLAG, HOVER_DELAY_MS,
-    HOVER_RANGE, MIN_HEIGHT, THICKNESS_RANGE, UNINSTALL_FLAG, autostart_enabled,
+    HOVER_RANGE, LINUX_WINDOW_NAME, MIN_HEIGHT, THICKNESS_RANGE, UNINSTALL_FLAG, autostart_enabled,
     autostart_supported, clamp_height, clamp_hover_delay, clamp_offset, clamp_thickness,
-    launch_command, max_height, needs_x11, offset_range, set_autostart, tab_rect,
+    launch_command, max_height, needs_x11, offset_range, qt_arguments, set_autostart, tab_rect,
 )
 
 CLICK_SLOP = 4
@@ -690,7 +690,9 @@ def main(argv=None):
         return 0
     if needs_x11():
         os.environ["QT_QPA_PLATFORM"] = "xcb"
-    app = QApplication(argv)
+    app = QApplication(qt_arguments(argv))
+    if sys.platform.startswith("linux"):
+        QApplication.setDesktopFileName(LINUX_WINDOW_NAME)  # Wayland's equivalent.
     app.setStyle("Fusion")
     app.setQuitOnLastWindowClosed(False)
     app.setWindowIcon(app_icon())

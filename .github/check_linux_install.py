@@ -1,6 +1,7 @@
 """Check the result of linux/install.sh or uninstall.sh at GitHub.
 
     python3 .github/check_linux_install.py installed
+    xvfb-run -a python3 .github/check_linux_install.py windows
     python3 .github/check_linux_install.py removed
 """
 import os
@@ -140,6 +141,52 @@ def repair():
         saved.rename(VENV)
 
 
+def window_names():
+    """Window names (ICCCM instance names) on the X display, from xwininfo."""
+    import re
+    tree = subprocess.run(["xwininfo", "-root", "-tree"], capture_output=True, text=True).stdout
+    return set(re.findall(r'\("([^"]*)" "[^"]*"\)', tree)), tree
+
+
+def windows():
+    """The main window and the drop tab must not share a window name.
+
+    The desktop matches windows to app-menu entries by name. If the drop tab used
+    the main app's name, a showing tab would make the desktop think Comic
+    Stitcher was already open, and the app menu would not start it.
+    """
+    import time
+    expected = (("main window", [], "comic-stitcher"),
+                ("drop tab", ["--drop-tab"], "comic-stitcher-drop-tab"))
+    for label, arguments, name in expected:
+        env = dict(os.environ)
+        env.pop("WAYLAND_DISPLAY", None)
+        env.pop("QT_QPA_PLATFORM", None)
+        process = subprocess.Popen([str(LAUNCHER), *arguments], env=env,
+                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        names, tree = set(), ""
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline and process.poll() is None:
+            names, tree = window_names()
+            if name in names:
+                break
+            time.sleep(0.5)
+        process.terminate()
+        try:
+            output = process.communicate(timeout=10)[0]
+        except subprocess.TimeoutExpired:
+            process.kill()
+            output = process.communicate()[0]
+        print(f"[{label}] window names: {sorted(names)}")
+        check(name in names, f"{label} uses the window name {name}", tree[-1500:] + "\n" + (output or ""))
+        if label == "drop tab":
+            check("comic-stitcher" not in names,
+                  "drop tab does not use the main app's window name", tree[-1500:])
+    entry = DROP_TAB_DESKTOP.read_text(encoding="utf-8") if DROP_TAB_DESKTOP.is_file() else ""
+    check("StartupWMClass=comic-stitcher-drop-tab" in entry,
+          "drop tab app-menu entry is matched to the tab's window", entry)
+
+
 def removed():
     check(not PREFIX.exists(), f"{PREFIX} removed")
     check(not DESKTOP.exists(), "desktop entry removed")
@@ -151,6 +198,7 @@ def removed():
 
 
 if __name__ == "__main__":
-    {"installed": installed, "repair": repair, "removed": removed}[sys.argv[1]]()
+    {"installed": installed, "repair": repair, "windows": windows,
+     "removed": removed}[sys.argv[1]]()
     if failures:
         sys.exit(f"{len(failures)} check(s) failed")

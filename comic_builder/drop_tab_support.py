@@ -31,6 +31,10 @@ COLLAPSED_SIZE = (DEFAULT_THICKNESS, DEFAULT_HEIGHT)
 AUTOSTART_NAME = "ComicStitcherDropTab"
 WINDOWS_RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 LINUX_DESKTOP_NAME = "comic-stitcher-drop-tab.desktop"
+# The tab's own window identity on Linux. If it shared the main app's
+# (comic-stitcher), the desktop would treat Comic Stitcher as already open while
+# the tab is showing, and clicking it in the app menu would do nothing.
+LINUX_WINDOW_NAME = "comic-stitcher-drop-tab"
 
 
 def wants_drop_tab(argv):
@@ -141,6 +145,20 @@ def needs_x11(platform=None, environ=None):
     environ = os.environ if environ is None else environ
     return (platform.startswith("linux") and bool(environ.get("WAYLAND_DISPLAY"))
             and not environ.get("QT_QPA_PLATFORM"))
+
+
+def qt_arguments(argv, platform=None):
+    """Arguments for QApplication, giving the tab its own window name on Linux.
+
+    Qt's -name option sets the X11 window name and wins over the launcher's
+    RESOURCE_NAME, which is meant for the main window. Qt removes the option
+    itself, and it does not reach programs the tab starts.
+    """
+    platform = sys.platform if platform is None else platform
+    argv = list(argv)
+    if platform.startswith("linux"):
+        return argv[:1] + ["-name", LINUX_WINDOW_NAME] + argv[1:]
+    return argv
 
 
 def _desktop_quote(argument):
