@@ -105,6 +105,18 @@ def edit_xml(original, values):
     return ET.tostring(root, encoding='unicode')
 
 
+def front_cover_output(plan, entries):
+    """Index in the finished comic of the first page in reading order.
+
+    Right-to-left comics are read from the front cover too, but may be saved
+    back to front, with the front cover last.
+    """
+    reading = plan.entries()
+    if not reading or reading[0] not in entries:
+        return None
+    return entries.index(reading[0])
+
+
 def export_xml(text, plan, entries, image_paths):
     root = parse_xml(text)
     count = root.find('PageCount')
@@ -116,39 +128,56 @@ def export_xml(text, plan, entries, image_paths):
     for output, (left, right) in enumerate(entries):
         for source in (left,) if right is None else (left, right):
             mapping[n-1-source if plan.scan.right_to_left else source] = output
+    # Every export gets a full page list: library apps read the cover and the
+    # two-page spreads from it. Details from an existing list are carried over.
     pages = root.find('Pages')
-    if pages is not None:
-        groups = {}
-        for node in list(pages):
-            if node.tag != 'Page':
-                continue
-            try:
-                output = mapping.get(int(node.get('Image', '')))
-            except ValueError:
-                output = None
-            pages.remove(node)
-            if output is None:
-                continue
-            if output not in groups:
-                groups[output] = copy.deepcopy(node)
-            else:
-                dest = groups[output]
-                for key, value in node.attrib.items():
-                    if key == 'Type':
-                        dest.set(key, ' '.join(dict.fromkeys((dest.get(key, '')+' '+value).split())))
-                    elif key not in ('Image', 'ImageSize', 'ImageWidth', 'ImageHeight', 'DoublePage'):
-                        dest.set(key, value if not dest.get(key) or dest.get(key) == value else dest.get(key)+' / '+value)
-                dest.extend(copy.deepcopy(list(node)))
-        from PIL import Image
-        for output, node in sorted(groups.items()):
-            node.set('Image', str(output))  # Always zero-based; independent of filename numbering.
-            path = image_paths[output]
-            with Image.open(path) as image:
-                node.set('ImageWidth', str(image.width)); node.set('ImageHeight', str(image.height))
-            node.set('ImageSize', str(path.stat().st_size))
-            if entries[output][1] is not None:
-                node.set('DoublePage', 'true')
-            pages.append(node)
+    if pages is None:
+        pages = ET.SubElement(root, 'Pages')
+    groups = {}
+    for node in list(pages):
+        if node.tag != 'Page':
+            continue
+        try:
+            output = mapping.get(int(node.get('Image', '')))
+        except ValueError:
+            output = None
+        pages.remove(node)
+        if output is None:
+            continue
+        if output not in groups:
+            groups[output] = copy.deepcopy(node)
+        else:
+            dest = groups[output]
+            for key, value in node.attrib.items():
+                if key == 'Type':
+                    dest.set(key, ' '.join(dict.fromkeys((dest.get(key, '')+' '+value).split())))
+                elif key not in ('Image', 'ImageSize', 'ImageWidth', 'ImageHeight', 'DoublePage'):
+                    dest.set(key, value if not dest.get(key) or dest.get(key) == value else dest.get(key)+' / '+value)
+            dest.extend(copy.deepcopy(list(node)))
+    from PIL import Image
+    written = []
+    for output in range(len(entries)):
+        node = groups.get(output)
+        if node is None:
+            node = ET.Element('Page')
+        node.set('Image', str(output))  # Always zero-based; independent of filename numbering.
+        path = image_paths[output]
+        with Image.open(path) as image:
+            width, height = image.size
+        node.set('ImageWidth', str(width)); node.set('ImageHeight', str(height))
+        node.set('ImageSize', str(path.stat().st_size))
+        # A spread joined here, or a page that is already a wide spread image.
+        if entries[output][1] is not None or width > height:
+            node.set('DoublePage', 'true')
+        elif 'DoublePage' in node.attrib:
+            del node.attrib['DoublePage']
+        pages.append(node)
+        written.append(node)
+    # Mark the cover unless the existing page list already marks one.
+    cover = front_cover_output(plan, entries)
+    if cover is not None and not any('FrontCover' in node.get('Type', '').split() for node in written):
+        node = written[cover]
+        node.set('Type', ' '.join(['FrontCover', *node.get('Type', '').split()]))
     root[:] = sorted(list(root), key=lambda node: FIELDS.index(node.tag) if node.tag in FIELDS else len(FIELDS))
     ET.indent(root)
     return ET.tostring(root, encoding='utf-8', xml_declaration=True)

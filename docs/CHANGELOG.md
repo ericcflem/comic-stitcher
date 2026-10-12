@@ -5,6 +5,9 @@
 - Add an optional drop tab on the right screen edge: drag comics onto it to open
   them in Comic Stitcher without arranging windows. It can start at sign-in, is
   offered as an unticked installer option, and is closed and removed on uninstall.
+- ComicInfo.xml now always includes a page list that marks the front cover and
+  two-page spreads (joined spreads and pages that are already wide), so library
+  apps show the right cover and display spreads correctly.
 
 ## 0.6.38 — first public release
 
