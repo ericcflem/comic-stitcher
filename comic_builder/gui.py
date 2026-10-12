@@ -36,7 +36,7 @@ from .import_sources import expand_sources
 from .single_instance import LaunchBroker
 from .detector import collect_images
 from .archive_import import ARCHIVE_EXTS, import_archive
-from .pdf_import import import_pdf, pdf_workers, rendered_dimensions
+from .pdf_import import import_pdf, pdf_workers, rendered_dimensions, suggest_pdf_dpi
 from .pdf_jpegs import inspect_pdf_jpegs
 from .metadata_dialog import MetadataDialog
 from .comicvine import ComicVineClient
@@ -925,6 +925,7 @@ class PdfPreviewWorker(QThread):
     """Read PDF dimensions and a small page preview without blocking the dialog."""
     ready = Signal(int, int, object, object)
     failed = Signal(str)
+    resolution_found = Signal(object)  # dpi of the PDF's page images, or None
 
     def __init__(self, source: Path, right_to_left: bool = False):
         super().__init__()
@@ -946,6 +947,12 @@ class PdfPreviewWorker(QThread):
             self.condition.notify_all()
 
     def run(self):
+        try:
+            found = suggest_pdf_dpi(self.source)
+        except Exception as exc:  # A suggestion is optional; the preview reports real problems.
+            diagnostics.note("PDF resolution not measured: %s", exc)
+            found = None
+        self.resolution_found.emit(found)
         try:
             import pypdfium2 as pdfium
             document = pdfium.PdfDocument(self.source)
@@ -1020,7 +1027,17 @@ class PdfImportDialog(OutlinedWindow, QDialog):
         form.addRow("Rendering resolution", self.dpi)
         form_hint(form, self.dpi,
                   "Higher resolution keeps more detail for fine text and line art, but takes longer "
-                  "and uses more memory and temporary disk space. Default: 300 dpi.")
+                  "and uses more memory and temporary disk space. Default: 300 dpi. "
+                  "When the PDF's pages are images, it is set to match them.")
+        self.usual_dpi = dpi
+        self.suggested_dpi = None
+        self.resolution_checked = False
+        self.dpi_chosen_by_user = False
+        self._setting_dpi = False
+        self.dpi_note = QLabel("Checking the resolution of this PDF's images…")
+        self.dpi_note.setWordWrap(True)
+        form.addRow("", self.dpi_note)
+        self.dpi.valueChanged.connect(self._dpi_changed)
         self.workers = QSpinBox()
         self.workers.setRange(0, 8)
         self.workers.setSpecialValueText(f"Automatic ({pdf_workers()} processes)")
@@ -1084,8 +1101,45 @@ class PdfImportDialog(OutlinedWindow, QDialog):
         self.preview_worker = PdfPreviewWorker(source, right_to_left=right_to_left)
         self.preview_worker.ready.connect(self._preview_ready)
         self.preview_worker.failed.connect(self._preview_failed)
+        self.preview_worker.resolution_found.connect(self._resolution_found)
         self.preview_worker.start()
         self._request_preview()
+
+    def _dpi_changed(self, *_):
+        if not self._setting_dpi:
+            self.dpi_chosen_by_user = True
+        self._update_dpi_note()
+
+    def _resolution_found(self, dpi):
+        self.resolution_checked = True
+        self.suggested_dpi = dpi
+        if dpi is not None and not self.dpi_chosen_by_user:
+            self._setting_dpi = True
+            try:
+                self.dpi.setValue(dpi)
+            finally:
+                self._setting_dpi = False
+        self._update_dpi_note()
+
+    def _update_dpi_note(self):
+        found = self.suggested_dpi
+        if found is None:
+            # Still checking, or the pages are not mostly images (text and drawings).
+            self.dpi_note.setVisible(not self.resolution_checked)
+            return
+        self.dpi_note.show()
+        value = self.dpi.value()
+        if value == found:
+            text = f"Matches the images in this PDF (about {found} dpi)."
+            if not self.dpi_chosen_by_user and found != self.usual_dpi:
+                text += f" Your usual setting is {self.usual_dpi} dpi."
+        elif value > found:
+            text = (f"The images in this PDF are about {found} dpi. A higher setting makes "
+                    "larger pages without adding detail to them.")
+        else:
+            text = (f"The images in this PDF are about {found} dpi. A lower setting makes "
+                    "smaller pages with less of their detail.")
+        self.dpi_note.setText(text)
 
     def _request_preview(self, *_):
         self.preview_generation += 1
@@ -3199,7 +3253,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                 return
             pdf_dpi, pdf_workers_count = dialog.dpi.value(), dialog.workers.value()
             pdf_smooth_images = dialog.smooth_images.isChecked()
-            self.settings.setValue("pdf_dpi", pdf_dpi)
+            if dialog.dpi_chosen_by_user or dialog.suggested_dpi is None:
+                self.settings.setValue("pdf_dpi", pdf_dpi)
             self.settings.setValue("pdf_workers", pdf_workers_count)
             self.settings.setValue("pdf_smooth_images", pdf_smooth_images)
             self.pdf_session_options = {"dpi": pdf_dpi, "workers": pdf_workers_count,

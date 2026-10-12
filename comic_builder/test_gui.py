@@ -1798,9 +1798,20 @@ class ThumbnailTest(unittest.TestCase):
             dialog = PdfImportDialog(source, 200, 0)
             try:
                 dialog.show()
-                self.wait_for(lambda: dialog.current_size is not None)
+                self.wait_for(lambda: dialog.current_size is not None and dialog.resolution_checked)
                 self.assertEqual(dialog.page.maximum(), 2)
+                # The pages are 72 dpi images, so the resolution is set to match them.
+                self.assertEqual(dialog.dpi.value(), 72)
+                self.assertFalse(dialog.dpi_chosen_by_user)
+                self.assertIn("about 72 dpi", dialog.dpi_note.text())
+                self.assertIn("usual setting is 200 dpi", dialog.dpi_note.text())
+                self.assertIn("72 × 100 px", dialog.dimensions.text())
+                dialog.dpi.setValue(200)
+                self.assertTrue(dialog.dpi_chosen_by_user)
                 self.assertIn("200 × 278 px", dialog.dimensions.text())
+                self.assertIn("without adding detail", dialog.dpi_note.text())
+                dialog._resolution_found(150)  # A late result never overrides the user's choice.
+                self.assertEqual(dialog.dpi.value(), 200)
                 dialog.dpi.setValue(300)
                 self.assertIn("300 × 417 px", dialog.dimensions.text())
                 dialog.page.setValue(2)

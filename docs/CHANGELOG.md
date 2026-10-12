@@ -8,6 +8,8 @@
 - ComicInfo.xml now always includes a page list that marks the front cover and
   two-page spreads (joined spreads and pages that are already wide), so library
   apps show the right cover and display spreads correctly.
+- When importing a PDF whose pages are images, the rendering resolution is set to
+  match them, with a note saying so. A resolution you choose yourself is kept.
 
 ## 0.6.38 — first public release
 
