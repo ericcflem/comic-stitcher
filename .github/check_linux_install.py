@@ -13,9 +13,12 @@ DATA = Path(os.environ.get("XDG_DATA_HOME") or HOME / ".local" / "share")
 PREFIX = DATA / "comic-stitcher"
 APP, VENV, LAUNCHER = PREFIX / "app", PREFIX / "venv", PREFIX / "comic-stitcher"
 DESKTOP = DATA / "applications" / "comic-stitcher.desktop"
+DROP_TAB_DESKTOP = DATA / "applications" / "comic-stitcher-drop-tab.desktop"
 ICON = DATA / "icons" / "hicolor" / "256x256" / "apps" / "comic-stitcher.png"
 BIN_LINK = HOME / ".local" / "bin" / "comic-stitcher"
-SETTINGS = Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config") / "ComicStitcher"
+CONFIG = Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config")
+SETTINGS = CONFIG / "ComicStitcher"
+DROP_TAB_AUTOSTART = CONFIG / "autostart" / "comic-stitcher-drop-tab.desktop"
 
 failures = []
 
@@ -57,6 +60,14 @@ def installed():
     result = subprocess.run(["desktop-file-validate", str(DESKTOP)], capture_output=True, text=True)
     print(result.stdout + result.stderr, end="")
     check(result.returncode == 0, "desktop-file-validate passes", result.stdout + result.stderr)
+    tab = DROP_TAB_DESKTOP.read_text(encoding="utf-8") if DROP_TAB_DESKTOP.is_file() else ""
+    check("--drop-tab" in tab, "drop tab app-menu entry starts the tab")
+    autostart = DROP_TAB_AUTOSTART.read_text(encoding="utf-8") if DROP_TAB_AUTOSTART.is_file() else ""
+    check(str(LAUNCHER) in autostart and "--drop-tab" in autostart,
+          "a new install starts the drop tab at sign-in, through the launcher", autostart)
+    tab_result = subprocess.run(["desktop-file-validate", str(DROP_TAB_DESKTOP)], capture_output=True, text=True)
+    check(tab_result.returncode == 0, "drop tab entry passes desktop-file-validate",
+          tab_result.stdout + tab_result.stderr)
 
     probe = venv_python(
         "import importlib.metadata as m, sys\n"
@@ -93,6 +104,8 @@ def installed():
 def removed():
     check(not PREFIX.exists(), f"{PREFIX} removed")
     check(not DESKTOP.exists(), "desktop entry removed")
+    check(not DROP_TAB_DESKTOP.exists(), "drop tab entry removed")
+    check(not DROP_TAB_AUTOSTART.exists(), "drop tab sign-in entry removed")
     check(not ICON.exists(), "menu icon removed")
     check(not BIN_LINK.exists() and not BIN_LINK.is_symlink(), "~/.local/bin link removed")
     check(not SETTINGS.exists(), "settings removed by --purge")
