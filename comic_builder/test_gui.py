@@ -1788,6 +1788,28 @@ class ThumbnailTest(unittest.TestCase):
                 finally:
                     second.close()
 
+    def test_export_screen_estimates_size_and_can_be_turned_off(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp) / 'pages'; folder.mkdir()
+            for n in range(4):
+                Image.effect_noise((200, 300), 40 + n).convert('RGB').save(folder / f'{n:03}.png')
+            window = ComicWindow()
+            try:
+                window.show()
+                window.estimate_size.setChecked(True)
+                window.scan_done(scan_folder(folder, manual=True))
+                window.show_export()
+                self.wait_for(lambda: window.size_estimate.text().startswith('About'), seconds=20)
+                self.assertRegex(window.size_estimate.text(), r'About [0-9.,]+ [KMG]B')
+                window.estimate_size.setChecked(False)
+                self.assertEqual(window.size_estimate.text(), '')
+                self.assertFalse(window.settings.value('estimate_size', True, type=bool))
+                window.estimate_size.setChecked(True)
+                self.assertEqual(window.size_estimate.text(), 'Estimating…')
+                self.wait_for(lambda: window.size_estimate.text().startswith('About'), seconds=20)
+            finally:
+                window.close()
+
     def test_pdf_dimensions_follow_dpi_and_selected_page(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "two-pages.pdf"

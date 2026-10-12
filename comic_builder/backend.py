@@ -7,6 +7,7 @@ import logging
 import copy
 import re
 import shutil
+import threading
 import uuid
 import zipfile
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
@@ -622,6 +623,9 @@ def resized_image(image: Image.Image, opt: ExportOptions) -> Image.Image:
     return out
 
 
+_JPEG_BUFFER_LOCK = threading.Lock()  # ImageFile.MAXBLOCK is shared by every thread.
+
+
 def _save_image(image: Image.Image, path: Path, fmt: str, opt: ExportOptions) -> None:
     colour_metadata = {"icc_profile": image.info["icc_profile"]} if image.info.get("icc_profile") else {}
     if fmt == "png":
@@ -639,15 +643,16 @@ def _save_image(image: Image.Image, path: Path, fmt: str, opt: ExportOptions) ->
         # images can need more, producing libjpeg's "Suspension not allowed
         # here" / "broken data stream" error even when the image is valid.
         # MAXBLOCK is a lower bound used by ImageFile._save in this process.
-        previous_block = ImageFile.MAXBLOCK
-        if opt.jpeg_optimize or opt.jpeg_progressive:
-            ImageFile.MAXBLOCK = max(previous_block, 4 * image.width * image.height)
-        try:
-            image.save(path, "JPEG", quality=opt.jpeg_quality, progressive=opt.jpeg_progressive,
-                       optimize=opt.jpeg_optimize, subsampling=opt.jpeg_subsampling,
-                       smooth=opt.jpeg_smooth, **colour_metadata)
-        finally:
-            ImageFile.MAXBLOCK = previous_block
+        with _JPEG_BUFFER_LOCK:
+            previous_block = ImageFile.MAXBLOCK
+            if opt.jpeg_optimize or opt.jpeg_progressive:
+                ImageFile.MAXBLOCK = max(previous_block, 4 * image.width * image.height)
+            try:
+                image.save(path, "JPEG", quality=opt.jpeg_quality, progressive=opt.jpeg_progressive,
+                           optimize=opt.jpeg_optimize, subsampling=opt.jpeg_subsampling,
+                           smooth=opt.jpeg_smooth, **colour_metadata)
+            finally:
+                ImageFile.MAXBLOCK = previous_block
     elif fmt == "webp":
         image.save(path, "WEBP", quality=opt.webp_quality, method=opt.webp_method,
                    lossless=opt.webp_lossless, **colour_metadata)
@@ -690,6 +695,108 @@ def _encode_entry(source: str, right: str | None, destination: str,
             raise RuntimeError(f"Failed to encode {Path(source).name} as {Path(destination).name}: {exc}") from exc
     finally:
         image.close()
+
+
+def _entry_format(plan: BookPlan, opt: ExportOptions, encoding_opt: ExportOptions,
+                  left: int, right: int | None, reduce: bool) -> str | None:
+    """The format a final page is encoded in, or None when its file is copied."""
+    copy = not reduce and right is None and left not in plan.rotations and opt.keep_originals
+    return None if copy else encoding_opt.format if reduce or not opt.keep_originals else opt.spread_format
+
+
+def _entry_sources(plan: BookPlan, left: int, right: int | None) -> tuple[Path, Path | None]:
+    visual_left, visual_right = (right, left) if right is not None and plan.scan.right_to_left else (left, right)
+    return (plan.scan.pages[visual_left].path,
+            plan.scan.pages[visual_right].path if visual_right is not None else None)
+
+
+def _entry_rotations(plan: BookPlan, left: int) -> tuple[int, tuple[int, int]]:
+    joined = plan.joined_rotations.get(left, (0, 0))
+    return plan.rotations.get(left, 0), joined[::-1] if plan.scan.right_to_left else joined
+
+
+def _oriented_size(path: Path, rotation: int = 0) -> tuple[int, int]:
+    """A page's pixel size as exported, read from its header without decoding it."""
+    with Image.open(path) as image:
+        width, height = image.size
+        if image.getexif().get(274, 1) in (5, 6, 7, 8):  # EXIF orientation turns it sideways.
+            width, height = height, width
+    return (height, width) if rotation in (90, 270) else (width, height)
+
+
+def _entry_size(plan: BookPlan, opt: ExportOptions, left: int, right: int | None, reduce: bool) -> tuple[int, int]:
+    """Pixel size of a final page, matching stitched_image and resized_image."""
+    source, partner = _entry_sources(plan, left, right)
+    rotation, page_rotations = _entry_rotations(plan, left)
+    if partner is None:
+        width, height = _oriented_size(source, rotation)
+    else:
+        (a_width, a_height), (b_width, b_height) = (_oriented_size(source, page_rotations[0]),
+                                                    _oriented_size(partner, page_rotations[1]))
+        width, height = a_width + b_width, min(a_height, b_height)
+        if rotation in (90, 270):
+            width, height = height, width
+    if reduce:
+        axis = height if opt.resize_mode == "height" else width
+        if axis > opt.resize_pixels:
+            factor = opt.resize_pixels / axis
+            width, height = max(1, round(width * factor)), max(1, round(height * factor))
+    return width, height
+
+
+ESTIMATE_SAMPLES = 8
+ARCHIVE_ENTRY_OVERHEAD = 200  # Bytes of archive bookkeeping per stored file, roughly.
+
+
+def estimate_export_size(plan: BookPlan, opt: ExportOptions, samples: int = ESTIMATE_SAMPLES,
+                         cancelled: Callable[[], bool] | None = None) -> dict[str, int] | None:
+    """Estimated bytes of each finished comic ("full" and/or "reduced").
+
+    Copied pages are counted exactly. Pages that will be encoded are estimated
+    by encoding a few, spaced evenly through the book, with the chosen settings
+    and scaling their bytes per pixel to the others. Measures the archive, or
+    the PNG page folder when no archive is made. Returns None if cancelled.
+    """
+    import tempfile
+    entries = export_entries(plan, opt)
+    variants = ("full", "reduced") if opt.size_output == "both" else (opt.size_output,)
+    result = {}
+    with tempfile.TemporaryDirectory(prefix="ComicStitcher_estimate_") as folder:
+        for variant in variants:
+            reduce = variant == "reduced"
+            encoding_opt = copy_encoding_options(opt, reduce)
+            exact, encoded = 0, []
+            for left, right in entries:
+                fmt = _entry_format(plan, opt, encoding_opt, left, right, reduce) if opt.cbz else "png"
+                if fmt is None:
+                    exact += _entry_sources(plan, left, right)[0].stat().st_size
+                else:
+                    encoded.append((left, right, fmt))
+            if encoded:
+                picks = sorted({round(i * (len(encoded) - 1) / max(1, samples - 1))
+                                for i in range(min(samples, len(encoded)))})
+                sampled_bytes = sampled_pixels = 0
+                for number, pick in enumerate(picks):
+                    if cancelled is not None and cancelled():
+                        return None
+                    left, right, fmt = encoded[pick]
+                    source, partner = _entry_sources(plan, left, right)
+                    rotation, page_rotations = _entry_rotations(plan, left)
+                    target = Path(folder) / f"{variant}-{number}.{fmt}"
+                    _encode_entry(str(source), str(partner) if partner else None, str(target), fmt,
+                                  encoding_opt, reduce, rotation, None, page_rotations)
+                    sampled_bytes += target.stat().st_size
+                    width, height = _entry_size(plan, opt, left, right, reduce)
+                    sampled_pixels += width * height
+                    target.unlink()
+                per_pixel = sampled_bytes / max(1, sampled_pixels)
+                total_pixels = 0
+                for left, right, _ in encoded:
+                    width, height = _entry_size(plan, opt, left, right, reduce)
+                    total_pixels += width * height
+                exact += round(per_pixel * total_pixels)
+            result[variant] = exact + ARCHIVE_ENTRY_OVERHEAD * (len(entries) + 1)
+    return result
 
 
 def publish_archive(source: Path, destination: Path) -> None:
@@ -783,15 +890,11 @@ def export_book(plan: BookPlan, opt: ExportOptions,
                 png_work.mkdir()
             jobs = []
             for (left, right), name in zip(entries, variant_names, strict=True):
-                copy = not reduce and right is None and left not in plan.rotations and opt.keep_originals
-                fmt = (None if copy else encoding_opt.format if reduce or not opt.keep_originals else opt.spread_format)
+                fmt = _entry_format(plan, opt, encoding_opt, left, right, reduce)
                 if not opt.cbz:
                     fmt = None  # Only lossless PNG pages are being kept.
-                visual_left, visual_right = (right, left) if right is not None and plan.scan.right_to_left else (left, right)
-                jobs.append((plan.scan.pages[visual_left].path,
-                             plan.scan.pages[visual_right].path if visual_right is not None else None,
-                             variant_work / name, fmt, plan.rotations.get(left, 0),
-                             plan.joined_rotations.get(left, (0, 0))[::-1] if plan.scan.right_to_left else plan.joined_rotations.get(left, (0, 0))))
+                jobs.append((*_entry_sources(plan, left, right), variant_work / name, fmt,
+                             *_entry_rotations(plan, left)))
             encode_count = sum(fmt is not None or opt.keep_images for _, _, _, fmt, _, _ in jobs)
             if worker_count == 1 or encode_count <= 1:
                 for source, right, dest, fmt, rotation, page_rotations in jobs:

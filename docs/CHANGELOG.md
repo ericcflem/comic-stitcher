@@ -12,6 +12,9 @@
   match them, with a note saying so. A resolution you choose yourself is kept.
 - PDFs made by Adobe Acrobat's image conversion are offered original JPEG
   extraction again. Acrobat adds an empty form to them, which no longer blocks it.
+- The export screen estimates the finished comic's size as settings change, by
+  encoding a few sample pages. Pages copied unchanged are counted exactly. It can
+  be turned off with the Estimate size checkbox.
 
 ## 0.6.38 — first public release
 
