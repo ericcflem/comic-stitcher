@@ -23,7 +23,17 @@ collects notices, applies the recorded shared-runtime packaging changes, prepare
 Microsoft's prerequisite and compiles the installer into `installer_dist/`.
 Internet access is needed for the pinned supplier downloads.
 
-`vendor/unrar.exe`, its licence and provenance are included for CBR/RAR import.
+CBR/RAR import uses RARLAB's official `unrar.exe`, placed at `vendor/unrar.exe`.
+The release source package includes it, with its licence and provenance. The
+GitHub repository, and GitHub's **Download ZIP**, contain only `vendor/license.txt`
+and `vendor/UNRAR-PROVENANCE.json`, because the executable is separately licensed
+freeware. When building from GitHub, download `unrarw64.exe` from the address in
+`vendor/UNRAR-PROVENANCE.json`, run it to extract `unrar.exe`, and put that in
+`vendor/`. The build checks its SHA-256 against the recorded version. RARLAB's link
+always serves the newest version, so if it is newer than the recorded one, use the
+recorded version's `unrar.exe` from a release source package, or update the record
+and its hashes as a reviewed change.
+
 No ImageMagick, Ghostscript, Poppler, ffmpeg or external 7-Zip installation is used.
 The normal wheel-based build does not require compiling Qt or the archive codecs.
 
