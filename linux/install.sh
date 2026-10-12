@@ -388,6 +388,7 @@ Terminal=false
 Categories=Graphics;
 Keywords=comic;drop;tab;
 StartupNotify=false
+StartupWMClass=$APP_ID-drop-tab
 X-ComicStitcher-Installer=$MARKER
 EOF
     if command -v update-desktop-database >/dev/null 2>&1; then

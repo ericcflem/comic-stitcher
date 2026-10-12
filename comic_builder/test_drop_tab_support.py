@@ -10,7 +10,7 @@ from . import drop_tab_support as support
 from .drop_tab_support import (
     COLLAPSED_SIZE, DEFAULT_OFFSET, DROP_TAB_FLAG, EDGE_MARGIN, EXPANDED_SIZE, UNINSTALL_FLAG,
     clamp_height, clamp_hover_delay, clamp_offset, clamp_thickness, max_height, offset_range, drop_tab_command, launch_command, linux_autostart_path,
-    linux_desktop_entry, needs_x11, tab_rect, wants_drop_tab,
+    LINUX_WINDOW_NAME, linux_desktop_entry, needs_x11, qt_arguments, tab_rect, wants_drop_tab,
 )
 
 SCREEN = (0, 0, 1920, 1040)
@@ -128,6 +128,13 @@ class PlatformTests(unittest.TestCase):
         self.assertFalse(needs_x11("linux", {"WAYLAND_DISPLAY": "wayland-0", "QT_QPA_PLATFORM": "wayland"}))
         self.assertFalse(needs_x11("linux", {"DISPLAY": ":0"}))
         self.assertFalse(needs_x11("win32", {"WAYLAND_DISPLAY": "wayland-0"}))
+
+    def test_tab_window_is_not_mistaken_for_the_main_app_on_linux(self):
+        argv = ["launch.py", DROP_TAB_FLAG]
+        self.assertEqual(qt_arguments(argv, "linux"),
+                         ["launch.py", "-name", LINUX_WINDOW_NAME, DROP_TAB_FLAG])
+        self.assertNotEqual(LINUX_WINDOW_NAME, "comic-stitcher")
+        self.assertEqual(qt_arguments(argv, "win32"), argv)
 
     def test_desktop_entry_quotes_paths_with_spaces(self):
         command = ["/usr/bin/python3", "/home/me/My Projects/comic stitcher/launch.py", DROP_TAB_FLAG]
