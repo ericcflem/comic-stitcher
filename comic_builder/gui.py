@@ -362,6 +362,7 @@ def readable_size(size: int) -> str:
 class SizeEstimateWorker(QThread):
     """Estimates export size in the background; a newer request replaces an older one."""
     ready = Signal(int, object)
+    provisional = Signal(int, object)  # An early estimate while more samples are encoded.
     failed = Signal(int, str)
 
     def __init__(self):
@@ -401,7 +402,10 @@ class SizeEstimateWorker(QThread):
                 generation, plan, opt = self.requested
                 self.requested = None
             try:
-                result = estimate_export_size(plan, opt, cancelled=self._interrupted)
+                result = estimate_export_size(
+                    plan, opt, cancelled=self._interrupted, workers=encoding_workers(opt.workers),
+                    progress=lambda sizes, _done, _total, generation=generation:
+                        self.provisional.emit(generation, sizes))
             except Exception as exc:  # The estimate is optional; export reports real problems.
                 diagnostics.note("Size estimate failed: %s", exc)
                 self.failed.emit(generation, str(exc))
@@ -2759,9 +2763,10 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.estimate_size = QCheckBox("Estimate size")
         self.estimate_size.setChecked(self.settings.value("estimate_size", True, type=bool))
         self.estimate_size.setToolTip(tooltip_text(
-            "Encodes a few pages with the chosen settings to estimate how large the finished comic "
-            "will be. Pages copied without re-encoding are counted exactly. Updates shortly after a "
-            "setting changes."))
+            "Encodes a band from pages spread through the book with the chosen settings, using the "
+            "same number of processes as export, to estimate how large the finished comic will be. "
+            "Pages copied without re-encoding are counted exactly. Updates shortly after a setting "
+            "changes; an early estimate is refined as the remaining pages finish."))
         self.estimate_size.toggled.connect(self._estimate_toggled)
         estimate_row.addWidget(self.estimate_size)
         self.size_estimate = QLabel("")
@@ -2776,6 +2781,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.estimate_timer.timeout.connect(self._start_size_estimate)
         self.size_worker = SizeEstimateWorker()
         self.size_worker.ready.connect(self._size_estimate_ready)
+        self.size_worker.provisional.connect(
+            lambda generation, sizes: self._size_estimate_ready(generation, sizes, final=False))
         self.size_worker.failed.connect(self._size_estimate_failed)
         self.pages.currentChanged.connect(self._schedule_size_estimate)
         form.setVerticalSpacing(10)
@@ -4400,7 +4407,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             self.size_worker.start()  # Only once an estimate is first wanted.
         self.size_worker.request(self.estimate_generation, self.plan, opt)
 
-    def _size_estimate_ready(self, generation, sizes):
+    def _size_estimate_ready(self, generation, sizes, final=True):
         if generation != self.estimate_generation:
             return
         what = " of PNG pages" if self.estimate_png_pages else ""
@@ -4409,7 +4416,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         else:
             text = (f"Full: about {readable_size(sizes['full'])}  ·  "
                     f"Reduced: about {readable_size(sizes['reduced'])}{what}")
-        self.size_estimate.setText(text)
+        self.size_estimate.setText(text if final else text + " (refining…)")
 
     def _size_estimate_failed(self, generation, _message):
         if generation == self.estimate_generation:

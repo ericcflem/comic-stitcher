@@ -744,59 +744,169 @@ def _entry_size(plan: BookPlan, opt: ExportOptions, left: int, right: int | None
     return width, height
 
 
-ESTIMATE_SAMPLES = 8
+ESTIMATE_SAMPLES = 24
+# Each sample encodes a band across the page this tall, at a different height
+# on each page, so many pages are covered for the work of a few.
+ESTIMATE_BAND = 0.25
 ARCHIVE_ENTRY_OVERHEAD = 200  # Bytes of archive bookkeeping per stored file, roughly.
 
 
+def _estimate_sample(source: str, right: str | None, rotation: int, page_rotations: tuple[int, int],
+                     full: tuple[str, ExportOptions] | None, reduced: tuple[str, ExportOptions] | None,
+                     band: tuple[float, float] = (0.0, 1.0)) -> tuple[tuple[int, int] | None, ...]:
+    """(encoded bytes, pixels) of part of one final page at full and/or reduced size.
+
+    The page is prepared once, the way _encode_entry prepares it; then a
+    full-width band (top and height as fractions of the page) is colour-matched,
+    resized and encoded in memory. Top level so it can run in another process.
+    """
+    if right is None:
+        with Image.open(source) as src:
+            image = ImageOps.exif_transpose(src)
+            image.load()
+        if rotation:
+            turned = rotated_image(image, rotation)
+            if turned is not image:
+                image.close()
+            image = turned
+    else:
+        image = stitched_image(Path(source), Path(right), rotation, page_rotations)
+    try:
+        full_width, full_height = image.size
+        top, height = band
+        if height < 1:
+            rows = max(1, min(image.height, round(image.height * height)))
+            first = min(image.height - rows, round(image.height * top))
+            strip = image.crop((0, first, image.width, first + rows))
+            strip.info.update(image.info)
+            image.close()
+            image = strip
+        if image.info.get("icc_profile"):
+            converted = _working_colour(image)
+            if converted is not image:
+                image.close()
+                image = converted
+        sizes = []
+        for wanted, reduce in ((full, False), (reduced, True)):
+            if wanted is None:
+                sizes.append(None)
+                continue
+            fmt, opt = wanted
+            page = image
+            axis = full_height if opt.resize_mode == "height" else full_width
+            if reduce and axis > opt.resize_pixels:
+                # Scale the band as the whole page would be scaled. Bands are
+                # full width, so matching the page's new width does that.
+                width = max(1, round(full_width * opt.resize_pixels / axis))
+                page = resized_image(image, replace(opt, resize_mode="width", resize_pixels=width))
+            try:
+                buffer = BytesIO()
+                _save_image(page, buffer, fmt, opt)
+                sizes.append((buffer.tell(), page.width * page.height))
+            finally:
+                if page is not image:
+                    page.close()
+        return sizes[0], sizes[1]
+    finally:
+        image.close()
+
+
 def estimate_export_size(plan: BookPlan, opt: ExportOptions, samples: int = ESTIMATE_SAMPLES,
-                         cancelled: Callable[[], bool] | None = None) -> dict[str, int] | None:
+                         cancelled: Callable[[], bool] | None = None, workers: int = 1,
+                         progress: Callable[[dict[str, int], int, int], None] | None = None,
+                         ) -> dict[str, int] | None:
     """Estimated bytes of each finished comic ("full" and/or "reduced").
 
     Copied pages are counted exactly. Pages that will be encoded are estimated
     by encoding a few, spaced evenly through the book, with the chosen settings
-    and scaling their bytes per pixel to the others. Measures the archive, or
-    the PNG page folder when no archive is made. Returns None if cancelled.
+    and scaling their bytes per pixel to the others' pixel area. A sample page
+    needed by both copies is prepared once. With several workers, samples are
+    encoded in parallel processes, and progress(estimate, done, total) reports
+    a provisional estimate as they finish. Measures the archive, or the PNG page
+    folder when no archive is made. Returns None if cancelled.
     """
-    import tempfile
     entries = export_entries(plan, opt)
     variants = ("full", "reduced") if opt.size_output == "both" else (opt.size_output,)
-    result = {}
-    with tempfile.TemporaryDirectory(prefix="ComicStitcher_estimate_") as folder:
-        for variant in variants:
-            reduce = variant == "reduced"
-            encoding_opt = copy_encoding_options(opt, reduce)
-            exact, encoded = 0, []
-            for left, right in entries:
-                fmt = _entry_format(plan, opt, encoding_opt, left, right, reduce) if opt.cbz else "png"
-                if fmt is None:
-                    exact += _entry_sources(plan, left, right)[0].stat().st_size
-                else:
-                    encoded.append((left, right, fmt))
-            if encoded:
-                picks = sorted({round(i * (len(encoded) - 1) / max(1, samples - 1))
-                                for i in range(min(samples, len(encoded)))})
-                sampled_bytes = sampled_pixels = 0
-                for number, pick in enumerate(picks):
-                    if cancelled is not None and cancelled():
-                        return None
-                    left, right, fmt = encoded[pick]
-                    source, partner = _entry_sources(plan, left, right)
-                    rotation, page_rotations = _entry_rotations(plan, left)
-                    target = Path(folder) / f"{variant}-{number}.{fmt}"
-                    _encode_entry(str(source), str(partner) if partner else None, str(target), fmt,
-                                  encoding_opt, reduce, rotation, None, page_rotations)
-                    sampled_bytes += target.stat().st_size
-                    width, height = _entry_size(plan, opt, left, right, reduce)
-                    sampled_pixels += width * height
-                    target.unlink()
-                per_pixel = sampled_bytes / max(1, sampled_pixels)
-                total_pixels = 0
-                for left, right, _ in encoded:
-                    width, height = _entry_size(plan, opt, left, right, reduce)
-                    total_pixels += width * height
-                exact += round(per_pixel * total_pixels)
-            result[variant] = exact + ARCHIVE_ENTRY_OVERHEAD * (len(entries) + 1)
-    return result
+    plans = {}
+    for variant in variants:
+        reduce = variant == "reduced"
+        encoding_opt = copy_encoding_options(opt, reduce)
+        exact, encoded = 0, []
+        for index, (left, right) in enumerate(entries):
+            fmt = _entry_format(plan, opt, encoding_opt, left, right, reduce) if opt.cbz else "png"
+            if fmt is None:
+                exact += _entry_sources(plan, left, right)[0].stat().st_size
+            else:
+                width, height = _entry_size(plan, opt, left, right, reduce)
+                encoded.append((index, fmt, width * height))
+        picks = sorted({round(i * (len(encoded) - 1) / max(1, samples - 1))
+                        for i in range(min(samples, len(encoded)))})
+        plans[variant] = {"exact": exact, "encoded": encoded, "options": encoding_opt,
+                          "samples": {encoded[pick][0]: encoded[pick] for pick in picks},
+                          "bytes": 0, "pixels": 0}
+
+    jobs = []
+    for index in sorted({index for info in plans.values() for index in info["samples"]}):
+        left, right = entries[index]
+        source, partner = _entry_sources(plan, left, right)
+        rotation, page_rotations = _entry_rotations(plan, left)
+        full, reduced = ((plans[variant]["samples"][index][1], plans[variant]["options"])
+                         if variant in plans and index in plans[variant]["samples"] else None
+                         for variant in ("full", "reduced"))
+        top = (len(jobs) * 0.381966) % 1 * (1 - ESTIMATE_BAND)  # Spread band heights evenly.
+        jobs.append((index, (str(source), str(partner) if partner else None, rotation, page_rotations,
+                             full, reduced, (top, ESTIMATE_BAND))))
+
+    def estimate():
+        result = {}
+        for variant, info in plans.items():
+            total = info["exact"]
+            if info["encoded"]:
+                per_pixel = info["bytes"] / max(1, info["pixels"])
+                total += round(per_pixel * sum(pixels for _, _, pixels in info["encoded"]))
+            result[variant] = total + ARCHIVE_ENTRY_OVERHEAD * (len(entries) + 1)
+        return result
+
+    def record(index, sizes):
+        for variant, measured in zip(("full", "reduced"), sizes, strict=True):
+            if measured is not None:
+                plans[variant]["bytes"] += measured[0]
+                plans[variant]["pixels"] += measured[1]
+
+    def provisional(done):
+        # After a quarter of the samples, once each encoded copy has some.
+        if (progress and max(1, len(jobs) // 4) <= done < len(jobs)
+                and all(info["pixels"] or not info["encoded"] for info in plans.values())):
+            progress(estimate(), done, len(jobs))
+
+    def interrupted():
+        return cancelled is not None and cancelled()
+
+    if not jobs:
+        return estimate()
+    if workers <= 1 or len(jobs) == 1:
+        for done, (index, arguments) in enumerate(jobs, 1):
+            if interrupted():
+                return None
+            record(index, _estimate_sample(*arguments))
+            provisional(done)
+        return estimate()
+    executor = ProcessPoolExecutor(max_workers=min(workers, len(jobs)), mp_context=get_context("spawn"))
+    try:
+        pending = {executor.submit(_estimate_sample, *arguments): index for index, arguments in jobs}
+        done = 0
+        while pending:
+            if interrupted():
+                return None
+            finished, _ = wait(pending, timeout=0.2, return_when=FIRST_COMPLETED)
+            for future in finished:
+                record(pending.pop(future), future.result())
+                done += 1
+            if finished:
+                provisional(done)
+        return estimate()
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
 
 
 def publish_archive(source: Path, destination: Path) -> None:

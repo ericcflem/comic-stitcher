@@ -73,6 +73,24 @@ class SizeEstimateTests(unittest.TestCase):
         self.assertIsNone(estimate_export_size(self.plan, opt, cancelled=cancelled))
         self.assertEqual(len(calls), 1)
 
+    def test_parallel_workers_match_and_report_early_estimates(self):
+        opt = ExportOptions("parallel", workers=1, format="jpeg", keep_originals=False, size_output="both",
+                            resize_pixels=300)
+        early = []
+        parallel = estimate_export_size(self.plan, opt, workers=2,
+                                        progress=lambda sizes, done, total: early.append((sizes, done, total)))
+        self.assertEqual(parallel, estimate_export_size(self.plan, opt))
+        self.assertTrue(early)
+        for sizes, done, total in early:
+            self.assertEqual(set(sizes), {"full", "reduced"})
+            self.assertLess(done, total)
+
+    def test_reduced_bands_scale_like_whole_pages(self):
+        # A reduced copy sized by height must not stretch each band to that height.
+        estimate = self.check("height", format="jpeg", keep_originals=False, size_output="reduced",
+                              resize_mode="height", resize_pixels=300)
+        self.assertGreater(estimate["reduced"], 0)
+
     def test_the_same_settings_give_the_same_estimate(self):
         opt = ExportOptions("again", workers=1, format="jpeg", keep_originals=False)
         self.assertEqual(estimate_export_size(self.plan, opt), estimate_export_size(self.plan, opt))
