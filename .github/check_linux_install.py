@@ -101,6 +101,45 @@ def installed():
     check("started" in start.stdout, "the installed app starts with the trimmed Qt", start.stdout + start.stderr)
 
 
+def repair():
+    """Break the private environment and check the launcher offers a repair."""
+    import tempfile
+    import time
+    saved = VENV.with_name("venv.saved")
+    VENV.rename(saved)  # As if a system upgrade removed the Python it was built on.
+    try:
+        with tempfile.TemporaryDirectory() as folder:
+            fake = Path(folder)
+            log = fake / "calls.log"
+            for name, body in (("zenity", 'echo "zenity $*" >> "$LOG"; exit "${ANSWER:-1}"'),
+                               ("xdg-terminal-exec", 'echo "terminal $*" >> "$LOG"')):
+                (fake / name).write_text("#!/bin/sh\n" + body + "\n")
+                (fake / name).chmod(0o755)
+            for answer, label in (("1", "Not now"), ("0", "Repair now")):
+                log.unlink(missing_ok=True)
+                env = dict(os.environ, PATH=f"{fake}:{os.environ['PATH']}", DISPLAY=":99",
+                           LOG=str(log), ANSWER=answer)
+                env.pop("WAYLAND_DISPLAY", None)
+                result = subprocess.run([str(LAUNCHER)], env=env, capture_output=True, text=True, timeout=60)
+                deadline = time.monotonic() + 5
+                while answer == "0" and "terminal" not in (log.read_text() if log.exists() else "") \
+                        and time.monotonic() < deadline:
+                    time.sleep(0.1)
+                calls = log.read_text() if log.exists() else ""
+                print(f"[{label}] exit={result.returncode}\n{calls}{result.stderr}", end="")
+                check("Repair now" in calls and "Not now" in calls,
+                      f"{label}: a broken environment shows the repair question", calls + result.stderr)
+                check(result.returncode != 0, f"{label}: the launcher reports that the app did not start")
+                if answer == "0":
+                    check(f"terminal bash {APP}/linux/install.sh" in calls,
+                          "Repair now: the kept installer runs in a terminal", calls)
+                else:
+                    check("terminal" not in calls, "Not now: nothing else happens", calls)
+                check("To repair, run:" in result.stderr, f"{label}: the repair command is printed too")
+    finally:
+        saved.rename(VENV)
+
+
 def removed():
     check(not PREFIX.exists(), f"{PREFIX} removed")
     check(not DESKTOP.exists(), "desktop entry removed")
@@ -112,6 +151,6 @@ def removed():
 
 
 if __name__ == "__main__":
-    {"installed": installed, "removed": removed}[sys.argv[1]]()
+    {"installed": installed, "repair": repair, "removed": removed}[sys.argv[1]]()
     if failures:
         sys.exit(f"{len(failures)} check(s) failed")
