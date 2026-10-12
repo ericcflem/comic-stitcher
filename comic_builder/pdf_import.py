@@ -21,6 +21,89 @@ def rendered_dimensions(page_size: tuple[float, float], dpi: int) -> tuple[int, 
     return tuple(round(points * dpi / 72) for points in page_size)
 
 
+# Resolutions scanners and publishers commonly use; a measured value close to
+# one of these is shown as that value.
+COMMON_DPI = (72, 96, 100, 120, 150, 200, 240, 250, 300, 350, 400, 450, 500, 600)
+SAMPLE_PAGES = 12
+
+
+def _image_resolutions(page):
+    """(dpi, share of the page covered) for each image drawn on a page.
+
+    An image's resolution is its pixel size divided by the size it is drawn at.
+    Images inside form objects are measured through the form's own scaling.
+    """
+    import math
+    import pypdfium2.raw as pdfium_c
+    page_width, page_height = page.get_size()
+    page_area = page_width * page_height
+    if page_area <= 0:
+        return []
+    matrices = {}
+    found = []
+    for obj in page.get_objects(filter=(pdfium_c.FPDF_PAGEOBJ_IMAGE, pdfium_c.FPDF_PAGEOBJ_FORM),
+                                max_depth=6):
+        level = getattr(obj, "level", 0)
+        matrix = obj.get_matrix()
+        if level > 0 and level - 1 in matrices:
+            matrix = matrix.multiply(matrices[level - 1])
+        if obj.type == pdfium_c.FPDF_PAGEOBJ_FORM:
+            matrices[level] = matrix
+            continue
+        width_px, height_px = obj.get_px_size()
+        drawn_width = math.hypot(matrix.a, matrix.b)
+        drawn_height = math.hypot(matrix.c, matrix.d)
+        if min(width_px, height_px, drawn_width, drawn_height) <= 0:
+            continue
+        dpi = min(width_px / drawn_width, height_px / drawn_height) * 72
+        corners = [matrix.on_point(x, y) for x, y in ((0, 0), (1, 0), (0, 1), (1, 1))]
+        xs, ys = [x for x, _ in corners], [y for _, y in corners]
+        covered = (max(0, min(max(xs), page_width) - max(min(xs), 0))
+                   * max(0, min(max(ys), page_height) - max(min(ys), 0)))
+        if covered > 0:
+            found.append((dpi, covered / page_area))
+    return found
+
+
+def suggest_pdf_dpi(source: Path, sample_pages: int = SAMPLE_PAGES) -> int | None:
+    """The resolution of the page art in a PDF, or None if it has little.
+
+    Samples pages across the book and weighs each image by how much of the page
+    it covers, so logos and small decorations barely count, while pages cut into
+    thin strips still count in full. Returns None when images cover less than
+    half of the sampled pages, as in a PDF made mostly of text and drawings.
+    """
+    document = pdfium.PdfDocument(source)
+    try:
+        count = len(document)
+        if not count:
+            return None
+        picks = sorted({round(i * (count - 1) / max(1, sample_pages - 1))
+                        for i in range(min(count, sample_pages))})
+        found = []
+        for index in picks:
+            page = document[index]
+            try:
+                found.extend(_image_resolutions(page))
+            finally:
+                page.close()
+    finally:
+        document.close()
+    total = sum(share for _, share in found)
+    if total < 0.5 * len(picks):
+        return None
+    # The resolution covering the most page area (weighted median).
+    running, dpi = 0.0, 0.0
+    for measured, share in sorted(found):
+        running += share
+        dpi = measured
+        if running >= total / 2:
+            break
+    nearest = min(COMMON_DPI, key=lambda common: abs(common - dpi))
+    value = nearest if abs(nearest - dpi) <= 0.03 * nearest else round(dpi)
+    return max(72, min(600, value))
+
+
 def pdf_workers(requested: int = 0) -> int:
     """Keep concurrent full-page bitmaps within a practical memory budget."""
     return requested or min(4, max(1, (os.cpu_count() or 1) // 2))
