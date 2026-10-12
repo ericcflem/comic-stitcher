@@ -37,7 +37,7 @@ It imports PDFs, image folders, compressed archives, existing comic book files a
    Run it as yourself, not with `sudo`. If a system package is missing, such as `python3-venv` on Ubuntu, it lists what it needs and asks before installing it, which needs your password. Comic Stitcher's own libraries go in a private folder in your home folder, about 120 MB to download the first time.
 3. Start Comic Stitcher from your app menu, or right-click a comic and choose **Open With > Comic Stitcher**. In Files, right-click a folder and choose **Open in Comic Stitcher**. If Files' Python add-on support is not installed, this is under **Scripts** instead.
 
-You can delete the downloaded folder afterwards. To update, download the new version and run its `linux/install.sh` again. To uninstall, run `~/.local/share/comic-stitcher/uninstall.sh`. Add `--purge` to also remove your settings, logs and a remembered ComicVine key.
+You can delete the downloaded folder afterwards. To update, download the new version and run its `linux/install.sh` again. If a system upgrade moves to a new version of Python, Comic Stitcher offers to repair itself the next time it starts. To uninstall, run `~/.local/share/comic-stitcher/uninstall.sh`. Add `--purge` to also remove your settings, logs and a remembered ComicVine key.
 
 Notes:
 - **RAR/CBR import** uses whichever RAR extractor is installed (UnRAR, unar, 7-Zip or bsdtar). On Ubuntu or Debian, `sudo apt install unar` adds one.

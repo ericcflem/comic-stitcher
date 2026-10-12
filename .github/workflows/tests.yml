@@ -114,7 +114,8 @@ jobs:
         # Findings are shown as annotations on the pull request.
         shell: bash
         run: >
-          shellcheck -f gcc linux/install.sh linux/uninstall.sh linux/nautilus/open-in-comic-stitcher.sh
+          shellcheck -f gcc linux/install.sh linux/uninstall.sh linux/repair-prompt.sh
+          linux/nautilus/open-in-comic-stitcher.sh
           | sed -E 's/^([^:]+):([0-9]+):([0-9]+): [a-z]+: (.*)$/::error file=\1,line=\2,col=\3::\4/'
 
       - name: Install the desktop-file checker and basic desktop libraries
@@ -128,6 +129,9 @@ jobs:
 
       - name: Check the installation
         run: python3 .github/check_linux_install.py installed
+
+      - name: Check the repair prompt for a broken environment
+        run: python3 .github/check_linux_install.py repair
 
       - name: Install again, as an update would
         run: linux/install.sh --yes

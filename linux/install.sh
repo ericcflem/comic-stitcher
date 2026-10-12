@@ -304,12 +304,22 @@ write_launcher() {
     {
         printf '#!/bin/sh\n'
         printf '# Starts Comic Stitcher. Written by %s; re-run it to update.\n' "$MARKER"
-        printf '# Matches the window to its app-menu entry on X11/XWayland desktops.\n'
-        printf 'RESOURCE_NAME=%s\nexport RESOURCE_NAME\n' "$APP_ID"
-        printf '# Lets the drop tab start itself at sign-in through this launcher.\n'
-        printf 'COMIC_STITCHER_LAUNCHER=%s\nexport COMIC_STITCHER_LAUNCHER\n' "$launcher_value"
-        # shellcheck disable=SC2016  # "$@" is meant literally, for the launcher.
-        printf 'exec %s %s "$@"\n' "$(sh_quote "$VENV/bin/python")" "$(sh_quote "$APP/launch.py")"
+        printf 'PYTHON=%s\n' "$(sh_quote "$VENV/bin/python")"
+        printf 'APP=%s\n' "$(sh_quote "$APP")"
+        printf 'COMIC_STITCHER_LAUNCHER=%s\n' "$launcher_value"
+        cat <<'BODY'
+# Lets the drop tab start itself at sign-in through this launcher.
+export COMIC_STITCHER_LAUNCHER
+# Matches the window to its app-menu entry on X11/XWayland desktops.
+RESOURCE_NAME=comic-stitcher
+export RESOURCE_NAME
+# A system upgrade can move to a new Python version, which breaks the private
+# environment. Check first, and offer a repair rather than failing silently.
+if ! "$PYTHON" -c 'import PySide6' >/dev/null 2>&1; then
+    exec sh "$APP/linux/repair-prompt.sh"
+fi
+exec "$PYTHON" "$APP/launch.py" "$@"
+BODY
     } > "$LAUNCHER"
     chmod +x "$LAUNCHER"
 
