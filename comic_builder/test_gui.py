@@ -148,6 +148,50 @@ class ThumbnailTest(unittest.TestCase):
         finally:
             window.close()
 
+    def test_each_copy_has_its_own_tab_and_one_is_always_made(self):
+        window = ComicWindow()
+        self.addCleanup(window.close)
+        # Copying unmodified pages, both sizes: full-size edited pages WebP, reduced copy PNG.
+        opt = ExportOptions("Sizes", keep_originals=True, size_output="both", spread_format="webp",
+                            reduced_custom=True, reduced_settings={"format": "png"})
+        dialog = OutputOptionsDialog(opt, window.custom_resize_values, window)
+        try:
+            self.assertEqual([dialog.tabs.tabText(i) for i in range(2)], ["Full size", "Reduced size"])
+            full_tab, reduced_tab = dialog.tabs.widget(0), dialog.tabs.widget(1)
+            # Each tab holds only its own copy's settings, under its format choice.
+            self.assertTrue(full_tab.isAncestorOf(dialog.webp_quality))
+            self.assertFalse(dialog.webp_quality.isHidden())
+            self.assertTrue(dialog.jpeg_quality.isHidden())
+            self.assertTrue(reduced_tab.isAncestorOf(dialog.reduced_format))
+            self.assertTrue(reduced_tab.isAncestorOf(dialog.reduced_advanced.compress))
+            self.assertFalse(full_tab.isAncestorOf(dialog.reduced_format))
+            self.assertTrue(dialog.reduced_quality.isHidden())  # PNG has no quality setting.
+            # Unticking a copy greys out its settings; the last one left can't be unticked.
+            dialog.make_full.setChecked(False)
+            self.assertFalse(dialog.full_settings.isEnabled())
+            self.assertFalse(dialog.make_reduced.isEnabled())
+            self.assertIn("At least one copy", dialog.make_reduced.toolTip())
+            result = ExportOptions("Sizes")
+            dialog.apply_to(result)
+            self.assertEqual(result.size_output, "reduced")
+            self.assertEqual(result.reduced_settings["format"], "png")
+            dialog.make_full.setChecked(True)
+            self.assertTrue(dialog.make_reduced.isEnabled())
+        finally:
+            dialog.reject()
+
+    def test_reduced_copy_starts_from_the_settings_it_used_before(self):
+        window = ComicWindow()
+        self.addCleanup(window.close)
+        # Before this change, a reduced copy without its own settings followed the main ones.
+        opt = ExportOptions("Old", format="webp", webp_quality=77, size_output="both", reduced_custom=False)
+        dialog = OutputOptionsDialog(opt, window.custom_resize_values, window)
+        try:
+            self.assertEqual(dialog.reduced_format.currentText(), "WebP")
+            self.assertEqual(dialog.reduced_quality.value(), 77)
+        finally:
+            dialog.reject()
+
     def test_copy_mode_offers_webp_for_edited_pages(self):
         window = ComicWindow()
         try:
@@ -515,20 +559,17 @@ class ThumbnailTest(unittest.TestCase):
             self.assertTrue(dialog.advanced.format.isHidden())
             dialog.format.setCurrentText("WebP")
             self.assertEqual(dialog.advanced.stack.currentIndex(), 1)
-            dialog.size_output.setCurrentIndex(2)
-            dialog.reduced_custom.setChecked(True)
+            dialog.make_reduced.setChecked(True)
             dialog.reduced_format.setCurrentText("JPEG")
             dialog.reduced_quality.setValue(61)
             self.assertEqual(dialog.reduced_advanced.stack.currentIndex(), 0)
             result = ExportOptions("Test")
             dialog.apply_to(result)
+            self.assertEqual(result.size_output, "both")
             self.assertTrue(result.reduced_custom)
             self.assertEqual(result.format, "webp")
             self.assertEqual(result.reduced_settings["format"], "jpeg")
             self.assertEqual(result.reduced_settings["jpeg_quality"], 61)
-            dialog.reduced_custom.setChecked(False)
-            dialog.apply_to(result)
-            self.assertFalse(result.reduced_custom)
         finally:
             dialog.close()
             window.close()
@@ -1643,7 +1684,8 @@ class ThumbnailTest(unittest.TestCase):
             def accept_options(dialog):
                 dialog.format.setCurrentText("WebP")
                 dialog.spread_format.setCurrentIndex(1)
-                dialog.size_output.setCurrentIndex(2)
+                dialog.make_full.setChecked(True)
+                dialog.make_reduced.setChecked(True)
                 dialog.webp_quality.setValue(87)
                 dialog.advanced.lossless.setChecked(True)
                 dialog.advanced.method.setValue(6)
@@ -1661,7 +1703,7 @@ class ThumbnailTest(unittest.TestCase):
             try:
                 self.assertEqual(reopened.format.currentText(), "WebP")
                 self.assertEqual(reopened.advanced.format.currentText(), "WebP")
-                self.assertEqual(reopened.size_output.currentIndex(), 2)
+                self.assertTrue(reopened.make_full.isChecked() and reopened.make_reduced.isChecked())
                 self.assertEqual(reopened.resize_settings.pixels.value(), 1280)
                 reopened.format.setCurrentText("JPEG")
                 reopened.reject()
@@ -1682,7 +1724,7 @@ class ThumbnailTest(unittest.TestCase):
                 self.assertEqual(dialog.webp_quality.value(), 87)
                 self.assertTrue(dialog.advanced.lossless.isChecked())
                 self.assertEqual(dialog.advanced.method.value(), 6)
-                self.assertEqual(dialog.size_output.currentIndex(), 2)
+                self.assertTrue(dialog.make_full.isChecked() and dialog.make_reduced.isChecked())
                 self.assertEqual(dialog.resize_settings.mode.currentText(), "Width")
                 self.assertEqual(dialog.resize_settings.pixels.value(), 1280)
                 self.assertFalse(dialog.resize_settings.gamma.isChecked())
@@ -2072,8 +2114,9 @@ class ThumbnailTest(unittest.TestCase):
                 def set_output():
                     dialog = next(w for w in self.app.topLevelWidgets()
                                   if isinstance(w, OutputOptionsDialog) and w.isVisible())
-                    dialog.size_output.setCurrentIndex(1)
-                    dialog.format.setCurrentText("WebP")
+                    dialog.make_reduced.setChecked(True)
+                    dialog.make_full.setChecked(False)
+                    dialog.reduced_format.setCurrentText("WebP")
                     dialog.resize_settings.pixels.setValue(64)
                     dialog.accept()
 
@@ -2100,8 +2143,9 @@ class ThumbnailTest(unittest.TestCase):
                 window.show_export()
                 next_options = OutputOptionsDialog(window.opt, window.custom_resize_values)
                 try:
-                    self.assertEqual(next_options.format.currentText(), "WebP")
-                    self.assertEqual(next_options.size_output.currentIndex(), 1)
+                    self.assertEqual(next_options.reduced_format.currentText(), "WebP")
+                    self.assertFalse(next_options.make_full.isChecked())
+                    self.assertTrue(next_options.make_reduced.isChecked())
                     self.assertEqual(next_options.resize_settings.pixels.value(), 64)
                 finally:
                     next_options.close()
@@ -2169,9 +2213,10 @@ class ThumbnailTest(unittest.TestCase):
                 def set_resize():
                     dialog = next(w for w in self.app.topLevelWidgets()
                                   if isinstance(w, OutputOptionsDialog) and w.isVisible())
-                    dialog.size_output.setCurrentIndex(2)
-                    self.assertTrue(dialog.spread_format.isVisible())
-                    self.assertTrue(dialog.format.isVisible())
+                    dialog.make_reduced.setChecked(True)
+                    self.assertFalse(dialog.spread_format.isHidden())  # Copying unmodified pages.
+                    self.assertTrue(dialog.format.isHidden())
+                    self.assertFalse(dialog.reduced_format.isHidden())
                     dialog.resize_settings.mode.setCurrentText("Width")
                     dialog.resize_settings.pixels.setValue(1400)
                     dialog.resize_settings.gamma.setChecked(False)
@@ -2196,7 +2241,7 @@ class ThumbnailTest(unittest.TestCase):
                 def cancel_output():
                     dialog = next(w for w in self.app.topLevelWidgets()
                                   if isinstance(w, OutputOptionsDialog) and w.isVisible())
-                    dialog.size_output.setCurrentIndex(0)
+                    dialog.make_reduced.setChecked(False)
                     dialog.format.setCurrentText("PNG")
                     dialog.advanced.progressive.setChecked(True)
                     dialog.reject()

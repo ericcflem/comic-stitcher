@@ -16,6 +16,10 @@
   encoding bands from pages spread through the book in parallel. An early
   estimate appears within moments and is refined. Pages copied unchanged are
   counted exactly. It can be turned off with the Estimate size checkbox.
+- Output options has one tab per copy, Full size and Reduced size, each with a
+  checkbox to make that copy and its own format settings directly under its
+  format choice. The reduced copy always has its own settings (starting from
+  what it used before); at least one copy is always made.
 
 ## 0.6.38 — first public release
 
