@@ -35,6 +35,7 @@ from .backend import (
 )
 from . import __version__, diagnostics
 from .import_sources import expand_sources
+from .startup_notice import finish_startup, take_startup_id
 from .single_instance import LaunchBroker
 from .detector import collect_images
 from .archive_import import ARCHIVE_EXTS, import_archive
@@ -5172,6 +5173,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
 
 def main():
     prefer_xwayland_on_gnome()  # GNOME on Wayland: GNOME's own frame, shadow and centring
+    startup_id = take_startup_id()  # The app menu's busy cursor, ended once the window shows.
     app = QApplication(sys.argv)
     if sys.platform.startswith("linux"):
         # Matches windows to the app-menu entry linux/install.sh creates (Wayland app id).
@@ -5180,10 +5182,13 @@ def main():
     broker = LaunchBroker()
     try:
         if not broker.start([Path(argument) for argument in sys.argv[1:]]):
+            # Handed to the copy already running: this launch is complete too.
+            finish_startup(startup_id, app.platformName())
             return 0
         window = ComicWindow()
         broker.paths_received.connect(window._external_import)
         window.show()
+        QTimer.singleShot(0, lambda: finish_startup(startup_id, app.platformName()))
         return app.exec()
     finally:
         broker.close()
