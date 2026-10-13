@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sys
+import time
 import os
 import shutil
 import textwrap
@@ -30,6 +31,7 @@ from .backend import (
     BookPlan, BoundaryOverrideRequired, ExportOptions, check_sources, export_book, planned_names,
     safe_book_name, scan_folder, scan_manual_folder, stitched_image, rotated_image,
     encoding_workers, POSSIBLE_MIN_SCORE, copy_encoding_options, ENCODER_FIELDS,
+    estimate_export_size, ESTIMATE_SAMPLES,
 )
 from . import __version__, diagnostics
 from .import_sources import expand_sources
@@ -345,6 +347,116 @@ class Worker(QThread):
         except Exception as exc:
             diagnostics.exception("Scan or export failed")
             self.failure.emit(str(exc))
+
+
+def readable_size(size: int) -> str:
+    """Bytes in the units the system's file manager shows: Windows Explorer
+    counts 1,024-byte kilobytes, while Linux desktops use 1,000."""
+    step = 1024 if sys.platform == "win32" else 1000
+    for unit in ("KB", "MB", "GB"):
+        size /= step
+        if size < step or unit == "GB":
+            return f"{size:.1f} {unit}" if size < 10 else f"{size:,.0f} {unit}"
+    return ""
+
+
+class SizeEstimateWorker(QThread):
+    """Estimates export size in the background; a newer request replaces an older one.
+
+    Keeps its helper processes between estimates while the export screen is open,
+    since starting them is slow on Windows; release() lets them go.
+    """
+    ready = Signal(int, object)
+    provisional = Signal(int, object)  # An early estimate while more samples are encoded.
+    failed = Signal(int, str)
+
+    def __init__(self):
+        super().__init__()
+        self.condition = Condition()
+        self.requested = None
+        self.stopping = False
+        self.cancelled = False
+        self.releasing = False
+        self.pool = None
+        self.pool_size = 0
+
+    def request(self, generation, plan, opt):
+        with self.condition:
+            self.requested = (generation, copy.deepcopy(plan), replace(opt))
+            self.cancelled = False
+            self.releasing = False
+            self.condition.notify()
+
+    def cancel(self):
+        with self.condition:
+            self.requested = None
+            self.cancelled = True
+
+    def release(self):
+        """Cancel, and end the helper processes once idle."""
+        with self.condition:
+            self.requested = None
+            self.cancelled = True
+            self.releasing = True
+            self.condition.notify()
+
+    def stop(self):
+        with self.condition:
+            self.stopping = True
+            self.requested = None
+            self.condition.notify_all()
+
+    def _interrupted(self):
+        return self.stopping or self.cancelled or self.requested is not None
+
+    def _end_pool(self):
+        if self.pool is not None:
+            self.pool.shutdown(wait=False, cancel_futures=True)
+            self.pool, self.pool_size = None, 0
+
+    def _pool_for(self, workers):
+        if workers <= 1:
+            return None
+        if self.pool is None or self.pool_size != workers:
+            from concurrent.futures import ProcessPoolExecutor
+            from multiprocessing import get_context
+            self._end_pool()
+            self.pool = ProcessPoolExecutor(max_workers=workers, mp_context=get_context("spawn"))
+            self.pool_size = workers
+        return self.pool
+
+    def run(self):
+        try:
+            while True:
+                with self.condition:
+                    while self.requested is None and not self.stopping and not self.releasing:
+                        self.condition.wait()
+                    if self.stopping:
+                        return
+                    if self.requested is None:  # Released while idle.
+                        self.releasing = False
+                        self._end_pool()
+                        continue
+                    generation, plan, opt = self.requested
+                    self.requested = None
+                started = time.monotonic()
+                try:
+                    workers = encoding_workers(opt.workers)
+                    result = estimate_export_size(
+                        plan, opt, cancelled=self._interrupted, workers=workers,
+                        executor=self._pool_for(min(workers, ESTIMATE_SAMPLES)),
+                        progress=lambda sizes, _done, _total, generation=generation:
+                            self.provisional.emit(generation, sizes))
+                except Exception as exc:  # The estimate is optional; export reports real problems.
+                    diagnostics.note("Size estimate failed: %s", exc)
+                    self._end_pool()  # A broken pool is not reused.
+                    self.failed.emit(generation, str(exc))
+                    continue
+                if result is not None:
+                    diagnostics.note("Size estimate shown after %.1f s", time.monotonic() - started)
+                    self.ready.emit(generation, result)
+        finally:
+            self._end_pool()
 
 
 class ReviewImageWorker(QThread):
@@ -2692,6 +2804,32 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.output_options_button.setText("Edit options…")
         summary_row.addWidget(self.output_options_button)
         output_box.addLayout(summary_row)
+        estimate_row = QHBoxLayout()
+        self.estimate_size = QCheckBox("Estimate size")
+        self.estimate_size.setChecked(self.settings.value("estimate_size", True, type=bool))
+        self.estimate_size.setToolTip(tooltip_text(
+            "Encodes a band from pages spread through the book with the chosen settings, using the "
+            "same number of processes as export, to estimate how large the finished comic will be. "
+            "Pages copied without re-encoding are counted exactly. Updates shortly after a setting "
+            "changes; an early estimate is refined as the remaining pages finish."))
+        self.estimate_size.toggled.connect(self._estimate_toggled)
+        estimate_row.addWidget(self.estimate_size)
+        self.size_estimate = QLabel("")
+        self.size_estimate.setStyleSheet("color:#203c55; padding-left:6px;")
+        estimate_row.addWidget(self.size_estimate, 1)
+        output_box.addLayout(estimate_row)
+        self.estimate_generation = 0
+        self.estimate_png_pages = False
+        self.estimate_timer = QTimer(self)
+        self.estimate_timer.setSingleShot(True)
+        self.estimate_timer.setInterval(700)
+        self.estimate_timer.timeout.connect(self._start_size_estimate)
+        self.size_worker = SizeEstimateWorker()
+        self.size_worker.ready.connect(self._size_estimate_ready)
+        self.size_worker.provisional.connect(
+            lambda generation, sizes: self._size_estimate_ready(generation, sizes, final=False))
+        self.size_worker.failed.connect(self._size_estimate_failed)
+        self.pages.currentChanged.connect(self._schedule_size_estimate)
         form.setVerticalSpacing(10)
         output_box.addLayout(form)
         box.addWidget(output_group)
@@ -4275,10 +4413,66 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             self.export_hint.setText("Choose your settings, then review the output before creating the comic.")
             self.create_button.setEnabled(True)
             self.add_queue_button.setEnabled(True)
+            self._schedule_size_estimate()
         except (ValueError, IndexError) as exc:
             self.export_hint.setText(str(exc))
             self.create_button.setEnabled(False)
             self.add_queue_button.setEnabled(False)
+            self._cancel_size_estimate("")
+
+    def _estimate_wanted(self):
+        return (hasattr(self, "size_worker") and self.estimate_size.isChecked() and self.plan is not None
+                and self.pages.currentWidget() is self.export_page and self.create_button.isEnabled())
+
+    def _schedule_size_estimate(self, *_):
+        if not self._estimate_wanted():
+            self._cancel_size_estimate("")
+            return
+        self.estimate_generation += 1  # Any result still on its way is now out of date.
+        self.size_estimate.setText("Estimating…")
+        self.estimate_timer.start()
+
+    def _cancel_size_estimate(self, text):
+        if hasattr(self, "size_worker"):
+            self.estimate_timer.stop()
+            self.estimate_generation += 1
+            if self.pages.currentWidget() is self.export_page and self.estimate_size.isChecked():
+                self.size_worker.cancel()
+            else:
+                self.size_worker.release()
+            self.size_estimate.setText(text)
+
+    def _start_size_estimate(self):
+        if not self._estimate_wanted():
+            return
+        try:
+            opt = self.options_from_screen()
+        except (ValueError, IndexError):
+            self.size_estimate.setText("")
+            return
+        self.estimate_png_pages = not opt.cbz
+        if not self.size_worker.isRunning():
+            self.size_worker.start()  # Only once an estimate is first wanted.
+        self.size_worker.request(self.estimate_generation, self.plan, opt)
+
+    def _size_estimate_ready(self, generation, sizes, final=True):
+        if generation != self.estimate_generation:
+            return
+        what = " of PNG pages" if self.estimate_png_pages else ""
+        if len(sizes) == 1:
+            text = f"About {readable_size(next(iter(sizes.values())))}{what}"
+        else:
+            text = (f"Full: about {readable_size(sizes['full'])}  ·  "
+                    f"Reduced: about {readable_size(sizes['reduced'])}{what}")
+        self.size_estimate.setText(text if final else text + " (refining…)")
+
+    def _size_estimate_failed(self, generation, _message):
+        if generation == self.estimate_generation:
+            self.size_estimate.setText("Size estimate unavailable")
+
+    def _estimate_toggled(self, checked):
+        self.settings.setValue("estimate_size", checked)
+        self._schedule_size_estimate()
 
     def export_review_text(self, opt: ExportOptions) -> str:
         title = safe_book_name(opt.book_name)
@@ -4492,6 +4686,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         if not self.confirm_export(opt):
             return
         self._remember_export_preferences(opt)
+        self._cancel_size_estimate("")
+        self.size_worker.release()  # Export needs the processor.
         self.progress_label.setText("Creating comic…")
         self.progress_bar.setValue(0)
         self.done_button.hide()
@@ -4781,7 +4977,9 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                 self._save_preview_position()
             self.thumb_worker.stop()
             self.review_worker.stop()
-            if not self.thumb_worker.wait(3000) or not self.review_worker.wait(3000):
+            self.size_worker.stop()
+            if (not self.thumb_worker.wait(3000) or not self.review_worker.wait(3000)
+                    or not self.size_worker.wait(10000)):
                 event.ignore()
                 self.statusBar().showMessage("Finishing an image before closing…")
                 return
