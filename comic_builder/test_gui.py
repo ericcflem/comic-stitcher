@@ -1880,10 +1880,24 @@ class ThumbnailTest(unittest.TestCase):
                 window._compact_window()
                 QTest.qWait(400)
                 self.assertLess(window.height(), export_minimum)
+                window.progress_label.setText("Rendering PDF pages: 4 of 36…")
                 window.resize(50, 50)
                 QTest.qWait(50)
                 self.assertGreaterEqual(window.width(), 360)
                 self.assertGreaterEqual(window.height(), window.progress_page.minimumSizeHint().height())
+                # The next step's longer message still fits on one line at the smallest width,
+                # and a message that does wrap (a long name) gets the room it needs.
+                narrowest = window.width()
+                window.progress_label.setText("Scanning 36 rendered pages… 1% complete")
+                QTest.qWait(50)
+                self.assertEqual(window.width(), narrowest)
+                one_line = window.progress_label.fontMetrics().height()
+                self.assertLess(window.progress_label.heightForWidth(window.progress_label.width()), 2 * one_line)
+                window.progress_label.setText("Scanning " + "A very long folder name " * 6 + "…")
+                QTest.qWait(50)
+                label = window.progress_label
+                self.assertGreaterEqual(label.height(), label.heightForWidth(label.width()))
+                self.assertGreaterEqual(window.progress_bar.geometry().top(), label.geometry().bottom())
                 # The full-screen review screens may still be made small.
                 window.return_preview_from_export()
                 self.assertEqual(window.pages.minimumHeight(), 0)

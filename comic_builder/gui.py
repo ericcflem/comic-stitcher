@@ -19,7 +19,7 @@ from uuid import uuid4
 
 from PIL import Image, ImageOps
 from PySide6.QtCore import QFile, QEvent, QSettings, QSize, Qt, QThread, QTimer, Signal, QUrl, QRectF, QSignalBlocker, QMimeData
-from PySide6.QtGui import QDesktopServices, QImage, QPixmap, QShortcut, QKeySequence, QPainter, QColor, QPen, QDrag, QIcon
+from PySide6.QtGui import QFontMetrics, QDesktopServices, QImage, QPixmap, QShortcut, QKeySequence, QPainter, QColor, QPen, QDrag, QIcon
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout,
     QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox,
@@ -91,6 +91,17 @@ def ui_icon(widget, kind, size=72):
         painter.drawText(QRectF(3, size // 2, size - 6, size // 3), Qt.AlignCenter, kind)
         painter.end()
     return pixmap
+
+
+class ProgressLabel(QLabel):
+    """A wrapping label that reports text changes, so the window can make room."""
+    text_changed = Signal()
+
+    def setText(self, text):
+        changed = text != self.text()
+        super().setText(text)
+        if changed:
+            self.text_changed.emit()
 
 
 class CurrentPageStack(QStackedWidget):
@@ -2254,7 +2265,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             # Only ask when needed: on Wayland this is a request to the desktop, whose
             # reply restates the current size and would undo the resize below.
             self.showNormal()
-        self._hold_export_minimum()  # Before resizing, so the old screen's minimum is gone.
+        self._hold_page_minimum()  # Before resizing, so the old screen's minimum is gone.
         size = self._compact_target_size()
         page = self.pages.currentWidget()
         self.resize(size)
@@ -2852,7 +2863,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             lambda generation, sizes: self._size_estimate_ready(generation, sizes, final=False))
         self.size_worker.failed.connect(self._size_estimate_failed)
         self.pages.currentChanged.connect(self._schedule_size_estimate)
-        self.pages.currentChanged.connect(self._hold_export_minimum)
+        self.pages.currentChanged.connect(self._hold_page_minimum)
         form.setVerticalSpacing(10)
         output_box.addLayout(form)
         box.addWidget(output_group)
@@ -2886,17 +2897,20 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.progress_page = QWidget()
         box = QVBoxLayout(self.progress_page)
         box.addStretch()
-        self.progress_source = QLabel()
+        self.progress_source = ProgressLabel()
         self.progress_source.setAlignment(Qt.AlignCenter)
         self.progress_source.setWordWrap(True)
         self.progress_source.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         self.progress_source.setStyleSheet("color:#617080; font-size:13px;")
         box.addWidget(self.progress_source)
-        self.progress_label = QLabel()
+        self.progress_label = ProgressLabel()
         self.progress_label.setAlignment(Qt.AlignCenter)
         self.progress_label.setWordWrap(True)
         self.progress_label.setStyleSheet("font-size:19px; font-weight:700; color:#203c55;")
         self.progress_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        for label in (self.progress_source, self.progress_label):
+            label.text_changed.connect(self._progress_text_changed)
+        self.progress_page.installEventFilter(self)
         self.progress_bar = QProgressBar()
         box.addWidget(self.progress_label)
         box.addWidget(self.progress_bar)
@@ -3943,6 +3957,9 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         if (watched is getattr(self, "progress_page", None)
                 and event.type() in (QEvent.LayoutRequest, QEvent.Resize)):
             QTimer.singleShot(0, self._fit_progress_text)
+        if (watched is getattr(self, "progress_page", None) and event.type() == QEvent.Resize
+                and event.size().width() != event.oldSize().width()):
+            QTimer.singleShot(0, self._progress_text_changed)  # Wrapping changes with width.
         if (getattr(self, "export_scroll", None) is not None and watched is self.export_scroll.viewport()
                 and event.type() == QEvent.Resize and event.size().width() != event.oldSize().width()):
             QTimer.singleShot(0, self._fit_export_settings)
@@ -3974,7 +3991,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         hint_height = self.export_hint.heightForWidth(width)
         if hint_height > 0 and hint_height != self.export_hint.minimumHeight():
             self.export_hint.setMinimumHeight(hint_height)
-        self._hold_export_minimum()
+        self._hold_page_minimum()
 
     def _fit_progress_text(self):
         """Count wrapped lines of the progress messages in the window's minimum
@@ -3991,9 +4008,29 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                 label.setMinimumHeight(max(0, height))
                 changed = True
         if changed and self.pages.currentWidget() is page:
-            self._hold_export_minimum()
+            self._hold_page_minimum()
 
-    def _hold_export_minimum(self, *_):
+    PROGRESS_SAMPLE_TEXT = "Scanning 0000 extracted pages… 100% complete"
+
+    def _progress_minimum(self):
+        """Wide enough for the usual progress messages on one line, so the window
+        needn't change size as the work moves from one step to the next, and tall
+        enough for whatever the messages wrap to (a long file name, say)."""
+        self.progress_label.ensurePolished()
+        margins = self.progress_page.layout().contentsMargins()
+        sample = QFontMetrics(self.progress_label.font()).horizontalAdvance(self.PROGRESS_SAMPLE_TEXT)
+        width = max(360, sample + 12 + margins.left() + margins.right())
+        text_width = max(width, self.progress_page.width()) - margins.left() - margins.right()
+        for label in (self.progress_source, self.progress_label):
+            height = label.heightForWidth(text_width) if label.text() else 0
+            label.setMinimumHeight(max(0, height))
+        return self.progress_page.minimumSizeHint().expandedTo(QSize(width, 0))
+
+    def _progress_text_changed(self):
+        if self.pages.currentWidget() is self.progress_page:
+            self._hold_page_minimum()
+
+    def _hold_page_minimum(self, *_):
         """Give the window the current screen's minimum size.
 
         The page stack ignores its pages' sizes, so a small screen isn't held to
@@ -4004,11 +4041,10 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         if not all(hasattr(self, name) for name in ("start_page", "progress_page", "export_page")):
             return
         page = self.pages.currentWidget()
-        if page in (self.start_page, self.progress_page, self.export_page):
+        if page is self.progress_page:
+            minimum = self._progress_minimum()
+        elif page in (self.start_page, self.export_page):
             minimum = page.minimumSizeHint()
-            if page is self.progress_page:
-                # Its labels wrap to any width; keep the progress bar usable.
-                minimum = minimum.expandedTo(QSize(360, 0))
         else:
             minimum = QSize(0, 0)
         if minimum != self.pages.minimumSize():
