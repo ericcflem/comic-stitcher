@@ -2222,6 +2222,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         size = QSize(580, 240) if progress and not finished else self.compact_size
         if hasattr(self, "export_page") and self.pages.currentWidget() is self.export_page:
             size = QSize(800, 560)
+            margins = self.export_page.layout().contentsMargins()
+            self._fit_export_settings(size.width() - margins.left() - margins.right())
             # Wrapped explanations need more lines with larger fonts (for example
             # Ubuntu's default), so grow to fit the content rather than overlap it.
             page = self.export_page
@@ -2624,11 +2626,29 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             "QWidget#exportBookContent, QWidget#exportBookViewport { background:#f9fbfd; } "
             "QGroupBox QLabel, QGroupBox QCheckBox { font-weight:400; color:#000000; } "
             "QLineEdit, QComboBox, QSpinBox { min-height:24px; } "
-            "QPushButton { padding:5px 10px; }")
-        box = QVBoxLayout(self.export_page)
-        box.setContentsMargins(20, 16, 20, 16)
+            "QPushButton { padding:5px 10px; }"
+            "QScrollArea#exportSettings, QWidget#exportSettingsViewport, QWidget#exportSettingsContent "
+            "{ background:transparent; }")
+        page_box = QVBoxLayout(self.export_page)
+        page_box.setContentsMargins(20, 16, 20, 16)
+        page_box.setSpacing(12)
+        page_box.addWidget(ui_heading("Create your comic", 28))
+        # The Book and Output sections sit in their own area above the footer (hint
+        # and buttons), so a short window scrolls them instead of overlapping.
+        self.export_scroll = QScrollArea()
+        self.export_scroll.setObjectName("exportSettings")
+        self.export_scroll.setWidgetResizable(True)
+        self.export_scroll.setFrameShape(QFrame.NoFrame)
+        self.export_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.export_scroll.viewport().setObjectName("exportSettingsViewport")
+        settings_content = QWidget()
+        settings_content.setObjectName("exportSettingsContent")
+        box = QVBoxLayout(settings_content)
+        box.setContentsMargins(0, 0, 0, 0)
         box.setSpacing(12)
-        box.addWidget(ui_heading("Create your comic", 28))
+        self.export_scroll.setWidget(settings_content)
+        self.export_scroll.viewport().installEventFilter(self)
+        page_box.addWidget(self.export_scroll, 1)
         form = QFormLayout()
         self.book_name = QLineEdit()
         self.book_name.textChanged.connect(self.refresh_export)
@@ -2835,7 +2855,6 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         box.addWidget(output_group)
         self.export_hint = QLabel("Choose your settings, then review the output before creating the comic.")
         self.export_hint.setWordWrap(True)
-        box.addWidget(self.export_hint)
         self.keep_queue_pages = QCheckBox("Keep imported pages for faster queued export")
         self.keep_queue_pages.setToolTip(tooltip_text(
             "Unchecked: clear temporary PDF/archive pages after adding to the queue and import them again "
@@ -2855,7 +2874,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         controls.addStretch()
         controls.addWidget(self.add_queue_button)
         controls.addWidget(self.create_button)
-        box.addLayout(controls)
+        page_box.addWidget(self.export_hint)
+        page_box.addLayout(controls)
         self.pages.addWidget(self.export_page)
         self.refresh_export()
 
@@ -3915,7 +3935,33 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                 watched is self.thumb_area.viewport() and event.type() == QEvent.Resize and
                 getattr(self, "thumb_buttons", None)):
             QTimer.singleShot(0, self._resize_thumbnail_strip)
+        if (getattr(self, "export_scroll", None) is not None and watched is self.export_scroll.viewport()
+                and event.type() == QEvent.Resize and event.size().width() != event.oldSize().width()):
+            QTimer.singleShot(0, self._fit_export_settings)
         return super().eventFilter(watched, event)
+
+    def _fit_export_settings(self, width=None):
+        """Keep the window from shrinking below what Book and Output need.
+
+        Their height depends on the width, as some text wraps. On a screen too
+        short for all of it, the area scrolls rather than the window growing
+        past the screen.
+        """
+        content = self.export_scroll.widget()
+        width = width or self.export_scroll.viewport().width()
+        if width <= 0:
+            return
+        layout = content.layout()
+        needed = layout.totalHeightForWidth(width) if layout.hasHeightForWidth() else -1
+        needed = max(needed, layout.totalMinimumSize().height())
+        screen = self.screen() or QApplication.primaryScreen()
+        if screen:
+            # Leave room for the title bar, heading, hint and buttons.
+            others = self.export_page.minimumSizeHint().height() - self.export_scroll.minimumHeight()
+            frame = max(0, self.frameGeometry().height() - self.geometry().height())
+            needed = min(needed, screen.availableGeometry().height() - others - frame)
+        if needed != self.export_scroll.minimumHeight():
+            self.export_scroll.setMinimumHeight(max(0, needed))
 
     def _resize_thumbnail_strip(self):
         if not getattr(self, "thumb_buttons", None):
@@ -4391,6 +4437,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                 ui_primary(self.add_queue_button)
             else:
                 self.add_queue_button.setStyleSheet("")
+        if hasattr(self, "export_scroll"):
+            QTimer.singleShot(0, self._fit_export_settings)  # After any text change is laid out.
         if self.plan is None:
             return
         self.front_to_back.setVisible(self.plan.scan.right_to_left)

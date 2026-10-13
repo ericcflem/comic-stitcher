@@ -1810,6 +1810,33 @@ class ThumbnailTest(unittest.TestCase):
             finally:
                 window.close()
 
+    def test_export_screen_cannot_be_squeezed_into_overlapping(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp) / 'pages'; folder.mkdir()
+            for n in range(2):
+                Image.new('RGB', (80, 120), 'white').save(folder / f'{n:03}.png')
+            window = ComicWindow()
+            try:
+                window.estimate_size.setChecked(False)
+                window.scan_done(scan_folder(folder, manual=True))
+                window.show_export()
+                window.show()
+                self.wait_for(lambda: window.export_scroll.minimumHeight() > 0)
+                window.resize(window.width(), 150)  # Dragging the bottom edge far up.
+                QTest.qWait(50)
+                self.app.processEvents()
+                scroll = window.export_scroll.geometry()
+                hint = window.export_hint.geometry()
+                # The footer stays below the settings, and the settings keep their full height.
+                self.assertGreaterEqual(hint.top(), scroll.bottom())
+                self.assertGreaterEqual(window.create_button.geometry().top(), hint.bottom())
+                content = window.export_scroll.widget()
+                self.assertGreaterEqual(window.export_scroll.viewport().height() + 1,
+                                        min(content.minimumSizeHint().height(), window.export_scroll.minimumHeight()))
+                self.assertGreater(window.height(), 150)
+            finally:
+                window.close()
+
     def test_pdf_dimensions_follow_dpi_and_selected_page(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "two-pages.pdf"
