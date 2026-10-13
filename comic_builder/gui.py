@@ -869,130 +869,144 @@ class ResizeSettingsWidget(QWidget):
 
 
 class OutputOptionsDialog(OutlinedWindow, QDialog):
-    """Edit a copy of the output settings; apply nothing until OK."""
+    """Edit a copy of the output settings; apply nothing until OK.
+
+    One tab per copy: Full size and Reduced size. Each has a checkbox to make
+    that copy and its own format settings, every setting directly under the
+    choice it belongs to. At least one copy is always made.
+    """
 
     def __init__(self, opt: ExportOptions, resize_values: dict, parent=None, *, size_limits=None):
         super().__init__(parent)
         self._setup_outline()  # GNOME on Wayland: a visible window edge
         self.setWindowTitle("Output options")
-        self.resize(650, 450)
+        self.resize(650, 520)
         self.setStyleSheet("QTabWidget::pane { border:1px solid #ccd5dd; } "
                            "QFormLayout { spacing:12px; }")
         self.draft = replace(opt)
         self.keep_originals = opt.keep_originals
         box = QVBoxLayout(self)
-        tabs = QTabWidget()
-        box.addWidget(tabs)
+        self.tabs = QTabWidget()
+        box.addWidget(self.tabs)
 
-        image_tab = QWidget()
-        image_box = QVBoxLayout(image_tab)
-        form = QFormLayout()
+        # Full size: re-encoded pages, or (when unchanged pages are copied) the
+        # format for joined and rotated pages.
+        full_tab = QWidget()
+        full_box = QVBoxLayout(full_tab)
+        self.make_full = QCheckBox("Create a full-size copy")
+        self.make_full.setChecked(opt.size_output != "reduced")
+        self.make_full.setToolTip(tooltip_text("Keeps the final pages at their source dimensions."))
+        full_box.addWidget(self.make_full)
+        self.full_settings = QWidget()
+        full_settings_box = QVBoxLayout(self.full_settings)
+        full_settings_box.setContentsMargins(0, 6, 0, 0)
+        choice = QFormLayout()
         self.format = QComboBox()
         self.format.addItems(["JPEG", "WebP", "PNG"])
         self.format.setCurrentText({"jpeg": "JPEG", "webp": "WebP", "png": "PNG"}.get(opt.format, "JPEG"))
-        form.addRow("Output format", self.format)
-        self.format_label = form.labelForField(self.format)
-        form_hint(form, self.format,
-                  "Choose the format used when re-encoding final pages, including the reduced copy. "
-                  "For a full-size copy with unjoined pages kept unchanged, choose the joined spread format below.")
-        self.jpeg_quality = QSpinBox()
-        self.jpeg_quality.setRange(1, 100)
-        self.jpeg_quality.setValue(opt.jpeg_quality)
-        form.addRow("JPEG quality", self.jpeg_quality)
-        form_hint(form, self.jpeg_quality,
-                  "JPEG quality, 1–100. Higher values preserve more detail but usually make larger "
-                  "files. This setting is remembered next time you open the app. Default: 90.")
-        self.webp_quality = QSpinBox()
-        self.webp_quality.setRange(1, 100)
-        self.webp_quality.setValue(opt.webp_quality)
-        form.addRow("WebP quality", self.webp_quality)
-        form_hint(form, self.webp_quality,
-                  "For lossy WebP, 1–100 controls image quality and file size. In lossless WebP mode, "
-                  "it controls compression effort: higher is slower, not higher image quality. "
-                  "The value is remembered next time you open the app. Default: 90.")
-        self.jpeg_quality_label = form.labelForField(self.jpeg_quality)
-        self.webp_quality_label = form.labelForField(self.webp_quality)
+        choice.addRow("Output format", self.format)
+        form_hint(choice, self.format, "The format every final page of the full-size copy is saved in.")
         self.spread_format = QComboBox()
         self.spread_format.addItems(["PNG (lossless)", "JPEG", "WebP"])
         self.spread_format.setCurrentIndex({"png": 0, "jpeg": 1, "webp": 2}[opt.spread_format])
-        form.addRow("Format for joined/rotated pages", self.spread_format)
-        form_hint(form, self.spread_format,
-                  "When ordinary pages are copied unchanged, newly stitched spreads and rotated "
-                  "single pages must be encoded. PNG avoids another lossy step; JPEG can be "
-                  "smaller but re-encodes the edited image. WebP uses the WebP quality and advanced settings.")
-        self.spread_format_label = form.labelForField(self.spread_format)
-        image_box.addLayout(form)
-        self.advanced = AdvancedSettingsWidget(self.draft, opt.format, image_tab)
+        choice.addRow("Format for joined/rotated pages", self.spread_format)
+        form_hint(choice, self.spread_format,
+                  "Pages unchanged during review are copied as they are. Newly joined spreads and "
+                  "rotated single pages must be encoded: PNG avoids another lossy step; JPEG or WebP "
+                  "can be smaller but re-encode the edited image.")
+        choice.setRowVisible(self.format, not self.keep_originals)
+        choice.setRowVisible(self.spread_format, self.keep_originals)
+        full_settings_box.addLayout(choice)
+        if self.keep_originals:
+            copied = QLabel("Other pages are copied without re-encoding (chosen under Image handling).")
+            copied.setWordWrap(True)
+            copied.setStyleSheet("color:#617080;")
+            full_settings_box.addWidget(copied)
+        self.jpeg_quality = QSpinBox()
+        self.jpeg_quality.setRange(1, 100)
+        self.jpeg_quality.setValue(opt.jpeg_quality)
+        self.webp_quality = QSpinBox()
+        self.webp_quality.setRange(1, 100)
+        self.webp_quality.setValue(opt.webp_quality)
+        self.full_quality = QFormLayout()
+        self.full_quality.addRow("JPEG quality", self.jpeg_quality)
+        form_hint(self.full_quality, self.jpeg_quality,
+                  "JPEG quality, 1–100. Higher values preserve more detail but usually make larger "
+                  "files. This setting is remembered next time you open the app. Default: 90.")
+        self.full_quality.addRow("WebP quality", self.webp_quality)
+        form_hint(self.full_quality, self.webp_quality,
+                  "For lossy WebP, 1–100 controls image quality and file size. In lossless WebP mode, "
+                  "it controls compression effort: higher is slower, not higher image quality. "
+                  "The value is remembered next time you open the app. Default: 90.")
+        self.webp_quality_label = self.full_quality.labelForField(self.webp_quality)
+        self.advanced = AdvancedSettingsWidget(self.draft, opt.format)
         self.advanced.reset_requested.connect(lambda: (self.jpeg_quality.setValue(90),
                                                        self.webp_quality.setValue(90)))
-        image_box.addWidget(self.advanced)
-        tabs.addTab(image_tab, "Format")
+        full_settings_box.addWidget(self._indented(self.full_quality, self.advanced))
+        full_box.addWidget(self.full_settings)
+        full_box.addStretch()
+        self.tabs.addTab(full_tab, "Full size")
 
-        resize_tab = QWidget()
-        resize_box = QVBoxLayout(resize_tab)
-        sizes_form = QFormLayout()
-        self.size_output = QComboBox()
-        self.size_output.addItems(["Full size only", "Reduced size only", "Both sizes"])
-        self.size_output.setCurrentIndex({"full": 0, "reduced": 1, "both": 2}[opt.size_output])
-        sizes_form.addRow("Output sizes", self.size_output)
-        form_hint(sizes_form, self.size_output,
-                  "Full size keeps the final images at their source dimensions. Reduced size "
-                  "creates a resized comic. Both sizes makes separate Full and Reduced copies.")
-        resize_box.addLayout(sizes_form)
-        self.resize_settings = ResizeSettingsWidget(resize_values, resize_tab)
-        resize_box.addWidget(self.resize_settings)
+        # Reduced size: its own resize, format and quality settings.
+        reduced_tab = QWidget()
+        reduced_box = QVBoxLayout(reduced_tab)
+        self.make_reduced = QCheckBox("Create a reduced-size copy")
+        self.make_reduced.setChecked(opt.size_output != "full")
+        self.make_reduced.setToolTip(tooltip_text(
+            "Creates a resized comic. With a full-size copy as well, the two are saved separately "
+            "with Full and Reduced added to their names."))
+        reduced_box.addWidget(self.make_reduced)
+        self.reduced_settings = QWidget()
+        reduced_settings_box = QVBoxLayout(self.reduced_settings)
+        reduced_settings_box.setContentsMargins(0, 6, 0, 0)
+        self.resize_settings = ResizeSettingsWidget(resize_values)
+        reduced_settings_box.addWidget(self.resize_settings)
         if size_limits:
             def limit_target():
                 axis = self.resize_settings.mode.currentText().lower()
                 self.resize_settings.pixels.setMaximum(min(20000, size_limits[axis]))
             self.resize_settings.mode.currentIndexChanged.connect(limit_target)
             limit_target()
-        self.reduced_custom = QCheckBox("Use a different image format and quality for the reduced copy")
-        self.reduced_custom.setChecked(opt.reduced_custom)
-        self.reduced_custom.setToolTip(tooltip_text("Unchecked: use the Format tab's settings for the reduced copy. Checked: choose its own image format, quality, and advanced encoder settings below."))
-        resize_box.addWidget(self.reduced_custom)
-        self.reduced_controls = QWidget()
-        reduced_box = QVBoxLayout(self.reduced_controls)
-        reduced_form = QFormLayout()
-        self.reduced_draft = replace(copy_encoding_options(replace(opt, reduced_custom=True), True))
+        # Until now the reduced copy could follow the full-size settings; start
+        # from whatever it actually used, so nothing changes unexpectedly.
+        self.reduced_draft = replace(copy_encoding_options(opt, True))
+        reduced_choice = QFormLayout()
         self.reduced_format = QComboBox()
         self.reduced_format.addItems(["JPEG", "WebP", "PNG"])
-        self.reduced_format.setCurrentText(self.reduced_draft.format.upper() if self.reduced_draft.format != "webp" else "WebP")
-        reduced_form.addRow("Reduced copy format", self.reduced_format)
+        self.reduced_format.setCurrentText({"jpeg": "JPEG", "webp": "WebP", "png": "PNG"}.get(
+            self.reduced_draft.format, "JPEG"))
+        reduced_choice.addRow("Output format", self.reduced_format)
+        form_hint(reduced_choice, self.reduced_format, "The format the reduced copy's pages are saved in.")
+        reduced_settings_box.addLayout(reduced_choice)
         self.reduced_quality = QSpinBox()
         self.reduced_quality.setRange(1, 100)
-        self.reduced_quality.setValue(self.reduced_draft.jpeg_quality if self.reduced_draft.format == "jpeg" else self.reduced_draft.webp_quality)
-        reduced_form.addRow("Quality", self.reduced_quality)
-        self.reduced_quality_label = reduced_form.labelForField(self.reduced_quality)
-        reduced_box.addLayout(reduced_form)
+        self.reduced_quality.setValue(self.reduced_draft.jpeg_quality if self.reduced_draft.format == "jpeg"
+                                      else self.reduced_draft.webp_quality)
+        self.reduced_quality_form = QFormLayout()
+        self.reduced_quality_form.addRow("Quality", self.reduced_quality)
+        self.reduced_quality_label = self.reduced_quality_form.labelForField(self.reduced_quality)
         self.reduced_advanced = AdvancedSettingsWidget(self.reduced_draft, self.reduced_draft.format)
-        reduced_box.addWidget(self.reduced_advanced)
-        resize_box.addWidget(self.reduced_controls)
-        self.reduced_custom.toggled.connect(self._refresh)
-        self.reduced_format.currentIndexChanged.connect(self._refresh)
-        self.reduced_advanced.lossless.toggled.connect(self._refresh)
         self.reduced_advanced.reset_requested.connect(lambda: self.reduced_quality.setValue(90))
-        resize_scroll = QScrollArea()
-        resize_scroll.setWidgetResizable(True)
-        # No frame or background of its own, so this tab looks like the Format tab:
-        # the tab's border alone, without a second line just inside it.
-        resize_scroll.setFrameShape(QFrame.NoFrame)
-        resize_scroll.setObjectName("resizeTabScroll")
-        resize_tab.setObjectName("resizeTabContent")
-        resize_scroll.viewport().setObjectName("resizeTabViewport")
-        resize_scroll.setStyleSheet("QScrollArea#resizeTabScroll, QWidget#resizeTabViewport, "
-                                    "QWidget#resizeTabContent { background:transparent; }")
-        resize_scroll.setWidget(resize_tab)
-        tabs.addTab(resize_scroll, "Resize")
+        reduced_settings_box.addWidget(self._indented(self.reduced_quality_form, self.reduced_advanced))
+        reduced_box.addWidget(self.reduced_settings)
+        reduced_box.addStretch()
+        reduced_scroll = QScrollArea()
+        reduced_scroll.setWidgetResizable(True)
+        # No frame or background of its own, so it looks like the Full size tab.
+        reduced_scroll.setFrameShape(QFrame.NoFrame)
+        reduced_scroll.setObjectName("resizeTabScroll")
+        reduced_tab.setObjectName("resizeTabContent")
+        reduced_scroll.viewport().setObjectName("resizeTabViewport")
+        reduced_scroll.setStyleSheet("QScrollArea#resizeTabScroll, QWidget#resizeTabViewport, "
+                                     "QWidget#resizeTabContent { background:transparent; }")
+        reduced_scroll.setWidget(reduced_tab)
+        self.tabs.addTab(reduced_scroll, "Reduced size")
 
-        self.format.currentIndexChanged.connect(self._refresh)
-        self.spread_format.currentIndexChanged.connect(self._refresh)
-        self.size_output.currentIndexChanged.connect(self._refresh)
-        self.advanced.lossless.toggled.connect(self._refresh)
-        note = QLabel("The reduced copy uses the Format tab settings unless separate settings are enabled on the Resize tab.")
-        note.setWordWrap(True)
-        note.setStyleSheet("color:#617080;")
-        box.addWidget(note)
+        for control in (self.make_full, self.make_reduced, self.advanced.lossless,
+                        self.reduced_advanced.lossless):
+            control.toggled.connect(self._refresh)
+        for control in (self.format, self.spread_format, self.reduced_format):
+            control.currentIndexChanged.connect(self._refresh)
         buttons = QHBoxLayout()
         buttons.addStretch()
         cancel = QPushButton("Cancel")
@@ -1005,46 +1019,61 @@ class OutputOptionsDialog(OutlinedWindow, QDialog):
         box.addLayout(buttons)
         self._refresh()
 
+    @staticmethod
+    def _indented(quality_form, advanced):
+        """A format's settings, indented under the format choice they belong to."""
+        panel = QWidget()
+        panel_box = QVBoxLayout(panel)
+        panel_box.setContentsMargins(20, 0, 0, 0)
+        panel_box.addLayout(quality_form)
+        advanced.layout().setContentsMargins(0, 0, 0, 0)
+        panel_box.addWidget(advanced)
+        return panel
+
+    def full_format(self):
+        """The format the full-size copy encodes pages in."""
+        if self.keep_originals:
+            return ("PNG", "JPEG", "WebP")[self.spread_format.currentIndex()]
+        return self.format.currentText()
+
     def _refresh(self, *_):
-        full = self.size_output.currentIndex() != 1
-        reduced = self.size_output.currentIndex() != 0
-        need_format = not self.keep_originals or reduced
-        self.format.setVisible(need_format)
-        self.format_label.setVisible(need_format)
-        self.format_label.setText("Reduced copy format" if self.keep_originals else "Output format")
-        self.spread_format.setVisible(self.keep_originals and full)
-        self.spread_format_label.setVisible(self.keep_originals and full)
-        spread_jpeg = self.keep_originals and full and self.spread_format.currentIndex() == 1
-        jpeg = (need_format and self.format.currentText() == "JPEG") or spread_jpeg
-        webp = (need_format and self.format.currentText() == "WebP") or (self.keep_originals and full and self.spread_format.currentIndex() == 2)
-        self.jpeg_quality.setVisible(jpeg)
-        self.jpeg_quality_label.setVisible(jpeg)
-        self.jpeg_quality_label.setText("Edited page JPEG quality" if spread_jpeg and not need_format else "JPEG quality")
-        self.webp_quality.setVisible(webp)
-        self.webp_quality_label.setVisible(webp)
-        self.webp_quality_label.setText("WebP lossless effort" if self.advanced.lossless.isChecked() else "WebP quality")
-        active_format = self.format.currentText() if need_format else self.spread_format.currentText()
-        self.advanced.format.setCurrentIndex({"JPEG": 0, "WebP": 1}.get(active_format, 2))
-        self.resize_settings.setEnabled(reduced)
-        self.reduced_custom.setEnabled(reduced)
-        self.reduced_controls.setVisible(reduced and self.reduced_custom.isChecked())
+        full, reduced = self.make_full.isChecked(), self.make_reduced.isChecked()
+        # At least one copy is made: the last one ticked can't be unticked.
+        for box, other in ((self.make_full, reduced), (self.make_reduced, full)):
+            box.setEnabled(other)
+            box.setToolTip(tooltip_text(
+                "At least one copy must be made. Tick the other copy to turn this one off." if not other else
+                "Keeps the final pages at their source dimensions." if box is self.make_full else
+                "Creates a resized comic. With a full-size copy as well, the two are saved separately "
+                "with Full and Reduced added to their names."))
+        self.full_settings.setEnabled(full)
+        self.reduced_settings.setEnabled(reduced)
+        name = self.full_format()
+        self.full_quality.setRowVisible(self.jpeg_quality, name == "JPEG")
+        self.full_quality.setRowVisible(self.webp_quality, name == "WebP")
+        self.webp_quality_label.setText("WebP lossless effort" if self.advanced.lossless.isChecked()
+                                        else "WebP quality")
+        self.advanced.format.setCurrentIndex({"JPEG": 0, "WebP": 1}.get(name, 2))
+        reduced_name = self.reduced_format.currentText()
         self.reduced_advanced.format.setCurrentIndex(self.reduced_format.currentIndex())
-        self.reduced_quality.setVisible(self.reduced_format.currentText() != "PNG")
-        self.reduced_quality_label.setVisible(self.reduced_format.currentText() != "PNG")
-        self.reduced_quality_label.setText("Lossless effort" if self.reduced_format.currentText() == "WebP" and self.reduced_advanced.lossless.isChecked() else "Quality")
+        self.reduced_quality_form.setRowVisible(self.reduced_quality, reduced_name != "PNG")
+        self.reduced_quality_label.setText(
+            "WebP lossless effort" if reduced_name == "WebP" and self.reduced_advanced.lossless.isChecked()
+            else f"{reduced_name} quality")
 
     def apply_to(self, opt: ExportOptions) -> dict:
+        full, reduced = self.make_full.isChecked(), self.make_reduced.isChecked()
+        opt.size_output = "both" if full and reduced else "reduced" if reduced else "full"
         opt.format = self.format.currentText().lower()
         opt.spread_format = ("png", "jpeg", "webp")[self.spread_format.currentIndex()]
         opt.jpeg_quality = self.jpeg_quality.value()
         opt.webp_quality = self.webp_quality.value()
-        opt.size_output = ("full", "reduced", "both")[self.size_output.currentIndex()]
         self.advanced.apply()
         for name in ("jpeg_progressive", "jpeg_optimize", "jpeg_subsampling", "jpeg_smooth",
                      "webp_lossless", "webp_method", "png_compress"):
             setattr(opt, name, getattr(self.draft, name))
         self.reduced_advanced.apply()
-        opt.reduced_custom = self.reduced_custom.isChecked()
+        opt.reduced_custom = True  # The reduced copy always has its own settings now.
         self.reduced_draft.format = self.reduced_format.currentText().lower()
         self.reduced_draft.jpeg_quality = self.reduced_quality.value()
         self.reduced_draft.webp_quality = self.reduced_quality.value()
