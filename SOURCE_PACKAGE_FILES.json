@@ -1538,8 +1538,8 @@
     },
     {
       "path": "docs/BUILDING.md",
-      "bytes": 7177,
-      "sha256": "4d45ad101f096bbc7d2e9f6296ac9a34f0a180cc75866c0025e49b9adbcd2237"
+      "bytes": 7287,
+      "sha256": "eb256bb5fdb7eac876f11839a72510515f161fc8b014966ccbd441cd999a7398"
     },
     {
       "path": "docs/CHANGELOG.md",
@@ -1658,8 +1658,8 @@
     },
     {
       "path": "make_source_package.py",
-      "bytes": 4494,
-      "sha256": "244ac1f527f656e4de72e69df19e825a29ee911a45f4de484464a19fd73a935f"
+      "bytes": 5109,
+      "sha256": "ad7b5deeb003e17e13447be8a8145603f8f28a891f2e1d6912bc586c71f952a3"
     },
     {
       "path": "native_notices.py",

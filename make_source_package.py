@@ -3,7 +3,7 @@
     python make_source_package.py
         Checks that every file in SOURCE_PACKAGE_FILES.json is present with the
         recorded size and SHA-256, then writes dist/ComicStitcher_Source_<version>.zip
-        and prints its SHA-256 for the release page.
+        and dist/SHA256SUMS.txt (with the installer too, once it has been built).
 
     python make_source_package.py --update
         (Maintainers, in a git checkout.) Rewrites SOURCE_PACKAGE_FILES.json from
@@ -96,6 +96,15 @@ def build() -> Path:
             sys.exit("The finished ZIP did not verify; nothing was published.")
     partial.replace(output)
     print(f"{output}\n{output.stat().st_size:,} bytes\nSHA-256 {digest(output)}")
+    # The release page's checksum file, in the same form as earlier releases.
+    installer = ROOT / "installer_dist" / f"ComicStitcher-Setup-{version()}.exe"
+    sums = output.parent / "SHA256SUMS.txt"
+    lines = [f"{digest(path)}  {path.name}" for path in (installer, output) if path.is_file()]
+    sums.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+    if installer.is_file():
+        print(f"{sums} lists the installer and the source package.")
+    else:
+        print(f"{sums} lists only the source package: build the installer first, then run this again.")
     return output
 
 

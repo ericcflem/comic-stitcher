@@ -72,8 +72,10 @@ py -3.14 make_source_package.py
 ```
 
 It checks every file against `SOURCE_PACKAGE_FILES.json` (size and SHA-256),
-writes `dist\ComicStitcher_Source_<version>.zip` and prints the ZIP's SHA-256 for
-the release page. It stops and lists anything missing or different.
+writes `dist\ComicStitcher_Source_<version>.zip`, and writes `dist\SHA256SUMS.txt`
+with the checksums of the installer and the source package for the release page.
+Build the installer first, so it is included. It stops and lists anything missing
+or different.
 
 Run it in an exact copy of the release's files: the release's **Source code
 (zip)** from GitHub, or a git clone made with `core.autocrlf` set to `false`.
