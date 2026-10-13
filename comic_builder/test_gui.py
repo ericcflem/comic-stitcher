@@ -1810,6 +1810,19 @@ class ThumbnailTest(unittest.TestCase):
             finally:
                 window.close()
 
+    def test_start_screen_cannot_be_squeezed(self):
+        window = ComicWindow()
+        try:
+            window.show()
+            QTest.qWait(400)
+            window.resize(40, 40)
+            QTest.qWait(50)
+            minimum = window.start_page.minimumSizeHint()
+            self.assertGreaterEqual(window.width(), minimum.width())
+            self.assertGreaterEqual(window.height(), minimum.height())
+        finally:
+            window.close()
+
     def test_export_screen_cannot_be_squeezed_into_overlapping(self):
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp) / 'pages'; folder.mkdir()
@@ -1835,7 +1848,21 @@ class ThumbnailTest(unittest.TestCase):
                 self.assertGreaterEqual(window.export_scroll.viewport().height() + 1,
                                         min(content.minimumSizeHint().height(), window.export_scroll.minimumHeight()))
                 self.assertGreater(window.height(), 150)
-                # Other screens may still be made small.
+                # Not too narrow either.
+                window.resize(100, window.height())
+                QTest.qWait(50)
+                self.assertGreaterEqual(window.width(), window.export_page.minimumSizeHint().width())
+                # Leaving for the small progress screen doesn't keep the export screen's height.
+                export_minimum = window.pages.minimumHeight()
+                window.pages.setCurrentWidget(window.progress_page)
+                window._compact_window()
+                QTest.qWait(400)
+                self.assertLess(window.height(), export_minimum)
+                window.resize(50, 50)
+                QTest.qWait(50)
+                self.assertGreaterEqual(window.width(), 360)
+                self.assertGreaterEqual(window.height(), window.progress_page.minimumSizeHint().height())
+                # The full-screen review screens may still be made small.
                 window.return_preview_from_export()
                 self.assertEqual(window.pages.minimumHeight(), 0)
             finally:
@@ -2068,7 +2095,7 @@ class ThumbnailTest(unittest.TestCase):
                 window.show_export()
                 self.app.processEvents()
                 # 800 x 560, or taller if this system's fonts need more room.
-                self.assertEqual(window.width(), 800)
+                self.assertEqual(window.width(), max(800, window.export_page.minimumSizeHint().width()))
                 self.assertGreaterEqual(window.height(), 560)
                 self.assertGreaterEqual(window.export_hint.geometry().top(), window.export_scroll.geometry().bottom())
                 self.assertTrue(window.create_button.isVisible())

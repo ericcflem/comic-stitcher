@@ -2221,7 +2221,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         finished = progress and not self.done_button.isHidden()
         size = QSize(580, 240) if progress and not finished else self.compact_size
         if hasattr(self, "export_page") and self.pages.currentWidget() is self.export_page:
-            size = QSize(800, 560)
+            size = QSize(max(800, self.export_page.minimumSizeHint().width()), 560)
             margins = self.export_page.layout().contentsMargins()
             self._fit_export_settings(size.width() - margins.left() - margins.right())
             # Wrapped explanations need more lines with larger fonts (for example
@@ -2254,6 +2254,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             # Only ask when needed: on Wayland this is a request to the desktop, whose
             # reply restates the current size and would undo the resize below.
             self.showNormal()
+        self._hold_export_minimum()  # Before resizing, so the old screen's minimum is gone.
         size = self._compact_target_size()
         page = self.pages.currentWidget()
         self.resize(size)
@@ -2408,6 +2409,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.queue_start_button.setEnabled(False)
         queue_row.addWidget(self.queue_start_button)
         box.addLayout(queue_row)
+        self.start_page = start
         self.pages.addWidget(start)
 
     def _build_review(self):
@@ -3970,14 +3972,29 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self._hold_export_minimum()
 
     def _hold_export_minimum(self, *_):
-        """The page stack ignores its pages' sizes (other screens may shrink freely),
-        so while the export screen shows, give the stack its minimum explicitly."""
-        if not hasattr(self, "export_page"):
+        """Give the window the current screen's minimum size.
+
+        The page stack ignores its pages' sizes, so a small screen isn't held to
+        the large review screens' size. The compact screens (start, progress and
+        export) therefore get their minimum explicitly; the full-screen review
+        screens get none.
+        """
+        if not all(hasattr(self, name) for name in ("start_page", "progress_page", "export_page")):
             return
-        if self.pages.currentWidget() is self.export_page:
-            self.pages.setMinimumHeight(self.export_page.minimumSizeHint().height())
+        page = self.pages.currentWidget()
+        if page in (self.start_page, self.progress_page, self.export_page):
+            minimum = page.minimumSizeHint()
+            if page is self.progress_page:
+                # Its labels wrap to any width; keep the progress bar usable.
+                minimum = minimum.expandedTo(QSize(360, 0))
         else:
-            self.pages.setMinimumHeight(0)
+            minimum = QSize(0, 0)
+        if minimum != self.pages.minimumSize():
+            self.pages.setMinimumSize(minimum)
+            # The window updates its own minimum later; do it now, or a resize made
+            # straight after switching screens is held to the previous screen's size.
+            if self.layout() is not None:
+                self.layout().activate()
 
     def _resize_thumbnail_strip(self):
         if not getattr(self, "thumb_buttons", None):
