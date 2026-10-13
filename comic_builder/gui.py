@@ -2850,6 +2850,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             lambda generation, sizes: self._size_estimate_ready(generation, sizes, final=False))
         self.size_worker.failed.connect(self._size_estimate_failed)
         self.pages.currentChanged.connect(self._schedule_size_estimate)
+        self.pages.currentChanged.connect(self._hold_export_minimum)
         form.setVerticalSpacing(10)
         output_box.addLayout(form)
         box.addWidget(output_group)
@@ -3962,6 +3963,17 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             needed = min(needed, screen.availableGeometry().height() - others - frame)
         if needed != self.export_scroll.minimumHeight():
             self.export_scroll.setMinimumHeight(max(0, needed))
+        self._hold_export_minimum()
+
+    def _hold_export_minimum(self, *_):
+        """The page stack ignores its pages' sizes (other screens may shrink freely),
+        so while the export screen shows, give the stack its minimum explicitly."""
+        if not hasattr(self, "export_page"):
+            return
+        if self.pages.currentWidget() is self.export_page:
+            self.pages.setMinimumSize(self.export_page.minimumSizeHint())
+        else:
+            self.pages.setMinimumSize(0, 0)
 
     def _resize_thumbnail_strip(self):
         if not getattr(self, "thumb_buttons", None):

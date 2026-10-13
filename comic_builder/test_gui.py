@@ -1822,6 +1822,7 @@ class ThumbnailTest(unittest.TestCase):
                 window.show_export()
                 window.show()
                 self.wait_for(lambda: window.export_scroll.minimumHeight() > 0)
+                QTest.qWait(400)  # Let any delayed window sizing finish first.
                 window.resize(window.width(), 150)  # Dragging the bottom edge far up.
                 QTest.qWait(50)
                 self.app.processEvents()
@@ -1834,6 +1835,9 @@ class ThumbnailTest(unittest.TestCase):
                 self.assertGreaterEqual(window.export_scroll.viewport().height() + 1,
                                         min(content.minimumSizeHint().height(), window.export_scroll.minimumHeight()))
                 self.assertGreater(window.height(), 150)
+                # Other screens may still be made small.
+                window.return_preview_from_export()
+                self.assertEqual(window.pages.minimumHeight(), 0)
             finally:
                 window.close()
 
