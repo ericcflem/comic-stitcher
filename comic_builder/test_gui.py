@@ -905,7 +905,9 @@ class ThumbnailTest(unittest.TestCase):
             window.progress_label.setText("Rendering PDF pages: 136 of 212…")
             window._compact_window()
             self.app.processEvents()
-            self.assertLessEqual(window.width(), 600)
+            # 580 wide, unless one line of progress text needs more with this system's
+            # fonts (the screen-less test font on Windows is unusually wide).
+            self.assertLessEqual(window.width(), max(600, window._progress_minimum().width()))
             self.assertLessEqual(window.height(), 260)
             window.pages.setCurrentIndex(0)
             window._compact_window()
@@ -1810,6 +1812,100 @@ class ThumbnailTest(unittest.TestCase):
             finally:
                 window.close()
 
+    def test_progress_window_makes_room_for_a_longer_message(self):
+        window = ComicWindow()
+        try:
+            window.show()
+            window.progress_source.setText("X-O Manowar - Unconquered 004.pdf")
+            window.progress_label.setText("Rendering PDF pages: 4 of 36…")
+            window.pages.setCurrentWidget(window.progress_page)
+            window._compact_window()
+            QTest.qWait(400)
+            window.resize(50, 50)  # As narrow and short as it will go.
+            QTest.qWait(100)
+            one_line = window.height()
+            window.progress_label.setText("Scanning 36 rendered pages… 1% complete")
+            QTest.qWait(100)
+            self.app.processEvents()
+            label = window.progress_label
+            self.assertGreaterEqual(label.height(), label.heightForWidth(label.width()))
+            self.assertGreaterEqual(window.progress_bar.geometry().top(), label.geometry().bottom())
+            self.assertGreaterEqual(window.height(), one_line)
+        finally:
+            window.close()
+
+    def test_start_screen_cannot_be_squeezed(self):
+        window = ComicWindow()
+        try:
+            window.show()
+            QTest.qWait(400)
+            window.resize(40, 40)
+            QTest.qWait(50)
+            minimum = window.start_page.minimumSizeHint()
+            self.assertGreaterEqual(window.width(), minimum.width())
+            self.assertGreaterEqual(window.height(), minimum.height())
+        finally:
+            window.close()
+
+    def test_export_screen_cannot_be_squeezed_into_overlapping(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp) / 'pages'; folder.mkdir()
+            for n in range(2):
+                Image.new('RGB', (80, 120), 'white').save(folder / f'{n:03}.png')
+            window = ComicWindow()
+            try:
+                window.estimate_size.setChecked(False)
+                window.scan_done(scan_folder(folder, manual=True))
+                window.show_export()
+                window.show()
+                self.wait_for(lambda: window.export_scroll.minimumHeight() > 0)
+                QTest.qWait(400)  # Let any delayed window sizing finish first.
+                window.resize(window.width(), 150)  # Dragging the bottom edge far up.
+                QTest.qWait(50)
+                self.app.processEvents()
+                scroll = window.export_scroll.geometry()
+                hint = window.export_hint.geometry()
+                # The footer stays below the settings, and the settings keep their full height.
+                self.assertGreaterEqual(hint.top(), scroll.bottom())
+                self.assertGreaterEqual(window.create_button.geometry().top(), hint.bottom())
+                content = window.export_scroll.widget()
+                self.assertGreaterEqual(window.export_scroll.viewport().height() + 1,
+                                        min(content.minimumSizeHint().height(), window.export_scroll.minimumHeight()))
+                self.assertGreater(window.height(), 150)
+                # Not too narrow either.
+                window.resize(100, window.height())
+                QTest.qWait(50)
+                self.assertGreaterEqual(window.width(), window.export_page.minimumSizeHint().width())
+                # Leaving for the small progress screen doesn't keep the export screen's height.
+                export_minimum = window.pages.minimumHeight()
+                window.pages.setCurrentWidget(window.progress_page)
+                window._compact_window()
+                QTest.qWait(400)
+                self.assertLess(window.height(), export_minimum)
+                window.progress_label.setText("Rendering PDF pages: 4 of 36…")
+                window.resize(50, 50)
+                QTest.qWait(50)
+                self.assertGreaterEqual(window.width(), 360)
+                self.assertGreaterEqual(window.height(), window.progress_page.minimumSizeHint().height())
+                # The next step's longer message still fits on one line at the smallest width,
+                # and a message that does wrap (a long name) gets the room it needs.
+                narrowest = window.width()
+                window.progress_label.setText("Scanning 36 rendered pages… 1% complete")
+                QTest.qWait(50)
+                self.assertEqual(window.width(), narrowest)
+                one_line = window.progress_label.fontMetrics().height()
+                self.assertLess(window.progress_label.heightForWidth(window.progress_label.width()), 2 * one_line)
+                window.progress_label.setText("Scanning " + "A very long folder name " * 6 + "…")
+                QTest.qWait(50)
+                label = window.progress_label
+                self.assertGreaterEqual(label.height(), label.heightForWidth(label.width()))
+                self.assertGreaterEqual(window.progress_bar.geometry().top(), label.geometry().bottom())
+                # The full-screen review screens may still be made small.
+                window.return_preview_from_export()
+                self.assertEqual(window.pages.minimumHeight(), 0)
+            finally:
+                window.close()
+
     def test_pdf_dimensions_follow_dpi_and_selected_page(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "two-pages.pdf"
@@ -2036,7 +2132,10 @@ class ThumbnailTest(unittest.TestCase):
                 self.assertEqual(window.preview_index, 2)
                 window.show_export()
                 self.app.processEvents()
-                self.assertEqual((window.width(), window.height()), (800, 560))
+                # 800 x 560, or taller if this system's fonts need more room.
+                self.assertEqual(window.width(), max(800, window.export_page.minimumSizeHint().width()))
+                self.assertGreaterEqual(window.height(), 560)
+                self.assertGreaterEqual(window.export_hint.geometry().top(), window.export_scroll.geometry().bottom())
                 self.assertTrue(window.create_button.isVisible())
                 self.assertTrue(window.export_hint.isVisible())
                 window.book_name.setText("Sample v02")

@@ -19,7 +19,7 @@ from uuid import uuid4
 
 from PIL import Image, ImageOps
 from PySide6.QtCore import QFile, QEvent, QSettings, QSize, Qt, QThread, QTimer, Signal, QUrl, QRectF, QSignalBlocker, QMimeData
-from PySide6.QtGui import QDesktopServices, QImage, QPixmap, QShortcut, QKeySequence, QPainter, QColor, QPen, QDrag, QIcon
+from PySide6.QtGui import QFontMetrics, QDesktopServices, QImage, QPixmap, QShortcut, QKeySequence, QPainter, QColor, QPen, QDrag, QIcon
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout,
     QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox,
@@ -91,6 +91,17 @@ def ui_icon(widget, kind, size=72):
         painter.drawText(QRectF(3, size // 2, size - 6, size // 3), Qt.AlignCenter, kind)
         painter.end()
     return pixmap
+
+
+class ProgressLabel(QLabel):
+    """A wrapping label that reports text changes, so the window can make room."""
+    text_changed = Signal()
+
+    def setText(self, text):
+        changed = text != self.text()
+        super().setText(text)
+        if changed:
+            self.text_changed.emit()
 
 
 class CurrentPageStack(QStackedWidget):
@@ -2221,7 +2232,9 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         finished = progress and not self.done_button.isHidden()
         size = QSize(580, 240) if progress and not finished else self.compact_size
         if hasattr(self, "export_page") and self.pages.currentWidget() is self.export_page:
-            size = QSize(800, 560)
+            size = QSize(max(800, self.export_page.minimumSizeHint().width()), 560)
+            margins = self.export_page.layout().contentsMargins()
+            self._fit_export_settings(size.width() - margins.left() - margins.right())
             # Wrapped explanations need more lines with larger fonts (for example
             # Ubuntu's default), so grow to fit the content rather than overlap it.
             page = self.export_page
@@ -2252,6 +2265,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             # Only ask when needed: on Wayland this is a request to the desktop, whose
             # reply restates the current size and would undo the resize below.
             self.showNormal()
+        self._hold_page_minimum()  # Before resizing, so the old screen's minimum is gone.
         size = self._compact_target_size()
         page = self.pages.currentWidget()
         self.resize(size)
@@ -2406,6 +2420,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.queue_start_button.setEnabled(False)
         queue_row.addWidget(self.queue_start_button)
         box.addLayout(queue_row)
+        self.start_page = start
         self.pages.addWidget(start)
 
     def _build_review(self):
@@ -2624,11 +2639,29 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             "QWidget#exportBookContent, QWidget#exportBookViewport { background:#f9fbfd; } "
             "QGroupBox QLabel, QGroupBox QCheckBox { font-weight:400; color:#000000; } "
             "QLineEdit, QComboBox, QSpinBox { min-height:24px; } "
-            "QPushButton { padding:5px 10px; }")
-        box = QVBoxLayout(self.export_page)
-        box.setContentsMargins(20, 16, 20, 16)
+            "QPushButton { padding:5px 10px; }"
+            "QScrollArea#exportSettings, QWidget#exportSettingsViewport, QWidget#exportSettingsContent "
+            "{ background:transparent; }")
+        page_box = QVBoxLayout(self.export_page)
+        page_box.setContentsMargins(20, 16, 20, 16)
+        page_box.setSpacing(12)
+        page_box.addWidget(ui_heading("Create your comic", 28))
+        # The Book and Output sections sit in their own area above the footer (hint
+        # and buttons), so a short window scrolls them instead of overlapping.
+        self.export_scroll = QScrollArea()
+        self.export_scroll.setObjectName("exportSettings")
+        self.export_scroll.setWidgetResizable(True)
+        self.export_scroll.setFrameShape(QFrame.NoFrame)
+        self.export_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.export_scroll.viewport().setObjectName("exportSettingsViewport")
+        settings_content = QWidget()
+        settings_content.setObjectName("exportSettingsContent")
+        box = QVBoxLayout(settings_content)
+        box.setContentsMargins(0, 0, 0, 0)
         box.setSpacing(12)
-        box.addWidget(ui_heading("Create your comic", 28))
+        self.export_scroll.setWidget(settings_content)
+        self.export_scroll.viewport().installEventFilter(self)
+        page_box.addWidget(self.export_scroll, 1)
         form = QFormLayout()
         self.book_name = QLineEdit()
         self.book_name.textChanged.connect(self.refresh_export)
@@ -2830,12 +2863,12 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             lambda generation, sizes: self._size_estimate_ready(generation, sizes, final=False))
         self.size_worker.failed.connect(self._size_estimate_failed)
         self.pages.currentChanged.connect(self._schedule_size_estimate)
+        self.pages.currentChanged.connect(self._hold_page_minimum)
         form.setVerticalSpacing(10)
         output_box.addLayout(form)
         box.addWidget(output_group)
         self.export_hint = QLabel("Choose your settings, then review the output before creating the comic.")
         self.export_hint.setWordWrap(True)
-        box.addWidget(self.export_hint)
         self.keep_queue_pages = QCheckBox("Keep imported pages for faster queued export")
         self.keep_queue_pages.setToolTip(tooltip_text(
             "Unchecked: clear temporary PDF/archive pages after adding to the queue and import them again "
@@ -2855,7 +2888,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         controls.addStretch()
         controls.addWidget(self.add_queue_button)
         controls.addWidget(self.create_button)
-        box.addLayout(controls)
+        page_box.addWidget(self.export_hint)
+        page_box.addLayout(controls)
         self.pages.addWidget(self.export_page)
         self.refresh_export()
 
@@ -2863,17 +2897,20 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.progress_page = QWidget()
         box = QVBoxLayout(self.progress_page)
         box.addStretch()
-        self.progress_source = QLabel()
+        self.progress_source = ProgressLabel()
         self.progress_source.setAlignment(Qt.AlignCenter)
         self.progress_source.setWordWrap(True)
         self.progress_source.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         self.progress_source.setStyleSheet("color:#617080; font-size:13px;")
         box.addWidget(self.progress_source)
-        self.progress_label = QLabel()
+        self.progress_label = ProgressLabel()
         self.progress_label.setAlignment(Qt.AlignCenter)
         self.progress_label.setWordWrap(True)
         self.progress_label.setStyleSheet("font-size:19px; font-weight:700; color:#203c55;")
         self.progress_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        for label in (self.progress_source, self.progress_label):
+            label.text_changed.connect(self._progress_text_changed)
+        self.progress_page.installEventFilter(self)
         self.progress_bar = QProgressBar()
         box.addWidget(self.progress_label)
         box.addWidget(self.progress_bar)
@@ -2891,6 +2928,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         box.addWidget(self.repeat_button)
         box.addWidget(self.done_button)
         box.addStretch()
+        # Its messages change length as work moves on; re-measure them as they do.
+        self.progress_page.installEventFilter(self)
         self.pages.addWidget(self.progress_page)
 
     def new_comic(self):
@@ -3915,7 +3954,105 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                 watched is self.thumb_area.viewport() and event.type() == QEvent.Resize and
                 getattr(self, "thumb_buttons", None)):
             QTimer.singleShot(0, self._resize_thumbnail_strip)
+        if (watched is getattr(self, "progress_page", None)
+                and event.type() in (QEvent.LayoutRequest, QEvent.Resize)):
+            QTimer.singleShot(0, self._fit_progress_text)
+        if (watched is getattr(self, "progress_page", None) and event.type() == QEvent.Resize
+                and event.size().width() != event.oldSize().width()):
+            QTimer.singleShot(0, self._progress_text_changed)  # Wrapping changes with width.
+        if (getattr(self, "export_scroll", None) is not None and watched is self.export_scroll.viewport()
+                and event.type() == QEvent.Resize and event.size().width() != event.oldSize().width()):
+            QTimer.singleShot(0, self._fit_export_settings)
         return super().eventFilter(watched, event)
+
+    def _fit_export_settings(self, width=None):
+        """Keep the window from shrinking below what Book and Output need.
+
+        Their height depends on the width, as some text wraps. On a screen too
+        short for all of it, the area scrolls rather than the window growing
+        past the screen.
+        """
+        content = self.export_scroll.widget()
+        width = width or self.export_scroll.viewport().width()
+        if width <= 0:
+            return
+        layout = content.layout()
+        needed = layout.totalHeightForWidth(width) if layout.hasHeightForWidth() else -1
+        needed = max(needed, layout.totalMinimumSize().height())
+        screen = self.screen() or QApplication.primaryScreen()
+        if screen:
+            # Leave room for the title bar, heading, hint and buttons.
+            others = self.export_page.minimumSizeHint().height() - self.export_scroll.minimumHeight()
+            frame = max(0, self.frameGeometry().height() - self.geometry().height())
+            needed = min(needed, screen.availableGeometry().height() - others - frame)
+        if needed != self.export_scroll.minimumHeight():
+            self.export_scroll.setMinimumHeight(max(0, needed))
+        # The hint below may wrap onto more lines; count them in the minimum too.
+        hint_height = self.export_hint.heightForWidth(width)
+        if hint_height > 0 and hint_height != self.export_hint.minimumHeight():
+            self.export_hint.setMinimumHeight(hint_height)
+        self._hold_page_minimum()
+
+    def _fit_progress_text(self):
+        """Count wrapped lines of the progress messages in the window's minimum
+        size, so a longer message (such as the scanning step's) is never cut off."""
+        page = self.progress_page
+        margins = page.layout().contentsMargins()
+        width = page.width() - margins.left() - margins.right()
+        if width <= 0:
+            return
+        changed = False
+        for label in (self.progress_source, self.progress_label):
+            height = label.heightForWidth(width) if label.text() else 0
+            if height != label.minimumHeight():
+                label.setMinimumHeight(max(0, height))
+                changed = True
+        if changed and self.pages.currentWidget() is page:
+            self._hold_page_minimum()
+
+    PROGRESS_SAMPLE_TEXT = "Scanning 0000 extracted pages… 100% complete"
+
+    def _progress_minimum(self):
+        """Wide enough for the usual progress messages on one line, so the window
+        needn't change size as the work moves from one step to the next, and tall
+        enough for whatever the messages wrap to (a long file name, say)."""
+        self.progress_label.ensurePolished()
+        margins = self.progress_page.layout().contentsMargins()
+        sample = QFontMetrics(self.progress_label.font()).horizontalAdvance(self.PROGRESS_SAMPLE_TEXT)
+        width = max(360, sample + 12 + margins.left() + margins.right())
+        text_width = max(width, self.progress_page.width()) - margins.left() - margins.right()
+        for label in (self.progress_source, self.progress_label):
+            height = label.heightForWidth(text_width) if label.text() else 0
+            label.setMinimumHeight(max(0, height))
+        return self.progress_page.minimumSizeHint().expandedTo(QSize(width, 0))
+
+    def _progress_text_changed(self):
+        if self.pages.currentWidget() is self.progress_page:
+            self._hold_page_minimum()
+
+    def _hold_page_minimum(self, *_):
+        """Give the window the current screen's minimum size.
+
+        The page stack ignores its pages' sizes, so a small screen isn't held to
+        the large review screens' size. The compact screens (start, progress and
+        export) therefore get their minimum explicitly; the full-screen review
+        screens get none.
+        """
+        if not all(hasattr(self, name) for name in ("start_page", "progress_page", "export_page")):
+            return
+        page = self.pages.currentWidget()
+        if page is self.progress_page:
+            minimum = self._progress_minimum()
+        elif page in (self.start_page, self.export_page):
+            minimum = page.minimumSizeHint()
+        else:
+            minimum = QSize(0, 0)
+        if minimum != self.pages.minimumSize():
+            self.pages.setMinimumSize(minimum)
+            # The window updates its own minimum later; do it now, or a resize made
+            # straight after switching screens is held to the previous screen's size.
+            if self.layout() is not None:
+                self.layout().activate()
 
     def _resize_thumbnail_strip(self):
         if not getattr(self, "thumb_buttons", None):
@@ -4391,6 +4528,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                 ui_primary(self.add_queue_button)
             else:
                 self.add_queue_button.setStyleSheet("")
+        if hasattr(self, "export_scroll"):
+            QTimer.singleShot(0, self._fit_export_settings)  # After any text change is laid out.
         if self.plan is None:
             return
         self.front_to_back.setVisible(self.plan.scan.right_to_left)
