@@ -30,6 +30,7 @@ from .gui import (ComicWindow, ImportChoiceDialog, OutputOptionsDialog, PdfImpor
 
 class ThumbnailTest(unittest.TestCase):
     original_notice = staticmethod(ComicWindow.show_startup_notice)
+    original_pdf_notice = staticmethod(ComicWindow._show_pdf_notice)
     @classmethod
     def setUpClass(cls):
         cls.app = QApplication.instance() or QApplication([])
@@ -41,6 +42,9 @@ class ThumbnailTest(unittest.TestCase):
         notice_patch = patch.object(ComicWindow, "show_startup_notice")
         notice_patch.start()
         self.addCleanup(notice_patch.stop)
+        pdf_notice_patch = patch.object(ComicWindow, "_show_pdf_notice")
+        pdf_notice_patch.start()
+        self.addCleanup(pdf_notice_patch.stop)
         storage_patch = patch.object(ComicWindow, "choose_batch_storage", return_value=True)
         storage_patch.start()
         self.addCleanup(storage_patch.stop)
@@ -1787,6 +1791,51 @@ class ThumbnailTest(unittest.TestCase):
                     self.assertEqual(len(second.plan.scan.pages), 3)
                 finally:
                     second.close()
+
+    def test_pdf_and_webp_exclude_each_other(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp) / 'pages'; folder.mkdir()
+            for n in range(3):
+                Image.new('RGB', (80, 120), 'white').save(folder / f'{n:03}.jpg')
+            window = ComicWindow()
+            try:
+                window.estimate_size.setChecked(False)
+                window.scan_done(scan_folder(folder, manual=True))
+                window.show_export()
+                pdf = window.archive_format.findText('PDF')
+                window.opt.format = 'jpeg'; window.opt.keep_originals = False
+                window.handling.setCurrentIndex(0)
+                window.refresh_export()
+                self.assertTrue(window.archive_format.model().item(pdf).isEnabled())
+                window.archive_format.setCurrentIndex(pdf)
+                opt = window.options_from_screen()
+                self.assertEqual((opt.cbz, opt.archive_format), (True, 'pdf'))
+                # With PDF chosen, the options dialog offers no WebP.
+                dialog = OutputOptionsDialog(opt, window.custom_resize_values, window)
+                webp = dialog.format.findText('WebP')
+                self.assertFalse(dialog.format.model().item(webp).isEnabled())
+                self.assertFalse(dialog.reduced_format.model().item(dialog.reduced_format.findText('WebP')).isEnabled())
+                dialog.reject()
+                # Choosing WebP (as saved settings could) makes PDF unavailable again.
+                window.opt.format = 'webp'
+                window.refresh_export()
+                self.assertFalse(window.archive_format.model().item(pdf).isEnabled())
+                self.assertEqual(window.archive_format.currentText(), 'CBZ (ZIP)')
+                window.archive_format.setCurrentIndex(window.archive_format.findText('No archive'))
+                self.assertFalse(window.options_from_screen().cbz)
+            finally:
+                window.close()
+
+    def test_pdf_notice_shows_once(self):
+        window = ComicWindow()
+        try:
+            with patch('comic_builder.gui.QMessageBox.open') as opened:
+                self.original_pdf_notice(window)
+                self.original_pdf_notice(window)
+            self.assertEqual(opened.call_count, 1)
+            self.assertTrue(window.settings.value('pdf_notice_shown', False, type=bool))
+        finally:
+            window.close()
 
     def test_export_screen_estimates_size_and_can_be_turned_off(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -21,6 +21,7 @@ import py7zr
 from PIL import Image, ImageFile, ImageOps, ImageCms
 from io import BytesIO
 
+from .pdf_export import PDF_IMAGE_SUFFIXES, verify_pdf, write_pdf
 from .detector import (
     classify_page, collect_images, is_candidate_pair, load_edge_rgb,
     seam_score,
@@ -463,7 +464,7 @@ class ExportOptions:
     jpeg_quality: int = 90
     webp_quality: int = 90
     cbz: bool = True  # Whether to create an archive (see archive_format).
-    archive_format: str = "cbz"  # cbz (ZIP) or cb7 (7z)
+    archive_format: str = "cbz"  # cbz (ZIP), cb7 (7z) or pdf
     keep_images: bool = False
     front_to_back: bool = False
     jpeg_progressive: bool = False
@@ -697,10 +698,25 @@ def _encode_entry(source: str, right: str | None, destination: str,
         image.close()
 
 
+def pdf_format_problem(opt: ExportOptions) -> str | None:
+    """Why these settings can't make a PDF, or None. PDF holds JPEG and PNG, not WebP."""
+    formats = []
+    if opt.size_output != "reduced":
+        formats.append(opt.spread_format if opt.keep_originals else opt.format)
+    if opt.size_output != "full":
+        formats.append(copy_encoding_options(opt, True).format)
+    if "webp" in formats:
+        return "PDF can hold JPEG and PNG pages, but not WebP. Choose JPEG or PNG in Edit options."
+    return None
+
+
 def _entry_format(plan: BookPlan, opt: ExportOptions, encoding_opt: ExportOptions,
                   left: int, right: int | None, reduce: bool) -> str | None:
     """The format a final page is encoded in, or None when its file is copied."""
     copy = not reduce and right is None and left not in plan.rotations and opt.keep_originals
+    if (copy and opt.cbz and opt.archive_format == "pdf"
+            and plan.scan.pages[left].path.suffix.lower() not in PDF_IMAGE_SUFFIXES):
+        copy = False  # A PDF can't hold this page as it is (WebP, for example).
     return None if copy else encoding_opt.format if reduce or not opt.keep_originals else opt.spread_format
 
 
@@ -957,8 +973,10 @@ def export_book(plan: BookPlan, opt: ExportOptions,
                 progress: Callable[[int, int], None] | None = None) -> Path | tuple[Path, Path]:
     if not opt.cbz and not opt.keep_images:
         raise ValueError("Choose an archive, processed images, or both.")
-    if opt.archive_format not in ("cbz", "cb7"):
-        raise ValueError("Choose CBZ or CB7 as the archive format.")
+    if opt.archive_format not in ("cbz", "cb7", "pdf"):
+        raise ValueError("Choose CBZ, CB7 or PDF as the archive format.")
+    if opt.cbz and opt.archive_format == "pdf" and pdf_format_problem(opt):
+        raise ValueError(pdf_format_problem(opt))
     if opt.format not in ("jpeg", "webp", "png") or opt.spread_format not in ("png", "jpeg", "webp"):
         raise ValueError("Choose a supported output format.")
     if opt.size_output not in ("full", "reduced", "both"):
@@ -1062,7 +1080,7 @@ def export_book(plan: BookPlan, opt: ExportOptions,
             archive_names = list(variant_names)
             if opt.comicinfo_xml is not None:
                 from .comicinfo import export_xml
-                if opt.cbz:
+                if opt.cbz and opt.archive_format != "pdf":  # A PDF has no place for it.
                     data = export_xml(opt.comicinfo_xml, plan, entries, [variant_work / name for name in variant_names])
                     (variant_work / "ComicInfo.xml").write_bytes(data)
                     archive_names.append("ComicInfo.xml")
@@ -1071,7 +1089,11 @@ def export_book(plan: BookPlan, opt: ExportOptions,
                     (png_work / "ComicInfo.xml").write_bytes(export_xml(opt.comicinfo_xml, plan, entries, png_paths))
             if opt.cbz:
                 temporary_archive = work / f"{variant}.{opt.archive_format}"
-                if opt.archive_format == "cbz":
+                if opt.archive_format == "pdf":
+                    write_pdf([variant_work / name for name in variant_names], temporary_archive,
+                              title=title, right_to_left=plan.scan.right_to_left and opt.front_to_back)
+                    valid = verify_pdf(temporary_archive, len(variant_names))
+                elif opt.archive_format == "cbz":
                     with zipfile.ZipFile(temporary_archive, "w", compression=zipfile.ZIP_STORED) as zf:
                         for name in archive_names:
                             zf.write(variant_work / name, arcname=name)

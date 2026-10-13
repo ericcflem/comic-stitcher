@@ -31,8 +31,11 @@ from .backend import (
     BookPlan, BoundaryOverrideRequired, ExportOptions, check_sources, export_book, planned_names,
     safe_book_name, scan_folder, scan_manual_folder, stitched_image, rotated_image,
     encoding_workers, POSSIBLE_MIN_SCORE, copy_encoding_options, ENCODER_FIELDS,
-    estimate_export_size, ESTIMATE_SAMPLES,
+    estimate_export_size, ESTIMATE_SAMPLES, pdf_format_problem,
 )
+
+ARCHIVE_CHOICES = ("cbz", "cb7", "pdf", "none")  # Order of the Archive format list.
+NO_WEBP_FOR_PDF = "PDF can hold JPEG and PNG pages, but not WebP."
 from . import __version__, diagnostics
 from .import_sources import expand_sources
 from .single_instance import LaunchBroker
@@ -864,6 +867,7 @@ class OutputOptionsDialog(OutlinedWindow, QDialog):
         super().__init__(parent)
         self._setup_outline()  # GNOME on Wayland: a visible window edge
         self.setWindowTitle("Output options")
+        self.for_pdf = opt.cbz and opt.archive_format == "pdf"
         self.resize(650, 450)
         self.setStyleSheet("QTabWidget::pane { border:1px solid #ccd5dd; } "
                            "QFormLayout { spacing:12px; }")
@@ -961,6 +965,17 @@ class OutputOptionsDialog(OutlinedWindow, QDialog):
         self.reduced_format.currentIndexChanged.connect(self._refresh)
         self.reduced_advanced.lossless.toggled.connect(self._refresh)
         self.reduced_advanced.reset_requested.connect(lambda: self.reduced_quality.setValue(90))
+        if self.for_pdf:
+            # PDF holds JPEG and PNG only; WebP is shown but can't be chosen.
+            for combo, fallback in ((self.format, "JPEG"), (self.spread_format, "JPEG"),
+                                    (self.reduced_format, "JPEG")):
+                index = next(i for i in range(combo.count()) if combo.itemText(i).startswith("WebP"))
+                if combo.currentIndex() == index:
+                    combo.setCurrentIndex(next(i for i in range(combo.count())
+                                               if combo.itemText(i).startswith(fallback)))
+                combo.model().item(index).setEnabled(False)
+                combo.setItemData(index, NO_WEBP_FOR_PDF + " Choose another archive format to use WebP.",
+                                  Qt.ToolTipRole)
         resize_scroll = QScrollArea()
         resize_scroll.setWidgetResizable(True)
         resize_scroll.setWidget(resize_tab)
@@ -970,7 +985,9 @@ class OutputOptionsDialog(OutlinedWindow, QDialog):
         self.spread_format.currentIndexChanged.connect(self._refresh)
         self.size_output.currentIndexChanged.connect(self._refresh)
         self.advanced.lossless.toggled.connect(self._refresh)
-        note = QLabel("The reduced copy uses the Format tab settings unless separate settings are enabled on the Resize tab.")
+        note = QLabel("The reduced copy uses the Format tab settings unless separate settings are enabled on the Resize tab."
+                      + ("\n" + NO_WEBP_FOR_PDF + " WebP is unavailable while PDF is the archive format."
+                         if self.for_pdf else ""))
         note.setWordWrap(True)
         note.setStyleSheet("color:#617080;")
         box.addWidget(note)
@@ -2693,17 +2710,21 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                   "A reduced copy must encode its pages in the chosen reduced-copy format. "
                   "Screenshot crops and splits have already been prepared as PNG pages before export.")
         self.archive_format = QComboBox()
-        self.archive_format.addItems(["CBZ (ZIP)", "CB7 (7-Zip)", "No archive"])
+        self.archive_format.addItems(["CBZ (ZIP)", "CB7 (7-Zip)", "PDF", "No archive"])
         saved_archive = str(self.settings.value("archive_format", "cbz"))
-        self.archive_format.setCurrentIndex({"cbz": 0, "cb7": 1, "none": 2}.get(saved_archive, 0))
+        self.archive_format.setCurrentIndex(ARCHIVE_CHOICES.index(saved_archive)
+                                            if saved_archive in ARCHIVE_CHOICES else 0)
         self.archive_format.currentIndexChanged.connect(self._archive_changed)
         form.addRow("Archive format", self.archive_format)
         form_hint(form, self.archive_format,
-                  "CBZ packages images as a ZIP archive; CB7 uses a 7z container. "
-                  "Both store the already-encoded images in reading order without changing their quality. "
-                  "Choose No archive if you want only a folder of processed images.")
+                  "CBZ packages images as a ZIP archive; CB7 uses a 7z container; PDF places one "
+                  "image on each page. All three store the already-encoded images in reading order "
+                  "without changing their quality. PDF holds JPEG and PNG pages, not WebP, and has no "
+                  "place for ComicInfo.xml. Choose No archive if you want only a folder of processed images.")
         for index, description in enumerate(("Most widely supported comic archive; images stored inside ZIP.",
                                               "7z comic archive; verify that your comic reader supports CB7.",
+                                              "A PDF with one page per image. JPEG and PNG pages are stored "
+                                              "as they are; WebP can't be used.",
                                               "Do not create an archive; keep processed images instead.")):
             self.archive_format.setItemData(index, description, Qt.ToolTipRole)
         self.keep_images = QCheckBox("Keep lossless PNG pages")
@@ -4276,6 +4297,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self._save_review_report()
         self._compact_window()
         self.refresh_export()
+        self._show_pdf_notice()
 
     def return_preview_from_export(self):
         self.pages.setCurrentWidget(self.preview)
@@ -4345,12 +4367,43 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.naming.setItemData(1, f"First filename: {titled}", Qt.ToolTipRole)
         self.naming.setItemData(2, f"First filename: {custom}", Qt.ToolTipRole)
 
+    def _archive_choice(self):
+        return ARCHIVE_CHOICES[self.archive_format.currentIndex()]
+
     def _archive_changed(self, *_):
-        if self.archive_format.currentIndex() == 2:
+        none = self._archive_choice() == "none"
+        if none:
             self.keep_images.setChecked(True)
-        self.keep_images.setEnabled(self.archive_format.currentIndex() != 2)
-        self.settings.setValue("archive_format", ("cbz", "cb7", "none")[self.archive_format.currentIndex()])
+        self.keep_images.setEnabled(not none)
+        self.settings.setValue("archive_format", self._archive_choice())
         self.refresh_export()
+
+    def _update_pdf_choice(self):
+        """PDF can't be chosen while WebP is; settings saved that way fall back to CBZ."""
+        problem = pdf_format_problem(self.opt)
+        pdf = ARCHIVE_CHOICES.index("pdf")
+        self.archive_format.model().item(pdf).setEnabled(problem is None)
+        self.archive_format.setItemData(
+            pdf, (NO_WEBP_FOR_PDF + " Choose JPEG or PNG in Edit options to use PDF.") if problem else
+            "A PDF with one page per image. JPEG and PNG pages are stored as they are; WebP can't be used.",
+            Qt.ToolTipRole)
+        if problem and self._archive_choice() == "pdf":
+            self.archive_format.setCurrentIndex(ARCHIVE_CHOICES.index("cbz"))
+
+    def _show_pdf_notice(self):
+        """Once, the first time the export screen opens after PDF export arrived."""
+        if self.settings.value("pdf_notice_shown", False, type=bool):
+            return
+        self.settings.setValue("pdf_notice_shown", True)
+        notice = QMessageBox(QMessageBox.Information, "New: PDF export",
+                             "Comic Stitcher can now save comics as PDF. Choose PDF as the archive format.",
+                             QMessageBox.Ok, self)
+        notice.setInformativeText(
+            "JPEG and PNG pages go into the PDF as they are, without being converted again.\n\n"
+            "PDF can't hold WebP images, so PDF is unavailable while WebP is chosen, and WebP "
+            "is unavailable while PDF is chosen.")
+        notice.setAttribute(Qt.WA_DeleteOnClose)
+        notice.open()  # Doesn't hold up the export screen.
 
     def options_from_screen(self):
         self.opt.comicinfo_xml = ((self.plan.comicinfo_xml or '<ComicInfo/>')
@@ -4361,8 +4414,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.opt.start = 1 if self.start_number.currentIndex() == 0 else 0
         self.opt.padding = (0, 2, 3, 4)[self.padding.currentIndex()]
         self.opt.keep_originals = self.handling.currentIndex() == 1
-        self.opt.cbz = self.archive_format.currentIndex() != 2
-        self.opt.archive_format = "cb7" if self.archive_format.currentIndex() == 1 else "cbz"
+        self.opt.cbz = self._archive_choice() != "none"
+        self.opt.archive_format = self._archive_choice() if self.opt.cbz else "cbz"
         self.opt.keep_images = self.keep_images.isChecked()
         self.opt.front_to_back = self.front_to_back.isChecked() if self.plan and self.plan.scan.right_to_left else True
         self.opt.workers = self.encoder_workers.value()
@@ -4394,6 +4447,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         if self.plan is None:
             return
         self.front_to_back.setVisible(self.plan.scan.right_to_left)
+        self._update_pdf_choice()
         try:
             opt = self.options_from_screen()
             self._update_naming_examples(opt)
@@ -4502,6 +4556,9 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                              f"{'never enlarge pages'}")
             if opt.cbz:
                 lines.append(f"{opt.archive_format.upper()}: {title}{tag}.{opt.archive_format}")
+                if opt.archive_format == "pdf" and opt.comicinfo_xml is not None:
+                    lines.append("ComicInfo.xml is not included in the PDF"
+                                 + ("; it is saved with the PNG pages." if opt.keep_images else "."))
             if opt.keep_images:
                 lines.append(f"Lossless PNG pages: {title}{tag} - PNG pages")
         if self.plan.scan.right_to_left:
@@ -4587,7 +4644,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             suffix = f" - {kind.title()}" if len(kinds) == 2 else ""
             title = safe_book_name(opt.book_name) + suffix
             if opt.cbz:
-                line(f"{opt.archive_format.upper()} archive\n{title}.{opt.archive_format}")
+                line(f"{'PDF file' if opt.archive_format == 'pdf' else opt.archive_format.upper() + ' archive'}"
+                     f"\n{title}.{opt.archive_format}")
             if opt.keep_images:
                 line(f"Lossless PNG pages\n{title} - PNG pages")
             if kind == "reduced":

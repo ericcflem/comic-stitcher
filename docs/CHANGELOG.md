@@ -16,6 +16,11 @@
   encoding bands from pages spread through the book in parallel. An early
   estimate appears within moments and is refined. Pages copied unchanged are
   counted exactly. It can be turned off with the Estimate size checkbox.
+- Export to PDF: choose PDF as the archive format. JPEG pages are stored byte for
+  byte and PNG pages keep their compressed data, so nothing is re-encoded. PDF
+  can't hold WebP, so the two can't be chosen together; copied WebP source pages
+  are converted to the joined-page format. Pages are sized at 300 dpi and EXIF
+  orientation is honoured. ComicInfo.xml isn't included in PDFs.
 
 ## 0.6.38 — first public release
 
