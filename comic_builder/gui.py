@@ -974,6 +974,14 @@ class OutputOptionsDialog(OutlinedWindow, QDialog):
         self.reduced_advanced.reset_requested.connect(lambda: self.reduced_quality.setValue(90))
         resize_scroll = QScrollArea()
         resize_scroll.setWidgetResizable(True)
+        # No frame or background of its own, so this tab looks like the Format tab:
+        # the tab's border alone, without a second line just inside it.
+        resize_scroll.setFrameShape(QFrame.NoFrame)
+        resize_scroll.setObjectName("resizeTabScroll")
+        resize_tab.setObjectName("resizeTabContent")
+        resize_scroll.viewport().setObjectName("resizeTabViewport")
+        resize_scroll.setStyleSheet("QScrollArea#resizeTabScroll, QWidget#resizeTabViewport, "
+                                    "QWidget#resizeTabContent { background:transparent; }")
         resize_scroll.setWidget(resize_tab)
         tabs.addTab(resize_scroll, "Resize")
 

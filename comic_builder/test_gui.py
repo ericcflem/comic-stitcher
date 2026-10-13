@@ -15,7 +15,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PIL import Image
 from PySide6.QtCore import QSettings, QTimer, Qt, QMimeData, QUrl
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QDialog, QLabel, QMessageBox
+from PySide6.QtWidgets import QApplication, QDialog, QFrame, QLabel, QMessageBox, QTabWidget
 
 from .backend import BookPlan, Candidate, ExportOptions, export_book, scan_folder, scan_manual_folder
 from .archive_import import import_archive
@@ -1833,6 +1833,19 @@ class ThumbnailTest(unittest.TestCase):
             self.assertGreaterEqual(window.height(), one_line)
         finally:
             window.close()
+
+    def test_output_option_tabs_have_the_same_border(self):
+        from PySide6.QtWidgets import QScrollArea
+        window = ComicWindow()
+        self.addCleanup(window.close)
+        dialog = OutputOptionsDialog(ExportOptions("Test"), window.custom_resize_values)
+        try:
+            tabs = dialog.findChild(QTabWidget)
+            resize = tabs.widget(1)
+            self.assertIsInstance(resize, QScrollArea)
+            self.assertEqual(resize.frameShape(), QFrame.NoFrame)  # No second line inside the tab's border.
+        finally:
+            dialog.reject()
 
     def test_start_screen_cannot_be_squeezed(self):
         window = ComicWindow()
