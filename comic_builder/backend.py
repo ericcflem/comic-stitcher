@@ -715,24 +715,22 @@ def _entry_rotations(plan: BookPlan, left: int) -> tuple[int, tuple[int, int]]:
     return plan.rotations.get(left, 0), joined[::-1] if plan.scan.right_to_left else joined
 
 
-def _oriented_size(path: Path, rotation: int = 0) -> tuple[int, int]:
-    """A page's pixel size as exported, read from its header without decoding it."""
-    with Image.open(path) as image:
-        width, height = image.size
-        if image.getexif().get(274, 1) in (5, 6, 7, 8):  # EXIF orientation turns it sideways.
-            width, height = height, width
-    return (height, width) if rotation in (90, 270) else (width, height)
+def _oriented_size(page: Page, rotation: int = 0) -> tuple[int, int]:
+    """A page's pixel size as exported. The scan recorded it, already turned for
+    EXIF orientation, so no file needs opening."""
+    return (page.height, page.width) if rotation in (90, 270) else (page.width, page.height)
 
 
 def _entry_size(plan: BookPlan, opt: ExportOptions, left: int, right: int | None, reduce: bool) -> tuple[int, int]:
     """Pixel size of a final page, matching stitched_image and resized_image."""
-    source, partner = _entry_sources(plan, left, right)
+    visual_left, visual_right = (right, left) if right is not None and plan.scan.right_to_left else (left, right)
     rotation, page_rotations = _entry_rotations(plan, left)
-    if partner is None:
-        width, height = _oriented_size(source, rotation)
+    if visual_right is None:
+        width, height = _oriented_size(plan.scan.pages[visual_left], rotation)
     else:
-        (a_width, a_height), (b_width, b_height) = (_oriented_size(source, page_rotations[0]),
-                                                    _oriented_size(partner, page_rotations[1]))
+        (a_width, a_height), (b_width, b_height) = (
+            _oriented_size(plan.scan.pages[visual_left], page_rotations[0]),
+            _oriented_size(plan.scan.pages[visual_right], page_rotations[1]))
         width, height = a_width + b_width, min(a_height, b_height)
         if rotation in (90, 270):
             width, height = height, width
@@ -814,7 +812,7 @@ def _estimate_sample(source: str, right: str | None, rotation: int, page_rotatio
 def estimate_export_size(plan: BookPlan, opt: ExportOptions, samples: int = ESTIMATE_SAMPLES,
                          cancelled: Callable[[], bool] | None = None, workers: int = 1,
                          progress: Callable[[dict[str, int], int, int], None] | None = None,
-                         ) -> dict[str, int] | None:
+                         executor: ProcessPoolExecutor | None = None) -> dict[str, int] | None:
     """Estimated bytes of each finished comic ("full" and/or "reduced").
 
     Copied pages are counted exactly. Pages that will be encoded are estimated
@@ -822,9 +820,12 @@ def estimate_export_size(plan: BookPlan, opt: ExportOptions, samples: int = ESTI
     and scaling their bytes per pixel to the others' pixel area. A sample page
     needed by both copies is prepared once. With several workers, samples are
     encoded in parallel processes, and progress(estimate, done, total) reports
-    a provisional estimate as they finish. Measures the archive, or the PNG page
-    folder when no archive is made. Returns None if cancelled.
+    a provisional estimate as they finish; pass an executor to reuse its
+    already-started processes. Measures the archive, or the PNG page folder when
+    no archive is made. Returns None if cancelled.
     """
+    import time
+    started = time.monotonic()
     entries = export_entries(plan, opt)
     variants = ("full", "reduced") if opt.size_output == "both" else (opt.size_output,)
     plans = {}
@@ -835,7 +836,7 @@ def estimate_export_size(plan: BookPlan, opt: ExportOptions, samples: int = ESTI
         for index, (left, right) in enumerate(entries):
             fmt = _entry_format(plan, opt, encoding_opt, left, right, reduce) if opt.cbz else "png"
             if fmt is None:
-                exact += _entry_sources(plan, left, right)[0].stat().st_size
+                exact += plan.scan.pages[left].size  # Copied as is; size recorded by the scan.
             else:
                 width, height = _entry_size(plan, opt, left, right, reduce)
                 encoded.append((index, fmt, width * height))
@@ -882,16 +883,27 @@ def estimate_export_size(plan: BookPlan, opt: ExportOptions, samples: int = ESTI
     def interrupted():
         return cancelled is not None and cancelled()
 
-    if not jobs:
+    measured = time.monotonic()
+
+    def finish(how):
+        now = time.monotonic()
+        logging.info("Size estimate: page sizes %.1f s, %d samples %.1f s (%s), total %.1f s",
+                     measured - started, len(jobs), now - measured, how, now - started)
         return estimate()
-    if workers <= 1 or len(jobs) == 1:
+
+    if not jobs:
+        return finish("none needed")
+    if executor is None and (workers <= 1 or len(jobs) == 1):
         for done, (index, arguments) in enumerate(jobs, 1):
             if interrupted():
                 return None
             record(index, _estimate_sample(*arguments))
             provisional(done)
-        return estimate()
-    executor = ProcessPoolExecutor(max_workers=min(workers, len(jobs)), mp_context=get_context("spawn"))
+        return finish("1 process")
+    own = executor is None
+    if own:
+        executor = ProcessPoolExecutor(max_workers=min(workers, len(jobs)), mp_context=get_context("spawn"))
+    pending = {}
     try:
         pending = {executor.submit(_estimate_sample, *arguments): index for index, arguments in jobs}
         done = 0
@@ -904,9 +916,12 @@ def estimate_export_size(plan: BookPlan, opt: ExportOptions, samples: int = ESTI
                 done += 1
             if finished:
                 provisional(done)
-        return estimate()
+        return finish(f"{workers} processes")
     finally:
-        executor.shutdown(wait=False, cancel_futures=True)
+        for future in pending:
+            future.cancel()  # Samples already running finish on their own.
+        if own:
+            executor.shutdown(wait=False, cancel_futures=True)
 
 
 def publish_archive(source: Path, destination: Path) -> None:
