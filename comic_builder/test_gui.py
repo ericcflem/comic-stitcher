@@ -148,6 +148,36 @@ class ThumbnailTest(unittest.TestCase):
         finally:
             window.close()
 
+    def test_each_format_choice_is_followed_by_its_own_settings(self):
+        window = ComicWindow()
+        self.addCleanup(window.close)
+        # Eric's case: unchanged pages copied, both sizes, reduced copy PNG, edited pages WebP.
+        opt = ExportOptions("Mixed", keep_originals=True, size_output="both", format="png", spread_format="webp")
+        dialog = OutputOptionsDialog(opt, window.custom_resize_values, window)
+        try:
+            (first, _, first_slot, first_same), (second, _, second_slot, second_same) = dialog.format_choices
+            self.assertEqual(dialog.format_label.text(), "Reduced copy format")
+            # PNG's settings sit under the PNG choice, WebP's under the WebP choice.
+            self.assertTrue(dialog.format_settings["PNG"].isAncestorOf(dialog.advanced.compress))
+            self.assertTrue(first.isAncestorOf(dialog.format_settings["PNG"]))
+            self.assertTrue(second.isAncestorOf(dialog.format_settings["WebP"]))
+            self.assertTrue(second.isAncestorOf(dialog.webp_quality))
+            self.assertTrue(second.isAncestorOf(dialog.advanced.lossless))
+            self.assertTrue(dialog.format_settings["JPEG"].isHidden())
+            # The same format twice: its settings once, and a note the second time.
+            dialog.format.setCurrentText("WebP")
+            self.assertTrue(first.isAncestorOf(dialog.format_settings["WebP"]))
+            self.assertFalse(second_same.isHidden())
+            self.assertIn("same WebP settings", second_same.text())
+            self.assertTrue(first_same.isHidden())
+            # Full size only: just the edited-page choice, with its settings.
+            dialog.size_output.setCurrentIndex(0)
+            self.assertTrue(first.isHidden())
+            self.assertTrue(second.isAncestorOf(dialog.format_settings["WebP"]))
+            self.assertTrue(second_same.isHidden())
+        finally:
+            dialog.reject()
+
     def test_copy_mode_offers_webp_for_edited_pages(self):
         window = ComicWindow()
         try:
@@ -514,7 +544,9 @@ class ThumbnailTest(unittest.TestCase):
         try:
             self.assertTrue(dialog.advanced.format.isHidden())
             dialog.format.setCurrentText("WebP")
-            self.assertEqual(dialog.advanced.stack.currentIndex(), 1)
+            self.assertEqual(dialog.advanced.format.currentText(), "WebP")
+            self.assertFalse(dialog.format_settings["WebP"].isHidden())
+            self.assertTrue(dialog.format_settings["JPEG"].isHidden())
             dialog.size_output.setCurrentIndex(2)
             dialog.reduced_custom.setChecked(True)
             dialog.reduced_format.setCurrentText("JPEG")

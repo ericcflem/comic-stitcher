@@ -788,6 +788,7 @@ class AdvancedSettingsWidget(QWidget):
                   "PNG compression level, 0–9. Zero is fastest and makes larger files; nine works harder "
                   "for smaller files. Pixel quality stays identical at every level. Default: 6.")
         self.stack.addWidget(png)
+        self.pages = {"JPEG": jpeg, "WebP": webp, "PNG": png}
         self.format.currentIndexChanged.connect(self.stack.setCurrentIndex)
         self.stack.setCurrentIndex(self.format.currentIndex())
         reset = QPushButton("Reset to defaults")
@@ -886,46 +887,80 @@ class OutputOptionsDialog(OutlinedWindow, QDialog):
 
         image_tab = QWidget()
         image_box = QVBoxLayout(image_tab)
-        form = QFormLayout()
+        # Each format choice is followed by the settings of the format it names.
+        # Settings belong to a format, not to a choice: when both choices use the
+        # same format, its settings appear under the first and the second says so.
         self.format = QComboBox()
         self.format.addItems(["JPEG", "WebP", "PNG"])
         self.format.setCurrentText({"jpeg": "JPEG", "webp": "WebP", "png": "PNG"}.get(opt.format, "JPEG"))
-        form.addRow("Output format", self.format)
-        self.format_label = form.labelForField(self.format)
-        form_hint(form, self.format,
-                  "Choose the format used when re-encoding final pages, including the reduced copy. "
-                  "For a full-size copy with unjoined pages kept unchanged, choose the joined spread format below.")
-        self.jpeg_quality = QSpinBox()
-        self.jpeg_quality.setRange(1, 100)
-        self.jpeg_quality.setValue(opt.jpeg_quality)
-        form.addRow("JPEG quality", self.jpeg_quality)
-        form_hint(form, self.jpeg_quality,
-                  "JPEG quality, 1–100. Higher values preserve more detail but usually make larger "
-                  "files. This setting is remembered next time you open the app. Default: 90.")
-        self.webp_quality = QSpinBox()
-        self.webp_quality.setRange(1, 100)
-        self.webp_quality.setValue(opt.webp_quality)
-        form.addRow("WebP quality", self.webp_quality)
-        form_hint(form, self.webp_quality,
-                  "For lossy WebP, 1–100 controls image quality and file size. In lossless WebP mode, "
-                  "it controls compression effort: higher is slower, not higher image quality. "
-                  "The value is remembered next time you open the app. Default: 90.")
-        self.jpeg_quality_label = form.labelForField(self.jpeg_quality)
-        self.webp_quality_label = form.labelForField(self.webp_quality)
         self.spread_format = QComboBox()
         self.spread_format.addItems(["PNG (lossless)", "JPEG", "WebP"])
         self.spread_format.setCurrentIndex({"png": 0, "jpeg": 1, "webp": 2}[opt.spread_format])
-        form.addRow("Format for joined/rotated pages", self.spread_format)
-        form_hint(form, self.spread_format,
-                  "When ordinary pages are copied unchanged, newly stitched spreads and rotated "
-                  "single pages must be encoded. PNG avoids another lossy step; JPEG can be "
-                  "smaller but re-encodes the edited image. WebP uses the WebP quality and advanced settings.")
-        self.spread_format_label = form.labelForField(self.spread_format)
-        image_box.addLayout(form)
+        self.jpeg_quality = QSpinBox()
+        self.jpeg_quality.setRange(1, 100)
+        self.jpeg_quality.setValue(opt.jpeg_quality)
+        self.webp_quality = QSpinBox()
+        self.webp_quality.setRange(1, 100)
+        self.webp_quality.setValue(opt.webp_quality)
         self.advanced = AdvancedSettingsWidget(self.draft, opt.format, image_tab)
         self.advanced.reset_requested.connect(lambda: (self.jpeg_quality.setValue(90),
                                                        self.webp_quality.setValue(90)))
-        image_box.addWidget(self.advanced)
+        self.advanced.stack.hide()  # Its pages are placed under the format choices below.
+        self.format_settings = {}
+        for name, quality, hint in (
+                ("JPEG", self.jpeg_quality,
+                 "JPEG quality, 1–100. Higher values preserve more detail but usually make larger "
+                 "files. This setting is remembered next time you open the app. Default: 90."),
+                ("WebP", self.webp_quality,
+                 "For lossy WebP, 1–100 controls image quality and file size. In lossless WebP mode, "
+                 "it controls compression effort: higher is slower, not higher image quality. "
+                 "The value is remembered next time you open the app. Default: 90."),
+                ("PNG", None, "")):
+            panel = QWidget()
+            panel_box = QVBoxLayout(panel)
+            panel_box.setContentsMargins(20, 0, 0, 0)  # Indented under its format choice.
+            panel_box.setSpacing(0)
+            if quality is not None:
+                quality_form = QFormLayout()
+                quality_form.addRow(f"{name} quality", quality)
+                form_hint(quality_form, quality, hint)
+                panel_box.addLayout(quality_form)
+                if name == "WebP":
+                    self.webp_quality_label = quality_form.labelForField(quality)
+                else:
+                    self.jpeg_quality_label = quality_form.labelForField(quality)
+            page = self.advanced.pages[name]
+            page.layout().setContentsMargins(0, 0, 0, 0)
+            panel_box.addWidget(page)
+            page.show()
+            self.format_settings[name] = panel
+        self.format_choices = []
+        for combo, label, hint in (
+                (self.format, "Output format",
+                 "Choose the format used when re-encoding final pages, including the reduced copy. "
+                 "For a full-size copy with unjoined pages kept unchanged, choose the joined page format below."),
+                (self.spread_format, "Format for joined/rotated pages",
+                 "When ordinary pages are copied unchanged, newly stitched spreads and rotated "
+                 "single pages must be encoded. PNG avoids another lossy step; JPEG can be "
+                 "smaller but re-encodes the edited image.")):
+            block = QWidget()
+            block_box = QVBoxLayout(block)
+            block_box.setContentsMargins(0, 0, 0, 6)
+            choice_form = QFormLayout()
+            choice_form.addRow(label, combo)
+            form_hint(choice_form, combo, hint)
+            block_box.addLayout(choice_form)
+            slot = QVBoxLayout()
+            block_box.addLayout(slot)
+            same = QLabel()
+            same.setStyleSheet("color:#617080; padding-left:20px;")
+            block_box.addWidget(same)
+            image_box.addWidget(block)
+            self.format_choices.append((block, choice_form.labelForField(combo), slot, same))
+        self.format_label = self.format_choices[0][1]
+        self.spread_format_label = self.format_choices[1][1]
+        image_box.addStretch()
+        image_box.addWidget(self.advanced)  # Now just the Reset to defaults button.
         tabs.addTab(image_tab, "Format")
 
         resize_tab = QWidget()
@@ -1009,21 +1044,26 @@ class OutputOptionsDialog(OutlinedWindow, QDialog):
         full = self.size_output.currentIndex() != 1
         reduced = self.size_output.currentIndex() != 0
         need_format = not self.keep_originals or reduced
-        self.format.setVisible(need_format)
-        self.format_label.setVisible(need_format)
         self.format_label.setText("Reduced copy format" if self.keep_originals else "Output format")
-        self.spread_format.setVisible(self.keep_originals and full)
-        self.spread_format_label.setVisible(self.keep_originals and full)
-        spread_jpeg = self.keep_originals and full and self.spread_format.currentIndex() == 1
-        jpeg = (need_format and self.format.currentText() == "JPEG") or spread_jpeg
-        webp = (need_format and self.format.currentText() == "WebP") or (self.keep_originals and full and self.spread_format.currentIndex() == 2)
-        self.jpeg_quality.setVisible(jpeg)
-        self.jpeg_quality_label.setVisible(jpeg)
-        self.jpeg_quality_label.setText("Edited page JPEG quality" if spread_jpeg and not need_format else "JPEG quality")
-        self.webp_quality.setVisible(webp)
-        self.webp_quality_label.setVisible(webp)
+        spread_name = ("PNG", "JPEG", "WebP")[self.spread_format.currentIndex()]
+        shown = set()
+        for (block, _label, slot, same), wanted, name in zip(
+                self.format_choices, (need_format, self.keep_originals and full),
+                (self.format.currentText(), spread_name), strict=True):
+            block.setVisible(wanted)
+            if not wanted:
+                continue
+            if name in shown:
+                same.setText(f"Uses the same {name} settings as above.")
+                same.show()
+            else:
+                slot.addWidget(self.format_settings[name])  # Moves it here if it was elsewhere.
+                same.hide()
+                shown.add(name)
+        for name, panel in self.format_settings.items():
+            panel.setVisible(name in shown)
         self.webp_quality_label.setText("WebP lossless effort" if self.advanced.lossless.isChecked() else "WebP quality")
-        active_format = self.format.currentText() if need_format else self.spread_format.currentText()
+        active_format = self.format.currentText() if need_format else spread_name
         self.advanced.format.setCurrentIndex({"JPEG": 0, "WebP": 1}.get(active_format, 2))
         self.resize_settings.setEnabled(reduced)
         self.reduced_custom.setEnabled(reduced)
