@@ -1810,6 +1810,28 @@ class ThumbnailTest(unittest.TestCase):
             finally:
                 window.close()
 
+    def test_progress_window_makes_room_for_a_longer_message(self):
+        window = ComicWindow()
+        try:
+            window.show()
+            window.progress_source.setText("X-O Manowar - Unconquered 004.pdf")
+            window.progress_label.setText("Rendering PDF pages: 4 of 36…")
+            window.pages.setCurrentWidget(window.progress_page)
+            window._compact_window()
+            QTest.qWait(400)
+            window.resize(50, 50)  # As narrow and short as it will go.
+            QTest.qWait(100)
+            one_line = window.height()
+            window.progress_label.setText("Scanning 36 rendered pages… 1% complete")
+            QTest.qWait(100)
+            self.app.processEvents()
+            label = window.progress_label
+            self.assertGreaterEqual(label.height(), label.heightForWidth(label.width()))
+            self.assertGreaterEqual(window.progress_bar.geometry().top(), label.geometry().bottom())
+            self.assertGreaterEqual(window.height(), one_line)
+        finally:
+            window.close()
+
     def test_start_screen_cannot_be_squeezed(self):
         window = ComicWindow()
         try:

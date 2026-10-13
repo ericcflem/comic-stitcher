@@ -2914,6 +2914,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         box.addWidget(self.repeat_button)
         box.addWidget(self.done_button)
         box.addStretch()
+        # Its messages change length as work moves on; re-measure them as they do.
+        self.progress_page.installEventFilter(self)
         self.pages.addWidget(self.progress_page)
 
     def new_comic(self):
@@ -3938,6 +3940,9 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                 watched is self.thumb_area.viewport() and event.type() == QEvent.Resize and
                 getattr(self, "thumb_buttons", None)):
             QTimer.singleShot(0, self._resize_thumbnail_strip)
+        if (watched is getattr(self, "progress_page", None)
+                and event.type() in (QEvent.LayoutRequest, QEvent.Resize)):
+            QTimer.singleShot(0, self._fit_progress_text)
         if (getattr(self, "export_scroll", None) is not None and watched is self.export_scroll.viewport()
                 and event.type() == QEvent.Resize and event.size().width() != event.oldSize().width()):
             QTimer.singleShot(0, self._fit_export_settings)
@@ -3970,6 +3975,23 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         if hint_height > 0 and hint_height != self.export_hint.minimumHeight():
             self.export_hint.setMinimumHeight(hint_height)
         self._hold_export_minimum()
+
+    def _fit_progress_text(self):
+        """Count wrapped lines of the progress messages in the window's minimum
+        size, so a longer message (such as the scanning step's) is never cut off."""
+        page = self.progress_page
+        margins = page.layout().contentsMargins()
+        width = page.width() - margins.left() - margins.right()
+        if width <= 0:
+            return
+        changed = False
+        for label in (self.progress_source, self.progress_label):
+            height = label.heightForWidth(width) if label.text() else 0
+            if height != label.minimumHeight():
+                label.setMinimumHeight(max(0, height))
+                changed = True
+        if changed and self.pages.currentWidget() is page:
+            self._hold_export_minimum()
 
     def _hold_export_minimum(self, *_):
         """Give the window the current screen's minimum size.
