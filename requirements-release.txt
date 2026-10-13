@@ -1,4 +1,4 @@
-# CPython 3.14 Windows x64; exact 0.6.38 installed versions.
+# CPython 3.14 Windows x64; exact installed versions (unchanged since 0.6.38).
 # Hashes select compatible official wheels, not a byte-identical installer guarantee.
 altgraph==0.17.5 --hash=sha256:f3a22400bce1b0c701683820ac4f3b159cd301acab067c51c653e06961600597
 brotli==1.2.0 --hash=sha256:e7c0af964e0b4e3412a0ebf341ea26ec767fa0b4cf81abb5e897c9338b5ad6a3

@@ -46,7 +46,7 @@ def main():
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
         selected = list(pool.map(resolve, records))
     (ROOT / 'wheel-inputs.json').write_text(json.dumps(selected, indent=2) + '\n')
-    requirements = ['# CPython 3.14 Windows x64; exact 0.6.38 installed versions.',
+    requirements = ['# CPython 3.14 Windows x64; exact installed versions (unchanged since 0.6.38).',
                     '# Hashes select compatible official wheels, not a byte-identical installer guarantee.']
     requirements += [f"{r['name']}=={r['version']} --hash=sha256:{r['sha256']}" for r in selected]
     (ROOT / 'requirements-release.txt').write_text('\n'.join(requirements) + '\n')

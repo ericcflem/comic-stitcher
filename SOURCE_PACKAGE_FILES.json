@@ -1,6 +1,21 @@
 {
-  "scope": "Current source layout after the v0.6.38 release: documentation under docs/. The published v0.6.38 source ZIP remains unchanged.",
+  "scope": "Comic Stitcher 0.7.0 source package. Library source archives and unrar.exe are unchanged since 0.6.38.",
   "files": [
+    {
+      "path": ".github/check_linux_install.py",
+      "bytes": 10709,
+      "sha256": "01047f0b2c21d274f6697f21259856627f597a84f85d9bfdeda14b8bd169c3fd"
+    },
+    {
+      "path": ".github/run_tests.py",
+      "bytes": 1377,
+      "sha256": "5d37c4d2d0621a3e66a147d06f5dd32bcecdd47b3796dbd740a0c70658d17972"
+    },
+    {
+      "path": ".github/workflows/tests.yml",
+      "bytes": 6438,
+      "sha256": "22be30a43d547a31efd62263cb896c32145e45dd014f3eb5df80766b15e695eb"
+    },
     {
       "path": ".gitignore",
       "bytes": 198,
@@ -13,8 +28,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 7864,
-      "sha256": "0c5859375e16fd04bc0e77adbb1ee93816caf68463ec0429f8a66d2bf2f577e6"
+      "bytes": 11541,
+      "sha256": "d0febc09ff136e2a7653dcf2659c60632ab10abc84d8e36e4eced6076802e768"
     },
     {
       "path": "assets/app/comic-stitcher.ico",
@@ -1288,8 +1303,8 @@
     },
     {
       "path": "build_release_windows.bat",
-      "bytes": 1076,
-      "sha256": "e4b773e76a906260d343c24bd193bd40c9e50f86e636333e1dbb1379be712cdf"
+      "bytes": 1075,
+      "sha256": "6d33b4303895c98fc96e417b03536423d52c3d9b18727efbf5d7a4e6c2f5a1e0"
     },
     {
       "path": "build_runtime_installer_windows.bat",
@@ -1303,33 +1318,33 @@
     },
     {
       "path": "collect_release_inputs.py",
-      "bytes": 2553,
-      "sha256": "2e919aa65e5c7521fb162daec7e431c6d32bfb80491313e8e5ab62fac44de862"
+      "bytes": 2571,
+      "sha256": "0ed97d30ddad893188e3e3fdb88ef2052a4841b7913dda1597b925de7b9f7178"
     },
     {
       "path": "comic_builder/__init__.py",
-      "bytes": 107,
-      "sha256": "2a33c0213844efb0e132515b620391e09f576e7cbf5bf5adc6717de6cbebd17e"
+      "bytes": 106,
+      "sha256": "db42e992d41db2df79d76caa6472b36ccfe564d4eb7101a0492516bbe9a6eeec"
     },
     {
       "path": "comic_builder/__main__.py",
-      "bytes": 208,
-      "sha256": "354cacff3748c55ef2b06cccd7d0c30752494f0ec3d15cbeb98f95c2a42a10e4"
+      "bytes": 401,
+      "sha256": "67ed9e6c825f8bc163c797734ea76d4cda277f44f6b40dd718ee502f8c514ac0"
     },
     {
       "path": "comic_builder/archive_import.py",
-      "bytes": 10486,
-      "sha256": "0d7c363373e95c9db0f2d25743609ec246427f5726eee5fd7b0c49813d74cd15"
+      "bytes": 11529,
+      "sha256": "d0606351400a9a913dba784fe125683577e03ca7180df93127b757ad36d1d7b1"
     },
     {
       "path": "comic_builder/backend.py",
-      "bytes": 43635,
-      "sha256": "4d97742b2ec8c1e8ff59a60740a3fd14b3685a156a444517e750af37a03ed018"
+      "bytes": 54240,
+      "sha256": "78bdfeabf17920f0398b9ee480ecd871096aecbeeb59f5f9c6a525f58c72a97c"
     },
     {
       "path": "comic_builder/comicinfo.py",
-      "bytes": 8082,
-      "sha256": "eaddc015f4a69e95b0b199c79db6b1f7f69d3fc3b3e05d4a69bca4a4302cf172"
+      "bytes": 9206,
+      "sha256": "aff189d001af6937700d8f2dc5d2b658044e14b3333df54c638fda01a50838f5"
     },
     {
       "path": "comic_builder/comicvine.py",
@@ -1338,8 +1353,8 @@
     },
     {
       "path": "comic_builder/comicvine_dialog.py",
-      "bytes": 12274,
-      "sha256": "2bf88fa334a05d1bdf4ec8f63cf24d844452cf40850eff8c083fdbeb4820f91a"
+      "bytes": 12406,
+      "sha256": "e24906de4bca95cc676fb570c706688c9c1ff30487a6cf2356bb978254cc7260"
     },
     {
       "path": "comic_builder/detector.py",
@@ -1352,9 +1367,19 @@
       "sha256": "290b122e9832e99291b863f580966918cf5e32f45952b43eb5cd6f2cd2fb1d6f"
     },
     {
+      "path": "comic_builder/drop_tab.py",
+      "bytes": 29589,
+      "sha256": "a0bc72d9404ceace9d288f53892b038392a7242dc3e37589418238bcb0b6b76d"
+    },
+    {
+      "path": "comic_builder/drop_tab_support.py",
+      "bytes": 8673,
+      "sha256": "b5b1cc26a9f1b026e63e948c285073db44f23f06250076297e65c4bdabee14df"
+    },
+    {
       "path": "comic_builder/gui.py",
-      "bytes": 239733,
-      "sha256": "e8ca0d4d3568e1f6f79a6c91eacd429f8b673b2826e6e446540284825b248a09"
+      "bytes": 264245,
+      "sha256": "01973473050ea248cefabbb307c594fb01665bc289fc7e638cbac723735f172a"
     },
     {
       "path": "comic_builder/icons_resource.py",
@@ -1368,23 +1393,23 @@
     },
     {
       "path": "comic_builder/key_store.py",
-      "bytes": 2126,
-      "sha256": "e29fcd7d98784ec675f559f19c62b7853790fb64a1e7ec257c6af6789d4179bb"
+      "bytes": 4501,
+      "sha256": "026a8625503bad6f11d52224159081d1d81d2766f318cf246383a855bf352840"
     },
     {
       "path": "comic_builder/metadata_dialog.py",
-      "bytes": 5990,
-      "sha256": "8b6db8ff7f494e11bb26f3ca9a3a5238db7f1ec43dc493383c537ca256858bfa"
+      "bytes": 6122,
+      "sha256": "ba5af4beef6c18ac9927f7c26dc7944859e53087cf4cc8c0bb6118454a25e5ae"
     },
     {
       "path": "comic_builder/pdf_import.py",
-      "bytes": 6374,
-      "sha256": "37ba3084688a2626f47853c2f19f4dc40f65a4f3294492c879466a37bf7d6baa"
+      "bytes": 9728,
+      "sha256": "9a519420b8a8345abe6bc39162400e71ad1acd7f02dfbb25e835d77a6c2912a7"
     },
     {
       "path": "comic_builder/pdf_jpegs.py",
-      "bytes": 10150,
-      "sha256": "11db3219572f000d9001096b0853d262b45ca8de34de97b887f6d428d66010ae"
+      "bytes": 10462,
+      "sha256": "81833a940bf00593b71f44f184a559da320a1772878b25a6178010f73b3f3b45"
     },
     {
       "path": "comic_builder/review_report.py",
@@ -1408,33 +1433,43 @@
     },
     {
       "path": "comic_builder/single_instance.py",
-      "bytes": 3321,
-      "sha256": "c78cdd38adbf94ec03c0f8c53b5fb36fe0ba1d1d3ee315233b13773817502bbc"
+      "bytes": 4134,
+      "sha256": "fa9bb146396e167391fe6410485d3b3e96445b49007c419d12c114de073980ed"
     },
     {
       "path": "comic_builder/test_audit_fixes.py",
-      "bytes": 10985,
-      "sha256": "cb137fb892155c1b5c30f0c6a0cc060d8c37f95638771da1dee7d83364323279"
+      "bytes": 11498,
+      "sha256": "41029092259bb69c28542090cd70adad22e4fd53908d0bc5aa6dc35e1a8e14e3"
     },
     {
       "path": "comic_builder/test_backend.py",
-      "bytes": 39463,
-      "sha256": "de866aa8b1644e9a49d219814b1ff46d638e60beb0618a13db4eca5b602951e9"
+      "bytes": 41316,
+      "sha256": "a98bc12da60c11b104b3b37393665f789aaf99ab004c2ce421f4810a596ff69c"
     },
     {
       "path": "comic_builder/test_comicinfo.py",
-      "bytes": 7415,
-      "sha256": "a7f69e7a9e78da76531e0401b7ea44da366d5e53e557f72969f266491c3494b5"
+      "bytes": 10401,
+      "sha256": "cd2b82d99f4b6bec377a80a71e1b0bd7df2977144caf762003206435f6100510"
     },
     {
       "path": "comic_builder/test_comicvine.py",
-      "bytes": 7223,
-      "sha256": "a46d2bdcf9e895b669003ca67cdb881f737a74df70c65d55012e12e98fd9b3c6"
+      "bytes": 9953,
+      "sha256": "91b40e05087f9a8fd338dc3d33f15187cd839d1d5248cdb72b4ba48027bd1111"
+    },
+    {
+      "path": "comic_builder/test_drop_tab.py",
+      "bytes": 13600,
+      "sha256": "2ed5881e0f4101aaa8c3a94835c26f64b427d291fc87fb5fcac81b9efe235f8c"
+    },
+    {
+      "path": "comic_builder/test_drop_tab_support.py",
+      "bytes": 8737,
+      "sha256": "94c715405d523eb3d167d9808623285326f9cf55d676993d8f244d4fab521d74"
     },
     {
       "path": "comic_builder/test_gui.py",
-      "bytes": 113260,
-      "sha256": "6f14356c4f7dcb4ca12b435e1a9e16d25e27b71477605c7298edd3400b11fdf1"
+      "bytes": 126285,
+      "sha256": "d6f9e1bcd410fa081c40c72435de7a77b265b0055525ab9744226f404fe5c35c"
     },
     {
       "path": "comic_builder/test_import_sources.py",
@@ -1443,8 +1478,8 @@
     },
     {
       "path": "comic_builder/test_license_packaging.py",
-      "bytes": 11495,
-      "sha256": "42a36af9b74db377680478f1559cb6676ec3f8bec22041ea7abec5a3a5086962"
+      "bytes": 12614,
+      "sha256": "beb7f6eee96200c5c6f7a99822d4fd024963e6ddd292a70820163789b087cd64"
     },
     {
       "path": "comic_builder/test_page_edits.py",
@@ -1453,8 +1488,13 @@
     },
     {
       "path": "comic_builder/test_pdf_jpegs.py",
-      "bytes": 11172,
-      "sha256": "01301bc18fe1a2e06413f8a8ef72a8a19bb156a537a37ae941cdf50503d5d85f"
+      "bytes": 12395,
+      "sha256": "103f795f16e25059b16f89a5de55a7c1438eaa2fdd7f63a89184c938134d3f0f"
+    },
+    {
+      "path": "comic_builder/test_pdf_resolution.py",
+      "bytes": 2993,
+      "sha256": "f1fb300433f58ec48c955ceaf695a6b9d6b9d6c48dab3b2ca426f48b981d2746"
     },
     {
       "path": "comic_builder/test_reading_direction.py",
@@ -1473,28 +1513,43 @@
     },
     {
       "path": "comic_builder/test_single_instance.py",
-      "bytes": 2359,
-      "sha256": "7c988d5d101f959122099cbfcac7732b5a9f8a063e424ec2aa8c8ccfca5917ed"
+      "bytes": 4028,
+      "sha256": "9537d28fd5d7a446fe151d6f34c001b1afc004679c2d4bea8cdae93a988fc1aa"
+    },
+    {
+      "path": "comic_builder/test_size_estimate.py",
+      "bytes": 4739,
+      "sha256": "6657005c412ee0788e1d7586f772b474a807bbe811f892792eff5c1c50cca433"
+    },
+    {
+      "path": "comic_builder/test_window_outline.py",
+      "bytes": 3397,
+      "sha256": "0dc5a198f26b3a690bf5165c076be9476365d02d55e4da14099d871eb0269001"
+    },
+    {
+      "path": "comic_builder/window_outline.py",
+      "bytes": 3624,
+      "sha256": "750ebcff5a6e1c612b5ad40eb65a8ff82bd7178805d4a4348ba2e1661663c5ce"
     },
     {
       "path": "compile_runtime_installer_windows.ps1",
-      "bytes": 3712,
-      "sha256": "be8196a1fd9a756ad58eb5b5ae2c91d9dea293fe6a1bc1d388c156b5b2060a54"
+      "bytes": 3711,
+      "sha256": "5a31614b5a0984396fa924a6178c9a93b080356d94593752547c81fc60307f0d"
     },
     {
       "path": "docs/BUILDING.md",
-      "bytes": 5545,
-      "sha256": "384681e233eeaf0f0895a524f3e3169bcc17c7d86af500bcd9366dad20aa8192"
+      "bytes": 7287,
+      "sha256": "eb256bb5fdb7eac876f11839a72510515f161fc8b014966ccbd441cd999a7398"
     },
     {
       "path": "docs/CHANGELOG.md",
-      "bytes": 1135,
-      "sha256": "9362c123f506514226008a1da5d6ca7f6b809514c8d1cffba184caa6a73c34ac"
+      "bytes": 3441,
+      "sha256": "f930aa695e758a7e1b67135a383b737a36f880f80aad158c11c7d02f0128f8fd"
     },
     {
       "path": "docs/NATIVE_SOURCE_REBUILD.md",
-      "bytes": 10728,
-      "sha256": "b76600ff47131610686c91988ccaec852c1d4035187d1de9d05364d3551d0a17"
+      "bytes": 10768,
+      "sha256": "1e5c6d58e8e5b00adb36d5a9d85b748eb7aa7abdb4899fe50cdf8f05213bbbf1"
     },
     {
       "path": "docs/PROVENANCE.md",
@@ -1503,28 +1558,28 @@
     },
     {
       "path": "docs/REBUILDING_AND_REPLACING_LIBRARIES.md",
-      "bytes": 8830,
-      "sha256": "b508e02e6d4a0bea9836d243a554e3298feb21c407b8004e46cbeee6e941906f"
+      "bytes": 8878,
+      "sha256": "6431e0ca86736b2a10b9eb5746595b825b70d205cfbe54a39a19b4a36bff5f38"
     },
     {
       "path": "docs/RELEASE_NOTES.md",
-      "bytes": 1933,
-      "sha256": "dc4adf705b37f0f44605062bfd7559354214f7324c22ccbc022ba3da857cb174"
+      "bytes": 2725,
+      "sha256": "766f6cc002705748377f8f84ae3caefe8e9013c85260b46678a1d97f94c27d1b"
     },
     {
       "path": "docs/SOURCE_ACCESS.md",
-      "bytes": 5770,
-      "sha256": "ba4e3e42012efb2016c3cd19b4b11169ec150401e2f64a790dff94984f2c6487"
+      "bytes": 5764,
+      "sha256": "51da05b2fa478a298fc4ecb7d95ff57c01835000796205ee367746e12c3ca605"
     },
     {
       "path": "docs/SOURCE_PACKAGE_CONTENTS.md",
-      "bytes": 2014,
-      "sha256": "ae29e3bd6db54b3bfaf4367d4a6a49b14a4dd636f1688d707552ef7254901258"
+      "bytes": 2091,
+      "sha256": "30c6cd83f655d57bf9d7ede5be8c7b07a15f17c774e679af93ae189ce54dd681"
     },
     {
       "path": "docs/START_HERE.md",
-      "bytes": 935,
-      "sha256": "26ec4bee7826562352b0860a898e522c2b93321f9f5f66aa63edde7c57e34dc8"
+      "bytes": 934,
+      "sha256": "2f70f95f7efb9be5b9c8bf814f2d80ebf7d67286f326cf090d6e64ab985bfc8d"
     },
     {
       "path": "docs/THIRD_PARTY_ACKNOWLEDGEMENTS.md",
@@ -1573,8 +1628,38 @@
     },
     {
       "path": "launch.py",
-      "bytes": 300,
-      "sha256": "5095386704795257b8468914602035cd1e41cb1762d87c79a4593d7409b9311b"
+      "bytes": 519,
+      "sha256": "1b5ec512acd0b6b4a86c9e7e71a1a141a72cfafe910fe3cec8a1589cf94beb3f"
+    },
+    {
+      "path": "linux/install.sh",
+      "bytes": 19364,
+      "sha256": "e0b8ee9164b4fbf2fcc1ba0d5eaf09f8efc7767e103bd2b76a229e46d742af0f"
+    },
+    {
+      "path": "linux/nautilus/comic-stitcher-folder-menu.py",
+      "bytes": 1753,
+      "sha256": "a25586e604375094ff3052e5fdc015589282e571de8525e375594e3d83671b26"
+    },
+    {
+      "path": "linux/nautilus/open-in-comic-stitcher.sh",
+      "bytes": 587,
+      "sha256": "17217f3bb6616675208c8dce9b578acb94996eae46a68fe83a39d4610b0a6cd1"
+    },
+    {
+      "path": "linux/repair-prompt.sh",
+      "bytes": 2958,
+      "sha256": "838d32e1ac9954fc885c19fa5952f23d6cf16d326cc96e4835d2b85d1d32c929"
+    },
+    {
+      "path": "linux/uninstall.sh",
+      "bytes": 5124,
+      "sha256": "e94af9794735b3952f04a63d05866d953f55fed73db6bc069f4a354e8b8f5bad"
+    },
+    {
+      "path": "make_source_package.py",
+      "bytes": 5109,
+      "sha256": "ad7b5deeb003e17e13447be8a8145603f8f28a891f2e1d6912bc586c71f952a3"
     },
     {
       "path": "native_notices.py",
@@ -1593,8 +1678,8 @@
     },
     {
       "path": "package_licenses.py",
-      "bytes": 14917,
-      "sha256": "1d81f0d42b84aed7acd52ba861e390575553cbc6b9cd0888911c4b99681c25f8"
+      "bytes": 15113,
+      "sha256": "d5f89af8a0108be076abaea24d656b91279174086d49c9175e59e667614f4c36"
     },
     {
       "path": "package_shared_runtime.py",
@@ -1628,13 +1713,13 @@
     },
     {
       "path": "requirements-release.txt",
-      "bytes": 2663,
-      "sha256": "b8fd3c3989d6426be16fc9189c6682186ad224f410b97f1cfe530c5acd741e37"
+      "bytes": 2681,
+      "sha256": "4823c8cb415158445e165b869bbf1797200d69d379c3cbdd9679b0a283281d1d"
     },
     {
       "path": "requirements.txt",
-      "bytes": 106,
-      "sha256": "5c40b5f19de6d8b24db67edb96eee7db3afa8a26d398b2e372ab55f3182733fd"
+      "bytes": 313,
+      "sha256": "81f7b47113daff131c55a5993ff22333f3f79a51f4e8f108b56167096be89826"
     },
     {
       "path": "retained-source-manifest.json",
@@ -1653,8 +1738,8 @@
     },
     {
       "path": "setup_windows.iss",
-      "bytes": 7899,
-      "sha256": "e018930922a454a30584eefb73982d50f101cff97a6414ba4ad19c38ddaf50fd"
+      "bytes": 8710,
+      "sha256": "21eac34d431bc55ebacf4b621e0f2ace1dfd1d925bbea73e09b26ec2afad82f4"
     },
     {
       "path": "test_installed_runtime_verifier.py",

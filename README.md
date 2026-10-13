@@ -27,7 +27,7 @@ It imports PDFs, image folders, compressed archives, existing comic book files a
 
 ### Installing on Linux
 
-1. Download Comic Stitcher's source (on GitHub: **Code > Download ZIP**) and extract it.
+1. From the [latest release](https://github.com/ericcflem/comic-stitcher/releases/latest), download **Source code (zip)** and extract it. (**Code > Download ZIP** on the main page also works, but gives the newest, possibly unreleased, code.)
 2. Open a terminal in the extracted folder and run:
 
    ```bash
