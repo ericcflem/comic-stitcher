@@ -13,7 +13,8 @@
 | `audit/microsoft-runtime/bootstrapper-findings.json` | Hash-bound supplier prerequisite evidence required by the terms verifier |
 
 `SOURCE_PACKAGE_FILES.json` lists every packaged file except itself, with size
-and SHA-256. `retained-source-manifest.json` identifies the ten source archives;
+and SHA-256. `make_source_package.py` checks the files against it and builds
+the package. `retained-source-manifest.json` identifies the ten source archives;
 `third_party_notices/NOTICE_INPUTS.json` identifies notice supplier inputs.
 
 This package contains no compiled Comic Stitcher app/installer, virtual environment,

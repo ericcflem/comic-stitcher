@@ -1,17 +1,30 @@
 # Changelog
 
-## Unreleased
+## 0.7.0
 
-- Add an optional drop tab on the right screen edge: drag comics onto it to open
-  them in Comic Stitcher without arranging windows. It can start at sign-in, is
-  offered as an unticked installer option, and is closed and removed on uninstall.
+**Linux**
+
+- Install on Linux from the source download with `linux/install.sh`: Comic
+  Stitcher gets its own private Python environment, an app-menu entry, Open With
+  for comic files, Open in Comic Stitcher for folders in Files, and an
+  uninstaller (`--purge` also removes settings and a remembered ComicVine key).
+  The installer checks for and offers to install the system libraries it needs.
+- If a system upgrade moves to a new Python version, Comic Stitcher offers to
+  repair itself the next time it starts.
+- RAR/CBR import uses the system's RAR extractor, and the ComicVine key is kept
+  in the desktop keyring.
+
+**New**
+
+- An optional drop tab on the right screen edge (Windows and Linux): drag comics
+  onto it to open them without arranging windows. It starts at sign-in when
+  turned on (the Windows installer's option is ticked by default), can be hidden
+  and brought back, and is removed on uninstall.
 - ComicInfo.xml now always includes a page list that marks the front cover and
   two-page spreads (joined spreads and pages that are already wide), so library
   apps show the right cover and display spreads correctly.
 - When importing a PDF whose pages are images, the rendering resolution is set to
   match them, with a note saying so. A resolution you choose yourself is kept.
-- PDFs made by Adobe Acrobat's image conversion are offered original JPEG
-  extraction again. Acrobat adds an empty form to them, which no longer blocks it.
 - The export screen estimates the finished comic's size as settings change, by
   encoding bands from pages spread through the book in parallel. An early
   estimate appears within moments and is refined. Pages copied unchanged are
@@ -20,6 +33,14 @@
   checkbox to make that copy and its own format settings directly under its
   format choice. The reduced copy always has its own settings (starting from
   what it used before); at least one copy is always made.
+
+**Fixed**
+
+- PDFs made by Adobe Acrobat's image conversion are offered original JPEG
+  extraction again. Acrobat adds an empty form to them, which no longer blocks it.
+- The start, progress and export screens can no longer be resized smaller than
+  their contents, which made text and buttons overlap. The progress window is
+  wide enough for its messages from the start and makes room for long names.
 
 ## 0.6.38 — first public release
 

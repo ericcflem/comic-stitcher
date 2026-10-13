@@ -1,4 +1,4 @@
-# Comic Stitcher 0.6.38: reference rebuild and replacement recipe
+# Comic Stitcher 0.7.0: reference rebuild and replacement recipe
 
 The pinned application rebuild, modified py7zr rebuild and coherent official
 prebuilt Qt/PySide replacement were exercised on Windows. Native Qt/PySide source
@@ -10,7 +10,7 @@ The source compilation recipes are provided with that validation limit.
 1. Use 64-bit Windows and CPython **3.14.2 x64**, matching the audited build. The application's wheel-based build does not compile every dependency from source.
 2. Extract this consolidated package into a fresh folder; no overlay is required. Keep its `assets` and `build_hooks` directories. If RAR support is required, retain `vendor/unrar.exe` and the matching licence from the verified official supplier package.
 3. Run `build_release_windows.bat`. It creates a separate `.venv-release`, downloads hash-selected wheels into `release-wheelhouse`, installs them without an index, checks dependency consistency, and builds the app using the original packaging options. It deliberately does not run the ordinary build script, which upgrades and resolves broad requirements.
-4. Keep `release-wheelhouse` with the release build inputs. Check the resulting application and notice inventory against the audited 0.6.38 reference. Run the existing regression tests and Windows smoke tests. For an installer, use `build_runtime_installer_windows.bat` with the prepared pinned environment; it prepares the verified Microsoft prerequisite before compiling Setup. Retain compiler/version and payload records.
+4. Keep `release-wheelhouse` with the release build inputs. Check the resulting application and notice inventory against the audited reference (its third-party components are unchanged since 0.6.38). Run the existing regression tests and Windows smoke tests. For an installer, use `build_runtime_installer_windows.bat` with the prepared pinned environment; it prepares the verified Microsoft prerequisite before compiling Setup. Retain compiler/version and payload records.
 
 The requirements contain the original 26 installed package versions, including build tooling. Their hashes select official Windows-compatible wheels; they were resolved from official PyPI metadata during reference-input verification. A chosen wheel's compatibility and version do not prove every shipped binary is identical. All 26 selected wheels were downloaded and checked for exact hash, package identity and default dependency metadata consistency during reference-input verification, without installing or executing their code. Four supplier wheels also had their shipped native contents matched separately. The pinned recipe and installed-payload comparison were exercised successfully on Windows. Each rebuild requires its own verification. It does not promise byte-identical executables or installers: timestamps, compiler/tool versions, compression and other build details can differ.
 

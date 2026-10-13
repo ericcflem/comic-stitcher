@@ -1,8 +1,9 @@
 # Building Comic Stitcher on Windows
 
 The reference build targets Windows x64 with **CPython 3.14.2 x64** and
-**Inno Setup 7.1.0**. The application version is 0.6.38. These are the recorded
-build inputs; the package does not claim tested Mac or Linux releases.
+**Inno Setup 7.1.0**. The application version is 0.7.0. These are the recorded
+build inputs. On Linux, Comic Stitcher is installed from source with
+`linux/install.sh` (see the README); there is no Linux or Mac build to make here.
 
 ## Fresh build
 
@@ -58,6 +59,26 @@ preparing its verified prerequisite and payload inputs.
 The ordinary `build_windows.bat` uses broad development requirements and a
 separate deployment route. Use the pinned commands above to reproduce this release.
 Do not casually regenerate `requirements-release.txt` or `wheel-inputs.json`.
+
+## Make the source package
+
+Each release publishes a source package next to the installer. The library
+source archives (`third_party_sources/*.tar.*`) and `vendor/unrar.exe` are not in
+the GitHub repository; copy them from the previous release's source package
+(they only change when the pinned dependencies do). Then run:
+
+```bat
+py -3.14 make_source_package.py
+```
+
+It checks every file against `SOURCE_PACKAGE_FILES.json` (size and SHA-256),
+writes `dist\ComicStitcher_Source_<version>.zip` and prints the ZIP's SHA-256 for
+the release page. It stops and lists anything missing or different.
+
+Run it in an exact copy of the release's files: the release's **Source code
+(zip)** from GitHub, or a git clone made with `core.autocrlf` set to `false`.
+Git for Windows otherwise changes line endings, and every text file would then
+differ from its recorded hash.
 
 ## Check a resulting installer
 
