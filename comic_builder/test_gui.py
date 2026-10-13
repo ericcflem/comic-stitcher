@@ -905,7 +905,12 @@ class ThumbnailTest(unittest.TestCase):
             window.progress_label.setText("Rendering PDF pages: 136 of 212…")
             window._compact_window()
             self.app.processEvents()
-            self.assertLessEqual(window.width(), 600)
+            from PySide6.QtGui import QFontMetrics
+            window.progress_label.ensurePolished()
+            details = (f"sample {QFontMetrics(window.progress_label.font()).horizontalAdvance(window.PROGRESS_SAMPLE_TEXT)} "
+                       f"font {window.progress_label.font().toString()} page hint {window.progress_page.minimumSizeHint()} "
+                       f"stack min {window.pages.minimumSize()} window min {window.minimumSize()}")
+            self.assertLessEqual(window.width(), 600, details)
             self.assertLessEqual(window.height(), 260)
             window.pages.setCurrentIndex(0)
             window._compact_window()
