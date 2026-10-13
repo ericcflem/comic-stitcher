@@ -2067,7 +2067,10 @@ class ThumbnailTest(unittest.TestCase):
                 self.assertEqual(window.preview_index, 2)
                 window.show_export()
                 self.app.processEvents()
-                self.assertEqual((window.width(), window.height()), (800, 560))
+                # 800 x 560, or taller if this system's fonts need more room.
+                self.assertEqual(window.width(), 800)
+                self.assertGreaterEqual(window.height(), 560)
+                self.assertGreaterEqual(window.export_hint.geometry().top(), window.export_scroll.geometry().bottom())
                 self.assertTrue(window.create_button.isVisible())
                 self.assertTrue(window.export_hint.isVisible())
                 window.book_name.setText("Sample v02")

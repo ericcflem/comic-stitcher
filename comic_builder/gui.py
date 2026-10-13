@@ -3963,6 +3963,10 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             needed = min(needed, screen.availableGeometry().height() - others - frame)
         if needed != self.export_scroll.minimumHeight():
             self.export_scroll.setMinimumHeight(max(0, needed))
+        # The hint below may wrap onto more lines; count them in the minimum too.
+        hint_height = self.export_hint.heightForWidth(width)
+        if hint_height > 0 and hint_height != self.export_hint.minimumHeight():
+            self.export_hint.setMinimumHeight(hint_height)
         self._hold_export_minimum()
 
     def _hold_export_minimum(self, *_):
@@ -3971,9 +3975,9 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         if not hasattr(self, "export_page"):
             return
         if self.pages.currentWidget() is self.export_page:
-            self.pages.setMinimumSize(self.export_page.minimumSizeHint())
+            self.pages.setMinimumHeight(self.export_page.minimumSizeHint().height())
         else:
-            self.pages.setMinimumSize(0, 0)
+            self.pages.setMinimumHeight(0)
 
     def _resize_thumbnail_strip(self):
         if not getattr(self, "thumb_buttons", None):
