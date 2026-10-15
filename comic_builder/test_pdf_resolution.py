@@ -69,6 +69,16 @@ class SuggestResolutionTests(unittest.TestCase):
         self.assertIsNone(self.suggest([[((300, 300), (40, 40, 100, 100))]] * 2))
         self.assertIsNone(self.suggest([[]]))
 
+    def test_a_minority_of_larger_scans_does_not_raise_the_suggestion(self):
+        # Most pages at 400 dpi; one in six scanned at 600 or more.
+        pages = [[full_page(400)]] * 10 + [[full_page(600)], [full_page(800)]]
+        self.assertEqual(self.suggest(pages), 400)
+
+    def test_artwork_laid_over_a_full_page_does_not_decide(self):
+        # A 300 dpi page with two high-resolution pieces of art covering most of it.
+        pieces = [((2400, 2400), (0, 0, 480, 480)), ((2400, 1200), (0, 480, 480, 240))]
+        self.assertEqual(self.suggest([[full_page(300), *pieces]] * 3), 300)
+
     def test_suggestion_stays_within_the_import_range(self):
         self.assertEqual(self.suggest([[full_page(900)]]), 600)
         self.assertEqual(self.suggest([[full_page(50)]]), 72)

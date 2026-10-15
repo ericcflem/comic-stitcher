@@ -39,7 +39,7 @@ from .startup_notice import finish_startup, take_startup_id
 from .single_instance import LaunchBroker
 from .detector import collect_images
 from .archive_import import ARCHIVE_EXTS, import_archive
-from .pdf_import import import_pdf, pdf_workers, rendered_dimensions, suggest_pdf_dpi
+from .pdf_import import import_pdf, measure_pdf_pages, pdf_workers, rendered_dimensions, suggest_from_pages
 from .pdf_jpegs import check_pdf_jpegs
 from .metadata_dialog import MetadataDialog
 from .comicvine import ComicVineClient
@@ -1109,7 +1109,10 @@ class PdfPreviewWorker(QThread):
 
     def run(self):
         try:
-            found = suggest_pdf_dpi(self.source)
+            measured = measure_pdf_pages(self.source)
+            found = suggest_from_pages(measured)
+            diagnostics.note("PDF resolution suggested: %s (sampled pages: %s)", found, ", ".join(
+                f"{number}: {round(dpi) if dpi else '-'} dpi" for number, dpi, _ in measured))
         except Exception as exc:  # A suggestion is optional; the preview reports real problems.
             diagnostics.note("PDF resolution not measured: %s", exc)
             found = None

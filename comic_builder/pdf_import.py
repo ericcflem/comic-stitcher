@@ -24,7 +24,7 @@ def rendered_dimensions(page_size: tuple[float, float], dpi: int) -> tuple[int, 
 # Resolutions scanners and publishers commonly use; a measured value close to
 # one of these is shown as that value.
 COMMON_DPI = (72, 96, 100, 120, 150, 200, 240, 250, 300, 350, 400, 450, 500, 600)
-SAMPLE_PAGES = 12
+SAMPLE_PAGES = 24
 
 
 def _image_resolutions(page):
@@ -65,43 +65,72 @@ def _image_resolutions(page):
     return found
 
 
-def suggest_pdf_dpi(source: Path, sample_pages: int = SAMPLE_PAGES) -> int | None:
-    """The resolution of the page art in a PDF, or None if it has little.
+def _weighted_median(found):
+    """The value covering the middle of the total weight of (value, weight) pairs."""
+    total = sum(weight for _, weight in found)
+    running = 0.0
+    for value, weight in sorted(found):
+        running += weight
+        if running >= total / 2:
+            return value
+    return None
 
-    Samples pages across the book and weighs each image by how much of the page
-    it covers, so logos and small decorations barely count, while pages cut into
-    thin strips still count in full. Returns None when images cover less than
-    half of the sampled pages, as in a PDF made mostly of text and drawings.
+
+def _page_resolution(found):
+    """One page's art resolution, and how much of the page its images cover (at most 1).
+
+    When one image covers most of the page, that image is the page: artwork pieces
+    laid over it, often scanned at a higher resolution, don't decide. Otherwise
+    (a page cut into strips or panels) the resolution covering the most area does.
     """
+    if not found:
+        return None, 0.0
+    coverage = min(1.0, sum(share for _, share in found))
+    dpi, share = max(found, key=lambda item: item[1])
+    if share >= 0.5:
+        return dpi, coverage
+    return _weighted_median(found), coverage
+
+
+def measure_pdf_pages(source: Path, sample_pages: int = SAMPLE_PAGES) -> list[tuple[int, float | None, float]]:
+    """(page number, its art resolution or None, share of it covered) for pages sampled across the book."""
     document = pdfium.PdfDocument(source)
     try:
         count = len(document)
-        if not count:
-            return None
         picks = sorted({round(i * (count - 1) / max(1, sample_pages - 1))
                         for i in range(min(count, sample_pages))})
-        found = []
+        measured = []
         for index in picks:
             page = document[index]
             try:
-                found.extend(_image_resolutions(page))
+                measured.append((index + 1, *_page_resolution(_image_resolutions(page))))
             finally:
                 page.close()
+        return measured
     finally:
         document.close()
-    total = sum(share for _, share in found)
-    if total < 0.5 * len(picks):
+
+
+def suggest_from_pages(measured) -> int | None:
+    """The resolution most of the book's pages were made at, or None if they have little art.
+
+    Each sampled page counts once (less if its images cover only part of it), so a
+    minority of pages scanned larger than the rest doesn't push the suggestion up
+    and enlarge everything else. Returns None when images cover less than half of
+    the sampled pages, as in a PDF made mostly of text and drawings.
+    """
+    votes = [(dpi, coverage) for _, dpi, coverage in measured if dpi is not None]
+    if not measured or sum(coverage for _, coverage in votes) < 0.5 * len(measured):
         return None
-    # The resolution covering the most page area (weighted median).
-    running, dpi = 0.0, 0.0
-    for measured, share in sorted(found):
-        running += share
-        dpi = measured
-        if running >= total / 2:
-            break
+    dpi = _weighted_median(votes)
     nearest = min(COMMON_DPI, key=lambda common: abs(common - dpi))
     value = nearest if abs(nearest - dpi) <= 0.03 * nearest else round(dpi)
     return max(72, min(600, value))
+
+
+def suggest_pdf_dpi(source: Path, sample_pages: int = SAMPLE_PAGES) -> int | None:
+    """The resolution of the page art in a PDF, or None if it has little."""
+    return suggest_from_pages(measure_pdf_pages(source, sample_pages))
 
 
 def pdf_workers(requested: int = 0) -> int:
