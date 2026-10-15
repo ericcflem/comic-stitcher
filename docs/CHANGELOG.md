@@ -10,6 +10,10 @@
   edge and an invisible link. Each JPEG is still extracted byte for byte.
 - PDF import: when the original JPEGs can't be extracted, the Import PDF window
   says why, for example "Page 1: the JPEG is CMYK.", and the reason is logged.
+- PDF import: the suggested rendering resolution now follows the page artwork.
+  Lettering layers (often at a higher resolution) and a minority of larger scans
+  no longer push it up, so the suggestion doesn't enlarge most of the book. The
+  log lists what each sampled page measured.
 
 ## 0.7.0
 

@@ -28,10 +28,12 @@ SAMPLE_PAGES = 24
 
 
 def _image_resolutions(page):
-    """(dpi, share of the page covered) for each image drawn on a page.
+    """(dpi, share of the page covered, is a stencil mask) for each image drawn on a page.
 
     An image's resolution is its pixel size divided by the size it is drawn at.
     Images inside form objects are measured through the form's own scaling.
+    A stencil mask (a 1-bit shape painted in one colour, such as a lettering
+    layer) is marked, since its resolution says little about the artwork's.
     """
     import math
     import pypdfium2.raw as pdfium_c
@@ -61,7 +63,12 @@ def _image_resolutions(page):
         covered = (max(0, min(max(xs), page_width) - max(min(xs), 0))
                    * max(0, min(max(ys), page_height) - max(min(ys), 0)))
         if covered > 0:
-            found.append((dpi, covered / page_area))
+            try:
+                metadata = obj.get_metadata()
+                stencil = metadata.bits_per_pixel == 1 and metadata.colorspace == pdfium_c.FPDF_COLORSPACE_UNKNOWN
+            except Exception:  # noqa: BLE001 - unknown kinds of image count as artwork
+                stencil = False
+            found.append((dpi, covered / page_area, stencil))
     return found
 
 
@@ -79,17 +86,22 @@ def _weighted_median(found):
 def _page_resolution(found):
     """One page's art resolution, and how much of the page its images cover (at most 1).
 
-    When one image covers most of the page, that image is the page: artwork pieces
-    laid over it, often scanned at a higher resolution, don't decide. Otherwise
-    (a page cut into strips or panels) the resolution covering the most area does.
+    Stencil masks (lettering and other one-colour layers, often at a higher
+    resolution) count only on pages that have nothing else. When images cover
+    most of the page, the lowest-resolution one decides, so rendering at the
+    suggestion doesn't enlarge the page's main artwork. Otherwise (a page cut into
+    strips or panels) the resolution covering the most area does.
     """
-    if not found:
+    art = [(dpi, share) for dpi, share, stencil in found if not stencil]
+    if not art:
+        art = [(dpi, share) for dpi, share, _ in found]
+    if not art:
         return None, 0.0
-    coverage = min(1.0, sum(share for _, share in found))
-    dpi, share = max(found, key=lambda item: item[1])
-    if share >= 0.5:
-        return dpi, coverage
-    return _weighted_median(found), coverage
+    coverage = min(1.0, sum(share for _, share in art))
+    whole = [dpi for dpi, share in art if share >= 0.5]
+    if whole:
+        return min(whole), coverage
+    return _weighted_median(art), coverage
 
 
 def measure_pdf_pages(source: Path, sample_pages: int = SAMPLE_PAGES) -> list[tuple[int, float | None, float]]:
