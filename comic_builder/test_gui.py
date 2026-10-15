@@ -341,6 +341,7 @@ class ThumbnailTest(unittest.TestCase):
                 source, 'PDF', save_all=True, append_images=[Image.new('RGB', (100, 140), 'blue')])
             dialog = PdfImportDialog(source, 200, 0, right_to_left=True)
             try:
+                self.assertTrue(dialog.jpeg_reason.isHidden())  # No reason given: no line.
                 deadline = time.monotonic() + 3
                 while dialog.current_size is None and time.monotonic() < deadline:
                     self.app.processEvents()
@@ -928,11 +929,14 @@ class ThumbnailTest(unittest.TestCase):
                     return QDialog.Accepted
                 def check_render_settings(dialog):
                     self.assertFalse(dialog.smooth_images.isChecked())
+                    # The window says why the original JPEGs weren't offered.
+                    self.assertFalse(dialog.jpeg_reason.isHidden())
+                    self.assertIn("Page 1: the JPEG is CMYK.", dialog.jpeg_reason.text())
                     dialog.reject()
                     return dialog.result()
                 with patch.object(ImportChoiceDialog, "exec", choose_unsmoothed), \
                      patch.object(PdfImportDialog, "exec", check_render_settings), \
-                     patch("comic_builder.gui.inspect_pdf_jpegs", return_value=None):
+                     patch("comic_builder.gui.check_pdf_jpegs", return_value=(None, "Page 1: the JPEG is CMYK.")):
                     window._prepare_import(source)
                     self.wait_for(lambda window=window: window.pages.currentIndex() == 0)
             finally:

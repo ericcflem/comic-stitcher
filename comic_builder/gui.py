@@ -40,7 +40,7 @@ from .single_instance import LaunchBroker
 from .detector import collect_images
 from .archive_import import ARCHIVE_EXTS, import_archive
 from .pdf_import import import_pdf, pdf_workers, rendered_dimensions, suggest_pdf_dpi
-from .pdf_jpegs import inspect_pdf_jpegs
+from .pdf_jpegs import check_pdf_jpegs
 from .metadata_dialog import MetadataDialog
 from .comicvine import ComicVineClient
 from .key_store import can_remember_key, forget_key, protect_key, retrieve_key
@@ -1156,7 +1156,8 @@ class PdfPreviewWorker(QThread):
 
 class PdfImportDialog(OutlinedWindow, QDialog):
     def __init__(self, source: Path, dpi: int, workers: int,
-                 smooth_images: bool = True, parent=None, *, manual: bool = False, right_to_left: bool = False):
+                 smooth_images: bool = True, parent=None, *, manual: bool = False, right_to_left: bool = False,
+                 jpeg_reason: str | None = None):
         super().__init__(parent)
         self._setup_outline()  # GNOME on Wayland: a visible window edge
         self.source = source
@@ -1180,6 +1181,11 @@ class PdfImportDialog(OutlinedWindow, QDialog):
             "")
         explanation.setWordWrap(True)
         settings.addWidget(explanation)
+        # Why the original JPEGs weren't offered, when the PDF's pages are images.
+        self.jpeg_reason = QLabel(f"Original JPEGs can't be extracted:\n{jpeg_reason}" if jpeg_reason else "")
+        self.jpeg_reason.setWordWrap(True)
+        self.jpeg_reason.setVisible(bool(jpeg_reason))
+        settings.addWidget(self.jpeg_reason)
         form = QFormLayout()
         self.dpi = QSpinBox()
         self.dpi.setRange(72, 600)
@@ -2035,6 +2041,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.batch_import_active = False
         self.queue_jobs: list[QueuedComic] = []
         self.import_prompt_active = False
+        self.pdf_jpeg_reason = None  # Why the last PDF checked can't give up its original JPEGs.
         self.pending_imports: deque[Path] = deque()
         self.active_queue_job: QueuedComic | None = None
         self.queue_completed = 0
@@ -3453,15 +3460,16 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             self.progress_bar.setValue(0)
             self.pages.setCurrentWidget(self.progress_page)
             self._compact_window()
-            self._run_worker(inspect_pdf_jpegs, (folder,),
-                             lambda report: self._pdf_images_checked(folder, report, manual_mode, pdf_smooth_images))
+            self._run_worker(check_pdf_jpegs, (folder,),
+                             lambda result: self._pdf_images_checked(folder, *result, manual_mode, pdf_smooth_images))
             return
         if folder.is_file() and folder.suffix.lower() == ".pdf" and pdf_dpi is None:
             dialog = PdfImportDialog(folder, int(self.settings.value("pdf_dpi", 300)),
                                      int(self.settings.value("pdf_workers", 0)),
                                      (pdf_smooth_images if pdf_smooth_images is not None else
                                       str(self.settings.value("pdf_smooth_images", "true")).lower() != "false"),
-                                     self, manual=manual_mode, right_to_left=self.active_right_to_left)
+                                     self, manual=manual_mode, right_to_left=self.active_right_to_left,
+                                     jpeg_reason=self.pdf_jpeg_reason if pdf_checked else None)
             if dialog.exec() != QDialog.Accepted:
                 self.pages.setCurrentIndex(0)
                 self._compact_window()
@@ -3506,7 +3514,10 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                                      right_to_left=self.active_right_to_left),
                              (folder,), self.scan_done)
 
-    def _pdf_images_checked(self, source, report, manual_mode, smooth_images):
+    def _pdf_images_checked(self, source, report, reason, manual_mode, smooth_images):
+        self.pdf_jpeg_reason = reason
+        if reason:
+            diagnostics.note("Original JPEGs not offered for %s: %s", source.name, reason)
         self.import_prompt_active = True
         try:
             self._pdf_images_checked_dialog(source, report, manual_mode, smooth_images)
