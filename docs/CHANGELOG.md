@@ -5,6 +5,11 @@
 - Linux: started from the app menu, Comic Stitcher now tells the desktop it has
   finished starting, so the busy cursor stops once the window appears instead of
   spinning for about 15 seconds.
+- PDF import: original JPEGs are now offered for PDFs made by TCPDF (such as
+  Humanoids' books), which add a page number below the page, a hairline along its
+  edge and an invisible link. Each JPEG is still extracted byte for byte.
+- PDF import: when the original JPEGs can't be extracted, the Import PDF window
+  says why, for example "Page 1: the JPEG is CMYK.", and the reason is logged.
 
 ## 0.7.0
 
