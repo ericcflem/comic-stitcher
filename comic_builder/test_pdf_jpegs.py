@@ -3,8 +3,9 @@ import unittest
 from pathlib import Path
 from PIL import Image
 from pypdf import PdfReader, PdfWriter
-from pypdf.generic import DecodedStreamObject, NameObject, ArrayObject, NumberObject
-from .pdf_jpegs import inspect_pdf_jpegs, import_pdf_jpegs
+from pypdf.generic import (ArrayObject, DecodedStreamObject, DictionaryObject, FloatObject, NameObject,
+                           NumberObject)
+from .pdf_jpegs import check_pdf_jpegs, inspect_pdf_jpegs, import_pdf_jpegs
 
 
 class PdfJpegTests(unittest.TestCase):
@@ -62,7 +63,7 @@ class PdfJpegTests(unittest.TestCase):
             root = Path(tmp)
             source = root / 'book.pdf'
             self.simple_pdf(source)
-            for content in (b'0 0 1 1 re f', b'BT ET', b'0 0 1 1 re W n'):
+            for content in (b'0 0 1 1 re f', b'BT /F1 12 Tf 10 10 Td (Hi) Tj ET', b'0 0 1 1 re W n'):
                 def change(page, content=content):
                     stream = DecodedStreamObject()
                     stream.set_data(page.get_contents().get_data() + b'\n' + content)
@@ -223,3 +224,64 @@ class PdfJpegTests(unittest.TestCase):
                     page['/Resources']['/XObject'][name] = image
                 target = root / 'profile.pdf'; self.modified(source, target, change)
                 self.assertEqual(inspect_pdf_jpegs(target) is not None, matching)
+
+    def tcpdf_like(self, page, extra=b'', *, border=0, font='/Helvetica', number_y=-11.52):
+        """The extras TCPDF adds around a full-page JPEG: empty text blocks, a hairline
+        along the bottom edge, a page number just below the page, and a borderless link."""
+        width = float(page.cropbox.width)
+        resources = page['/Resources']
+        resources[NameObject('/Font')] = DictionaryObject({NameObject('/F1'): DictionaryObject({
+            NameObject('/Type'): NameObject('/Font'), NameObject('/Subtype'): NameObject('/Type1'),
+            NameObject('/BaseFont'): NameObject(font)})})
+        stream = DecodedStreamObject()
+        stream.set_data(b'0.57 w 0 J 0 j [] 0 d 0 G 0 g\nBT /F1 12.00 Tf ET\n' + page.get_contents().get_data()
+                        + b'\nq BT /F1 12.00 Tf ET 0.85 w 2 J 0 0 0 RG 0 g\n'
+                        + f'0.00 0.00 m {width:.2f} 0.00 l S\n'.encode()
+                        + f'q 0 0 0 rg BT 0 Tr 0.00 w ET BT {width - 60:.2f} {number_y:.2f} Td [( 1 / 2)] TJ ET Q\nQ\n'.encode()
+                        + extra)
+        page[NameObject('/Contents')] = stream
+        page[NameObject('/Annots')] = ArrayObject([DictionaryObject({
+            NameObject('/Type'): NameObject('/Annot'), NameObject('/Subtype'): NameObject('/Link'),
+            NameObject('/Rect'): ArrayObject([FloatObject(0), FloatObject(0), FloatObject(10), FloatObject(10)]),
+            NameObject('/Border'): ArrayObject([NumberObject(0), NumberObject(0), NumberObject(border)])})])
+
+    def test_tcpdf_extras_still_allow_extraction(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); source = root / 'book.pdf'; self.simple_pdf(source)
+            expected = [next(iter(page['/Resources']['/XObject'].values())).get_object().get_data()
+                        for page in PdfReader(source).pages]
+            target = root / 'tcpdf.pdf'
+            self.modified(source, target, self.tcpdf_like)
+            report, reason = check_pdf_jpegs(target)
+            self.assertIsNone(reason)
+            self.assertEqual(report.pages, 2)
+            scan = import_pdf_jpegs(target, root / 'stage', manual=True)
+            self.assertEqual([p.path.read_bytes() for p in scan.pages], expected)
+
+    def test_reasons_say_why_jpegs_are_not_extracted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); source = root / 'book.pdf'; self.simple_pdf(source)
+            cases = [
+                (lambda page: self.tcpdf_like(page, number_y=2), 'Page 2: the page has visible text.'),
+                (lambda page: self.tcpdf_like(page, font='/MadeUpFont'), 'Page 2: the page has visible text.'),
+                (lambda page: self.tcpdf_like(page, border=1),
+                 'Page 2: the page has annotations, such as comments or stamps.'),
+                (lambda page: self.tcpdf_like(page, b'5 w 0 0 m 10 0 l S'),
+                 'Page 2: the page draws lines or shapes besides the image.'),
+                (lambda page: self.tcpdf_like(page, b'0 0 m 10 10 l S'),
+                 'Page 2: the page draws lines or shapes besides the image.'),
+                (lambda page: page.__setitem__(NameObject('/Rotate'), NumberObject(90)), 'Page 2: the page is rotated.'),
+            ]
+            for change, expected in cases:
+                target = root / 'modified.pdf'
+                self.modified(source, target, change)
+                self.assertEqual(check_pdf_jpegs(target), (None, expected))
+            writer = PdfWriter(clone_from=PdfReader(source))
+            writer.encrypt('', 'owner')
+            writer.write(root / 'locked.pdf')
+            self.assertEqual(check_pdf_jpegs(root / 'locked.pdf'),
+                             (None, 'The PDF is encrypted (its publisher restricts copying or printing).'))
+            (root / 'broken.pdf').write_bytes(b'not a pdf')
+            report, reason = check_pdf_jpegs(root / 'broken.pdf')
+            self.assertIsNone(report)
+            self.assertTrue(reason.startswith('The PDF could not be examined'))
