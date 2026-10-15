@@ -37,12 +37,14 @@ def strip_stats(arr: np.ndarray, side: str, width: int) -> dict:
 
 
 def _strip_metrics(strip: np.ndarray, width: int) -> dict:
-    # Per-pixel mean color, then variation across the strip
+    # Variation across the strip, measured per colour channel. (Measuring all
+    # channels together counted a flat teal or brown as varied, because its red,
+    # green and blue values differ; only black, white and pure greys were solid.)
     flat = strip.reshape(-1, 3).astype(np.float32)
-    std = float(flat.std())
+    std = float(flat.std(axis=0).max())
     # How much the strip changes from top to bottom (true border is stable)
     row_means = strip.mean(axis=1).astype(np.float32)  # (h, 3)
-    vertical_std = float(row_means.std())
+    vertical_std = float(row_means.std(axis=0).max())
     # Dominant color
     mean_color = flat.mean(axis=0).tolist()
     return {

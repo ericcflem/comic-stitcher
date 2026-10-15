@@ -16,7 +16,12 @@ from .archive_import import import_archive
 class ReadingDirectionTests(unittest.TestCase):
     def make_pages(self, root):
         for name, colour in [('001.png', 'red'), ('002.png', 'blue')]:
-            Image.new('RGB', (80, 120), colour).save(root / name)
+            page = Image.new('RGB', (80, 120), colour)
+            # Varied stripes lower down, as artwork has, so the edges aren't plain
+            # borders (a plain red or blue edge counts as a border, like black or white).
+            for row, stripe in enumerate(range(40, 120, 8)):
+                page.paste(((row * 70) % 256, (row * 130) % 256, (row * 190) % 256), (0, stripe, 80, stripe + 4))
+            page.save(root / name)
 
     def test_seam_detection_checks_opposite_edges(self):
         with tempfile.TemporaryDirectory() as tmp:

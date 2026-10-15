@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Spread suggestions: plain page edges in any colour (teal, brown, tinted grey)
+  now count as borders, as black, white and grey always did. Pages on matching
+  coloured backgrounds are no longer suggested as spreads.
 - Linux: started from the app menu, Comic Stitcher now tells the desktop it has
   finished starting, so the busy cursor stops once the window appears instead of
   spinning for about 15 seconds.
