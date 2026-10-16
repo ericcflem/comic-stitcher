@@ -13,6 +13,7 @@ cwebp is used (the "webp" package on most Linux distributions).
 from __future__ import annotations
 
 import functools
+import io
 import os
 import re
 import shutil
@@ -62,8 +63,22 @@ def sharp_yuv_available() -> bool:
     return cwebp_tool() is not None
 
 
+def _input(image: Image.Image, windows: bool | None = None) -> bytes:
+    """The image as a file cwebp can read from standard input.
+
+    Google's Windows cwebp reads input through Windows Imaging Component, which
+    has no PAM reader, so it gets an uncompressed PNG. Elsewhere PAM, which every
+    cwebp reads with no image libraries, is quicker. Either way the pixels are
+    exactly the image's own; the colour profile is added to the WebP afterwards.
+    """
+    if os.name == "nt" if windows is None else windows:
+        buffer = io.BytesIO()
+        image.save(buffer, "PNG", compress_level=0, icc_profile=None)
+        return buffer.getvalue()
+    return _pam(image)
+
+
 def _pam(image: Image.Image) -> bytes:
-    """The image as a PAM file, which cwebp reads from standard input."""
     alpha = image.mode == "RGBA"
     header = (f"P7\nWIDTH {image.width}\nHEIGHT {image.height}\nDEPTH {4 if alpha else 3}\n"
               f"MAXVAL 255\nTUPLTYPE {'RGB_ALPHA' if alpha else 'RGB'}\nENDHDR\n")
@@ -107,7 +122,7 @@ def save_sharp_webp(image: Image.Image, path: Path, quality: int, method: int,
         image = image.convert("RGBA" if image.has_transparency_data else "RGB")
     command = [tool, "-quiet", "-q", str(quality), "-m", str(method),
                *(["-sharp_yuv"] if sharp_yuv else []), "-o", "-", "--", "-"]
-    result = subprocess.run(command, input=_pam(image), capture_output=True, check=False, **_hidden_window())
+    result = subprocess.run(command, input=_input(image), capture_output=True, check=False, **_hidden_window())
     if result.returncode != 0 or not result.stdout:
         message = result.stderr.decode(errors="replace").strip() or f"exit code {result.returncode}"
         raise RuntimeError(f"cwebp could not encode the image: {message}")

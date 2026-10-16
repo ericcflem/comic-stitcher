@@ -91,6 +91,26 @@ class SharpWebpTests(unittest.TestCase):
         with patch("comic_builder.backend.save_sharp_webp", side_effect=AssertionError("cwebp used")):
             _save_image(image, target, "webp", ExportOptions("t", webp_sharp_yuv=True, webp_lossless=True))
 
+    def test_png_input_as_windows_uses_gives_the_same_file(self):
+        # Google's Windows cwebp can't read PAM, so Windows sends a PNG instead.
+        rng = np.random.default_rng(4)
+        for mode, depth in (("RGB", 3), ("RGBA", 4)):
+            image = Image.fromarray(rng.integers(0, 255, (64, 48, depth), dtype=np.uint8), mode)
+            image.info["icc_profile"] = PROFILE
+            png = sharp_webp._input(image, windows=True)
+            with Image.open(io.BytesIO(png)) as decoded:
+                self.assertEqual(decoded.tobytes(), image.tobytes())
+                self.assertNotIn("icc_profile", decoded.info)
+            outputs = []
+            # Encode both inputs with the installed cwebp, when it reads PNG.
+            for data in (sharp_webp._pam(image), png):
+                result = subprocess.run([sharp_webp.cwebp_tool(), "-quiet", "-q", "90", "-sharp_yuv",
+                                         "-o", "-", "--", "-"], input=data, capture_output=True)
+                outputs.append(result.stdout if result.returncode == 0 else None)
+            if outputs[1] is None:
+                self.skipTest("this cwebp was built without PNG input")
+            self.assertEqual(outputs[0], outputs[1])
+
     def test_writes_to_a_file_object_for_the_size_estimate(self):
         image = red_and_blue_lettering()
         buffer = io.BytesIO()
