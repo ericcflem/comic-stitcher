@@ -1,5 +1,6 @@
 """WebP with sharp RGB->YUV conversion, encoded by libwebp's cwebp."""
 import io
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -107,9 +108,12 @@ class SharpWebpTests(unittest.TestCase):
                 result = subprocess.run([sharp_webp.cwebp_tool(), "-quiet", "-q", "90", "-sharp_yuv",
                                          "-o", "-", "--", "-"], input=data, capture_output=True)
                 outputs.append(result.stdout if result.returncode == 0 else None)
-            if outputs[1] is None:
+            if os.name == "nt":
+                self.assertIsNotNone(outputs[1])  # The Windows build must read the PNG.
+            elif outputs[1] is None:
                 self.skipTest("this cwebp was built without PNG input")
-            self.assertEqual(outputs[0], outputs[1])
+            if outputs[0] is not None:  # Google's Windows build can't read PAM at all.
+                self.assertEqual(outputs[0], outputs[1])
 
     def test_writes_to_a_file_object_for_the_size_estimate(self):
         image = red_and_blue_lettering()
