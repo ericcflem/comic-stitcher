@@ -12,3 +12,4 @@ runtime-integration/
 vendor/microsoft/
 third_party_sources/*.tar.*
 vendor/unrar.exe
+vendor/cwebp.exe

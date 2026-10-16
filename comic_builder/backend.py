@@ -21,6 +21,8 @@ import py7zr
 from PIL import Image, ImageFile, ImageOps, ImageCms
 from io import BytesIO
 
+from .sharp_webp import save_sharp_webp
+
 from .detector import (
     classify_page, collect_images, is_candidate_pair, load_edge_rgb,
     seam_score,
@@ -472,6 +474,7 @@ class ExportOptions:
     jpeg_smooth: int = 0
     webp_method: int = 4
     webp_lossless: bool = False
+    webp_sharp_yuv: bool = False  # Sharper colour edges in lossy WebP; about twice the encoding time.
     png_compress: int = 6
     workers: int = 0  # 0 = automatic (half of logical processors, capped at six)
     size_output: str = "full"  # full, reduced, or both
@@ -487,7 +490,8 @@ class ExportOptions:
 
 
 ENCODER_FIELDS = ("format", "jpeg_quality", "webp_quality", "jpeg_progressive", "jpeg_optimize",
-                  "jpeg_subsampling", "jpeg_smooth", "webp_method", "webp_lossless", "png_compress")
+                  "jpeg_subsampling", "jpeg_smooth", "webp_method", "webp_lossless", "webp_sharp_yuv",
+                  "png_compress")
 
 
 def copy_encoding_options(opt: ExportOptions, reduced: bool = False) -> ExportOptions:
@@ -653,6 +657,8 @@ def _save_image(image: Image.Image, path: Path, fmt: str, opt: ExportOptions) ->
                            smooth=opt.jpeg_smooth, **colour_metadata)
             finally:
                 ImageFile.MAXBLOCK = previous_block
+    elif fmt == "webp" and opt.webp_sharp_yuv and not opt.webp_lossless:
+        save_sharp_webp(image, path, opt.webp_quality, opt.webp_method, colour_metadata.get("icc_profile"))
     elif fmt == "webp":
         image.save(path, "WEBP", quality=opt.webp_quality, method=opt.webp_method,
                    lossless=opt.webp_lossless, **colour_metadata)

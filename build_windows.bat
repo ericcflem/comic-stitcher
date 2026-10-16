@@ -24,6 +24,12 @@ if exist "vendor\unrar.exe" (
 ) else (
     echo UnRAR not included: place the matching executable and license in vendor to enable bundled RAR import.
 )
+if exist "vendor\cwebp.exe" (
+    python package_cwebp.py "vendor\cwebp.exe" "dist\ComicStitcher"
+    if errorlevel 1 goto :failed
+) else (
+    echo cwebp not included: sharp color conversion for WebP will be unavailable.
+)
 echo.
 echo Built: dist\ComicStitcher\ComicStitcher.exe
 echo Keep the complete ComicStitcher folder together.

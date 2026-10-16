@@ -21,6 +21,10 @@ if exist "vendor\unrar.exe" (
     "%STITCHER_PYTHON%" package_unrar.py "vendor\unrar.exe" "vendor\license.txt" "dist\ComicStitcher"
     if errorlevel 1 goto :failed
 )
+if exist "vendor\cwebp.exe" (
+    "%STITCHER_PYTHON%" package_cwebp.py "vendor\cwebp.exe" "dist\ComicStitcher"
+    if errorlevel 1 goto :failed
+)
 "%STITCHER_PYTHON%" verify_no_qt_pdf.py dist\ComicStitcher
 if errorlevel 1 goto :failed
 "%STITCHER_PYTHON%" package_shared_runtime.py deploy dist\ComicStitcher

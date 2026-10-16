@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- WebP export: new **Sharp color conversion (sharp YUV)** option under the WebP
+  encoder settings. Edges between strong colors, such as red lettering or blue
+  sky against black ink, stay clean instead of bleeding or darkening. Encoding
+  takes about twice as long and files are a few percent larger, so it is off by
+  default. Windows builds include Google's `cwebp` encoder for it; on Linux,
+  `linux/install.sh` offers to install it.
 - Spread suggestions: plain page edges in any colour (teal, brown, tinted grey)
   now count as borders, as black, white and grey always did. Pages on matching
   coloured backgrounds are no longer suggested as spreads.
