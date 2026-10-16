@@ -91,6 +91,14 @@ class SharpWebpTests(unittest.TestCase):
         with patch("comic_builder.backend.save_sharp_webp", side_effect=AssertionError("cwebp used")):
             _save_image(image, target, "webp", ExportOptions("t", webp_sharp_yuv=True, webp_lossless=True))
 
+    def test_writes_to_a_file_object_for_the_size_estimate(self):
+        image = red_and_blue_lettering()
+        buffer = io.BytesIO()
+        _save_image(image, buffer, "webp", ExportOptions("t", webp_sharp_yuv=True))
+        target = self.folder / "page.webp"
+        _save_image(image, target, "webp", ExportOptions("t", webp_sharp_yuv=True))
+        self.assertEqual(buffer.getvalue(), target.read_bytes())
+
     def test_greyscale_and_palette_pages_are_converted_first(self):
         for image in (Image.new("L", (40, 30), 128), Image.new("P", (40, 30), 3)):
             target = self.folder / "page.webp"

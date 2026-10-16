@@ -786,7 +786,8 @@ class AdvancedSettingsWidget(QWidget):
                                "carefully, so edges between strong colors, such as red lettering or blue sky "
                                "against black ink, stay clean instead of bleeding or darkening. Encoding takes "
                                "about twice as long and files are a few percent larger. Lossless WebP doesn't "
-                               "need it.")
+                               "need it. It works alongside gamma-corrected resizing: resizing happens "
+                               "first, then this conversion, both treating colors as sRGB.")
         form_hint(wf, self.sharp_yuv, self.sharp_yuv_hint)
         self.lossless.toggled.connect(self._update_sharp_yuv)
         self._update_sharp_yuv()
@@ -871,7 +872,8 @@ class ResizeSettingsWidget(QWidget):
         form_hint(form, self.gamma,
                   "Blend colors in linear light while resizing, then convert them back for display. "
                   "This can keep bright details from becoming too dark and help colored edges look "
-                  "more natural. It uses more processing time and assumes sRGB color.")
+                  "more natural. It uses more processing time. It treats colors as sRGB, the usual "
+                  "color space for comics; pages tagged with another color profile are converted to sRGB first.")
         self.filter = QComboBox()
         self.filter.addItems(["Bilinear", "Bicubic", "Lanczos"])
         self.filter.setCurrentText(values["filter"].title())

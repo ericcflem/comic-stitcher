@@ -114,4 +114,7 @@ def save_sharp_webp(image: Image.Image, path: Path, quality: int, method: int,
     data = result.stdout
     if icc_profile:
         data = with_icc(data, icc_profile, image.size)
-    Path(path).write_bytes(data)
+    if hasattr(path, "write"):  # A file object, as the size estimate passes.
+        path.write(data)
+    else:
+        Path(path).write_bytes(data)
