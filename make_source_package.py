@@ -8,9 +8,10 @@
     python make_source_package.py --update
         (Maintainers, in a git checkout.) Rewrites SOURCE_PACKAGE_FILES.json from
         the files git tracks, keeping the recorded entries for the large inputs git
-        does not hold: third_party_sources/*.tar.* and vendor/unrar.exe.
+        does not hold: third_party_sources/*.tar.*, vendor/unrar.exe and
+        vendor/cwebp.exe (a tool present on disk is listed from the file itself).
 
-The library source archives and unrar.exe are not in the git repository. Copy
+The library source archives, unrar.exe and cwebp.exe are not in the git repository. Copy
 them from the previous release's source package (they are unchanged unless the
 pinned dependencies change) into third_party_sources/ and vendor/ first.
 """
@@ -26,7 +27,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 LISTING = ROOT / "SOURCE_PACKAGE_FILES.json"
-NOT_IN_GIT = ("third_party_sources/", "vendor/unrar.exe")
+NOT_IN_GIT = ("third_party_sources/", "vendor/unrar.exe", "vendor/cwebp.exe")
 
 
 def version() -> str:
@@ -53,6 +54,9 @@ def update() -> None:
     previous = {item["path"]: item for item in json.loads(LISTING.read_text(encoding="utf-8"))["files"]}
     files = [entry(path) for path in tracked if path and path != LISTING.name]
     files += [item for path, item in previous.items() if path.startswith(NOT_IN_GIT)]
+    listed = {item["path"] for item in files}
+    files += [entry(path) for path in NOT_IN_GIT
+              if not path.endswith("/") and path not in listed and (ROOT / path).is_file()]
     files.sort(key=lambda item: item["path"])
     LISTING.write_text(json.dumps({
         "scope": f"Comic Stitcher {version()} source package. Library source archives and "

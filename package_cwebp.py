@@ -52,8 +52,10 @@ def main(executable: Path, destination: Path) -> None:
         data["external_tools"] = tools
         data["runtime_tool_notices"] = [row for row in data.get("runtime_tool_notices", [])
                                         if row.get("name") != "libwebp cwebp"]
-        data["runtime_tool_notices"].append({"name": "libwebp cwebp", "version": record["version"],
-                                             "license": "BSD-3-Clause"})
+        data["runtime_tool_notices"].append({
+            "name": "libwebp cwebp", "version": record["version"], "license": "BSD-3-Clause",
+            "notices": ["libwebp/COPYING.txt", "libwebp/PATENTS.txt"],
+            "role": "WebP encoder run for sharp color conversion; separate executable"})
         data["binaries"] = [entry for entry in data.get("binaries", []) if entry["path"].casefold() != "cwebp.exe"]
         data["binaries"].append({"path": "cwebp.exe", "sha256": digest})
         inventory.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
