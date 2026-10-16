@@ -22,6 +22,7 @@ It imports PDFs, image folders, compressed archives, existing comic book files a
 
 - **Windows:** The official Windows installer includes the Python runtime and all necessary dependencies. No external installations of ImageMagick, Ghostscript, Poppler, or FFmpeg are required.
 - **UnRAR:** RAR/CBR import relies on the companion UnRAR utility bundled with the installer. Exporting to CBR/RAR is not supported.
+- **cwebp:** WebP's sharp color conversion uses Google's `cwebp.exe` from libwebp, bundled with the installer.
 - **System Dependencies:** If needed, the installer will prompt to install the Microsoft Visual C++ x64 runtime.
 - **Linux:** Install from the source download with `linux/install.sh` (see [Installing on Linux](#installing-on-linux)). An AppImage is planned.
 
@@ -41,6 +42,7 @@ You can delete the downloaded folder afterwards. To update, download the new ver
 
 Notes:
 - **RAR/CBR import** uses whichever RAR extractor is installed (UnRAR, unar, 7-Zip or bsdtar). On Ubuntu or Debian, `sudo apt install unar` adds one.
+- **Sharp color conversion for WebP** uses libwebp's `cwebp` tool. `linux/install.sh` offers to install it; on Ubuntu or Debian it is `sudo apt install webp`. Without it the option is greyed out.
 - **A remembered ComicVine key** is kept in the desktop keyring, such as GNOME Keyring or KDE Wallet.
 - **On GNOME's Wayland desktop,** Comic Stitcher runs through XWayland, so GNOME draws its window frame and shadow. To use native Wayland instead, set `COMIC_STITCHER_NATIVE_WAYLAND=1`. You might want this if text looks blurry with fractional display scaling.
 

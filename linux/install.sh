@@ -111,10 +111,14 @@ package_manager() {
     done
 }
 
-# package_name MANAGER (venv|nautilus-python)
+# package_name MANAGER (venv|nautilus-python|cwebp)
 package_name() {
     case "$1:$2" in
         apt-get:venv)            printf 'python3-venv' ;;
+        apt-get:cwebp)           printf 'webp' ;;
+        dnf:cwebp)               printf 'libwebp-tools' ;;
+        pacman:cwebp)            printf 'libwebp' ;;
+        zypper:cwebp)            printf 'libwebp-tools' ;;
         apt-get:nautilus-python) printf 'python3-nautilus' ;;
         dnf:nautilus-python)     printf 'nautilus-python' ;;
         pacman:nautilus-python)  printf 'python-nautilus' ;;
@@ -178,6 +182,13 @@ check_system() {
         name=$(package_name "$manager" nautilus-python)
         if [ -n "$name" ]; then
             needed+=("$name"); reasons+=("$name: puts 'Open in Comic Stitcher' directly in Files' right-click menu for folders (optional; otherwise it goes under Scripts)")
+        fi
+    fi
+
+    if ! command -v cwebp >/dev/null 2>&1; then
+        name=$(package_name "$manager" cwebp)
+        if [ -n "$name" ]; then
+            needed+=("$name"); reasons+=("$name: lets WebP export use sharp color conversion (optional)")
         fi
     fi
 

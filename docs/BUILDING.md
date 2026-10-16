@@ -35,6 +35,13 @@ always serves the newest version, so if it is newer than the recorded one, use t
 recorded version's `unrar.exe` from a release source package, or update the record
 and its hashes as a reviewed change.
 
+WebP's sharp color conversion uses Google's official `cwebp.exe`, placed at
+`vendor/cwebp.exe`. Download the libwebp Windows zip named in
+`vendor/CWEBP-PROVENANCE.json` and copy `bin/cwebp.exe` from it. Its BSD licence and
+patent grant are already in `vendor/libwebp/`. The build checks the version, and the
+SHA-256 once one is recorded. Without it the app still builds, and the option is
+greyed out.
+
 No ImageMagick, Ghostscript, Poppler, ffmpeg or external 7-Zip installation is used.
 The normal wheel-based build does not require compiling Qt or the archive codecs.
 

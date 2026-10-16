@@ -553,6 +553,36 @@ class ThumbnailTest(unittest.TestCase):
             finally:
                 window.close()
 
+    def test_sharp_yuv_option_is_per_size_and_needs_lossy_webp_and_cwebp(self):
+        window = ComicWindow()
+        self.addCleanup(window.close)
+        with patch("comic_builder.gui.sharp_yuv_available", return_value=True):
+            dialog = OutputOptionsDialog(ExportOptions("Book", format="webp"), window.custom_resize_values)
+            try:
+                full, reduced = dialog.advanced, dialog.reduced_advanced
+                self.assertTrue(full.sharp_yuv.isEnabled())
+                full.lossless.setChecked(True)
+                self.assertFalse(full.sharp_yuv.isEnabled())  # Lossless WebP has nothing to sharpen.
+                full.lossless.setChecked(False)
+                reduced.sharp_yuv.setChecked(True)
+                opt = ExportOptions("Book")
+                dialog.apply_to(opt)
+                self.assertFalse(opt.webp_sharp_yuv)
+                self.assertTrue(opt.reduced_settings["webp_sharp_yuv"])
+            finally:
+                dialog.close()
+        with patch("comic_builder.gui.sharp_yuv_available", return_value=False):
+            dialog = OutputOptionsDialog(ExportOptions("Book", format="webp", webp_sharp_yuv=True),
+                                         window.custom_resize_values)
+            try:
+                self.assertFalse(dialog.advanced.sharp_yuv.isEnabled())
+                self.assertIn("cwebp", dialog.advanced.sharp_yuv.toolTip())
+                opt = ExportOptions("Book")
+                dialog.apply_to(opt)
+                self.assertFalse(opt.webp_sharp_yuv)  # Never asks for a tool that isn't there.
+            finally:
+                dialog.close()
+
     def test_output_formats_control_advanced_panels_and_reduced_override(self):
         window = ComicWindow()
         dialog = OutputOptionsDialog(ExportOptions("Test"), window.custom_resize_values)

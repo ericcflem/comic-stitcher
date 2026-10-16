@@ -53,7 +53,20 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3 xvfb
+            libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3 xvfb webp
+
+      - name: Fetch Google's cwebp.exe, as the Windows release bundles it
+        # So the sharp YUV tests run against the same encoder Windows users get.
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $record = Get-Content vendor/CWEBP-PROVENANCE.json -Raw | ConvertFrom-Json
+          Invoke-WebRequest $record.upstream_download -OutFile "$env:RUNNER_TEMP/libwebp.zip"
+          Expand-Archive "$env:RUNNER_TEMP/libwebp.zip" "$env:RUNNER_TEMP/libwebp"
+          $exe = Get-ChildItem "$env:RUNNER_TEMP/libwebp" -Recurse -Filter cwebp.exe | Select-Object -First 1
+          $hash = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne $record.executable_sha256) { throw "cwebp.exe SHA-256 $hash is not the recorded one" }
+          Copy-Item $exe.FullName vendor/cwebp.exe
 
       - name: Install Comic Stitcher's requirements
         # The packaging tests also use these release tools, pinned to the versions

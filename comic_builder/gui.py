@@ -41,6 +41,7 @@ from .detector import collect_images
 from .archive_import import ARCHIVE_EXTS, import_archive
 from .pdf_import import import_pdf, measure_pdf_pages, pdf_workers, rendered_dimensions, suggest_from_pages
 from .pdf_jpegs import check_pdf_jpegs
+from .sharp_webp import sharp_yuv_available
 from .metadata_dialog import MetadataDialog
 from .comicvine import ComicVineClient
 from .key_store import can_remember_key, forget_key, protect_key, retrieve_key
@@ -770,14 +771,26 @@ class AdvancedSettingsWidget(QWidget):
         self.method = QSpinBox()
         self.method.setRange(0, 6)
         self.method.setValue(opt.webp_method)
+        self.sharp_yuv = QCheckBox("Sharp color conversion (sharp YUV)")
+        self.sharp_yuv.setChecked(opt.webp_sharp_yuv)
         wf.addRow(self.lossless)
         wf.addRow("Compression effort", self.method)
+        wf.addRow(self.sharp_yuv)
         form_hint(wf, self.lossless,
                   "Preserves decoded pixel values instead of using lossy WebP compression. Files may be larger. "
                   "In lossless mode, the main WebP quality value controls compression effort, not image quality.")
         form_hint(wf, self.method,
                   "WebP encoder method, 0–6. Higher values generally spend more CPU time seeking "
                   "a smaller or better-encoded file; they do not change the selected quality setting.")
+        self.sharp_yuv_hint = ("Lossy WebP keeps color at half resolution. This chooses that color more "
+                               "carefully, so edges between strong colors, such as red lettering or blue sky "
+                               "against black ink, stay clean instead of bleeding or darkening. Encoding takes "
+                               "about twice as long and files are a few percent larger. Lossless WebP doesn't "
+                               "need it. It works alongside gamma-corrected resizing: resizing happens "
+                               "first, then this conversion, both treating colors as sRGB.")
+        form_hint(wf, self.sharp_yuv, self.sharp_yuv_hint)
+        self.lossless.toggled.connect(self._update_sharp_yuv)
+        self._update_sharp_yuv()
         self.stack.addWidget(webp)
         png = QWidget()
         pf = QFormLayout(png)
@@ -797,6 +810,14 @@ class AdvancedSettingsWidget(QWidget):
         reset.clicked.connect(self.reset_defaults)
         layout.addWidget(reset, alignment=Qt.AlignRight)
 
+    def _update_sharp_yuv(self):
+        available = sharp_yuv_available()
+        self.sharp_yuv.setEnabled(available and not self.lossless.isChecked())
+        self.sharp_yuv.setToolTip(tooltip_text(
+            self.sharp_yuv_hint if available else
+            "Needs libwebp's cwebp tool, which wasn't found. Windows builds include it; "
+            "on Linux, install the \"webp\" package."))
+
     def reset_defaults(self):
         self.progressive.setChecked(False)
         self.optimize.setChecked(True)
@@ -804,6 +825,7 @@ class AdvancedSettingsWidget(QWidget):
         self.smooth.setValue(0)
         self.lossless.setChecked(False)
         self.method.setValue(4)
+        self.sharp_yuv.setChecked(False)
         self.compress.setValue(6)
         self.reset_requested.emit()
 
@@ -814,6 +836,7 @@ class AdvancedSettingsWidget(QWidget):
         self.opt.jpeg_smooth = self.smooth.value()
         self.opt.webp_lossless = self.lossless.isChecked()
         self.opt.webp_method = self.method.value()
+        self.opt.webp_sharp_yuv = self.sharp_yuv.isChecked() and sharp_yuv_available()
         self.opt.png_compress = self.compress.value()
 
 
@@ -849,7 +872,8 @@ class ResizeSettingsWidget(QWidget):
         form_hint(form, self.gamma,
                   "Blend colors in linear light while resizing, then convert them back for display. "
                   "This can keep bright details from becoming too dark and help colored edges look "
-                  "more natural. It uses more processing time and assumes sRGB color.")
+                  "more natural. It uses more processing time. It treats colors as sRGB, the usual "
+                  "color space for comics; pages tagged with another color profile are converted to sRGB first.")
         self.filter = QComboBox()
         self.filter.addItems(["Bilinear", "Bicubic", "Lanczos"])
         self.filter.setCurrentText(values["filter"].title())
@@ -1071,7 +1095,7 @@ class OutputOptionsDialog(OutlinedWindow, QDialog):
         opt.webp_quality = self.webp_quality.value()
         self.advanced.apply()
         for name in ("jpeg_progressive", "jpeg_optimize", "jpeg_subsampling", "jpeg_smooth",
-                     "webp_lossless", "webp_method", "png_compress"):
+                     "webp_lossless", "webp_method", "webp_sharp_yuv", "png_compress"):
             setattr(opt, name, getattr(self.draft, name))
         self.reduced_advanced.apply()
         opt.reduced_custom = True  # The reduced copy always has its own settings now.
@@ -2094,7 +2118,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         for name, default in (("jpeg_progressive", False), ("jpeg_optimize", True),
                               ("jpeg_subsampling", 0), ("jpeg_smooth", 0),
                               ("webp_lossless", False), ("webp_method", 4),
-                              ("png_compress", 6)):
+                              ("webp_sharp_yuv", False), ("png_compress", 6)):
             setattr(self.opt, name, self.settings.value(name, default, type=type(default)))
         self.opt.reduced_custom = self.settings.value("reduced_custom", False, type=bool)
         try:
@@ -4500,7 +4524,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                            ("output_sizes", self.opt.size_output)):
             self.settings.setValue(key, value)
         for name in ("jpeg_progressive", "jpeg_optimize", "jpeg_subsampling", "jpeg_smooth",
-                     "webp_lossless", "webp_method", "png_compress"):
+                     "webp_lossless", "webp_method", "webp_sharp_yuv", "png_compress"):
             self.settings.setValue(name, getattr(self.opt, name))
         for key, value in self.custom_resize_values.items():
             self.settings.setValue("resize_" + key, value)
@@ -4687,6 +4711,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                            f"{opt.jpeg_quality if opt.format == 'jpeg' else opt.webp_quality}"
                            if opt.format != "png" else " (lossless)")
                 lines.append(f"Format: {opt.format.upper()}{' (lossless)' if opt.format == 'webp' and opt.webp_lossless else ''}{quality}")
+                if opt.format == "webp" and opt.webp_sharp_yuv and not opt.webp_lossless:
+                    lines[-1] += "; sharp color conversion"
             if kind == "reduced":
                 lines.append(f"Resize by {opt.resize_mode} to {opt.resize_pixels} px; "
                              f"{opt.resize_filter}; {'gamma correction' if opt.resize_gamma else 'no gamma correction'}; "
@@ -4708,7 +4734,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         if opt.format == "webp" and opt.webp_lossless:
             return f"WebP · lossless · effort {opt.webp_quality}"
         return f"{ 'JPEG' if opt.format == 'jpeg' else 'WebP'} · quality " + str(
-            opt.jpeg_quality if opt.format == "jpeg" else opt.webp_quality)
+            opt.jpeg_quality if opt.format == "jpeg" else opt.webp_quality) + (
+            " · sharp YUV" if opt.format == "webp" and opt.webp_sharp_yuv else "")
 
     def _queue_action_text(self):
         if not self.batch_import_active:

@@ -1,0 +1,10 @@
+{
+  "upstream_download": "https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-1.6.0-windows-x64.zip",
+  "upstream_index": "https://developers.google.com/speed/webp/download",
+  "version": "1.6.0",
+  "executable": "bin/cwebp.exe from the zip, copied to vendor/cwebp.exe",
+  "executable_sha256": "6a2f5cb5dce71366353ab1d9caf9c636e039f25703acfce1c148eed346f2f72a",
+  "license": "BSD-3-Clause with the WebM patent grant; vendor/libwebp/COPYING and PATENTS are from the v1.6.0 source tag.",
+  "scope": "WebP encoder, used only when sharp color conversion (sharp YUV) is turned on for lossy WebP.",
+  "basis": "Hash of bin/cwebp.exe from the official libwebp 1.6.0 Windows zip, as staged by the maintainer's build."
+}
