@@ -717,6 +717,23 @@ class ThumbnailWorker(QThread):
                 self.failed.emit(generation, index)
 
 
+ARCHIVE_CHOICES = ("cbz", "cb7", "pdf", "none")  # Order of the Archive format list.
+PDF_PAGES_NOTE = ("A PDF holds JPEG and PNG pages, so choose one of those for this comic's pages. "
+                  "These PDF settings are kept until Comic Stitcher closes; your usual output options "
+                  "don't change.")
+
+
+def pdf_page_options(opt: ExportOptions) -> ExportOptions:
+    """A copy of the output options a PDF can use: WebP pages become JPEG."""
+    reduced = copy_encoding_options(opt, True)
+    settings = {name: getattr(reduced, name) for name in ENCODER_FIELDS}
+    if settings["format"] == "webp":
+        settings["format"] = "jpeg"
+    return replace(opt, format="jpeg" if opt.format == "webp" else opt.format,
+                   spread_format="jpeg" if opt.spread_format == "webp" else opt.spread_format,
+                   reduced_custom=True, reduced_settings=settings, archive_format="pdf")
+
+
 class AdvancedSettingsWidget(QWidget):
     reset_requested = Signal()
     def __init__(self, opt: ExportOptions, current: str, parent=None):
@@ -901,16 +918,22 @@ class OutputOptionsDialog(OutlinedWindow, QDialog):
     choice it belongs to. At least one copy is always made.
     """
 
-    def __init__(self, opt: ExportOptions, resize_values: dict, parent=None, *, size_limits=None):
+    def __init__(self, opt: ExportOptions, resize_values: dict, parent=None, *, size_limits=None,
+                 pdf: bool = False):
         super().__init__(parent)
         self._setup_outline()  # GNOME on Wayland: a visible window edge
-        self.setWindowTitle("Output options")
+        self.for_pdf = pdf
+        self.setWindowTitle("PDF page format" if pdf else "Output options")
         self.resize(650, 520)
         self.setStyleSheet("QTabWidget::pane { border:1px solid #ccd5dd; } "
                            "QFormLayout { spacing:12px; }")
         self.draft = replace(opt)
         self.keep_originals = opt.keep_originals
         box = QVBoxLayout(self)
+        if pdf:
+            self.pdf_note = QLabel(PDF_PAGES_NOTE)
+            self.pdf_note.setWordWrap(True)
+            box.addWidget(self.pdf_note)
         self.tabs = QTabWidget()
         box.addWidget(self.tabs)
 
@@ -943,7 +966,9 @@ class OutputOptionsDialog(OutlinedWindow, QDialog):
         choice.setRowVisible(self.spread_format, self.keep_originals)
         full_settings_box.addLayout(choice)
         if self.keep_originals:
-            copied = QLabel("Other pages are copied without re-encoding (chosen under Image handling).")
+            copied = QLabel("Other pages are copied without re-encoding (chosen under Image handling)."
+                            + (" In a PDF, copied pages that aren't JPEG or PNG are converted to this "
+                               "format." if pdf else ""))
             copied.setWordWrap(True)
             copied.setStyleSheet("color:#617080;")
             full_settings_box.addWidget(copied)
@@ -1027,6 +1052,10 @@ class OutputOptionsDialog(OutlinedWindow, QDialog):
         reduced_scroll.setWidget(reduced_tab)
         self.tabs.addTab(reduced_scroll, "Reduced size")
 
+        if pdf:
+            # A PDF can't hold WebP: it isn't offered.
+            for combo in (self.format, self.spread_format, self.reduced_format):
+                combo.removeItem(next(i for i in range(combo.count()) if combo.itemText(i).startswith("WebP")))
         for control in (self.make_full, self.make_reduced, self.advanced.lossless,
                         self.reduced_advanced.lossless):
             control.toggled.connect(self._refresh)
@@ -1080,7 +1109,7 @@ class OutputOptionsDialog(OutlinedWindow, QDialog):
                                         else "WebP quality")
         self.advanced.format.setCurrentIndex({"JPEG": 0, "WebP": 1}.get(name, 2))
         reduced_name = self.reduced_format.currentText()
-        self.reduced_advanced.format.setCurrentIndex(self.reduced_format.currentIndex())
+        self.reduced_advanced.format.setCurrentIndex({"JPEG": 0, "WebP": 1}.get(reduced_name, 2))
         self.reduced_quality_form.setRowVisible(self.reduced_quality, reduced_name != "PNG")
         self.reduced_quality_label.setText(
             "WebP lossless effort" if reduced_name == "WebP" and self.reduced_advanced.lossless.isChecked()
@@ -2139,6 +2168,9 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             self.custom_resize_values["filter"] = "bilinear"
         if not 1 <= self.custom_resize_values["pixels"] <= 20000:
             self.custom_resize_values["pixels"] = 1920
+        # The usual output options are saved; PDF's own are kept only until the app closes.
+        self.usual_opt, self.usual_resize_values = self.opt, self.custom_resize_values
+        self.pdf_opt = self.pdf_resize_values = None
         self.replay_base_name = ""
         self.replay_count = 0
         self.pages = CurrentPageStack()
@@ -2798,17 +2830,24 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                   "A reduced copy must encode its pages in the chosen reduced-copy format. "
                   "Screenshot crops and splits have already been prepared as PNG pages before export.")
         self.archive_format = QComboBox()
-        self.archive_format.addItems(["CBZ (ZIP)", "CB7 (7-Zip)", "No archive"])
+        self.archive_format.addItems(["CBZ (ZIP)", "CB7 (7-Zip)", "PDF", "No archive"])
         saved_archive = str(self.settings.value("archive_format", "cbz"))
-        self.archive_format.setCurrentIndex({"cbz": 0, "cb7": 1, "none": 2}.get(saved_archive, 0))
+        if saved_archive not in ARCHIVE_CHOICES or saved_archive == "pdf":
+            saved_archive = "cbz"  # PDF is never the remembered choice.
+        self.archive_format.setCurrentIndex(ARCHIVE_CHOICES.index(saved_archive))
+        self.archive_previous = saved_archive
         self.archive_format.currentIndexChanged.connect(self._archive_changed)
         form.addRow("Archive format", self.archive_format)
         form_hint(form, self.archive_format,
-                  "CBZ packages images as a ZIP archive; CB7 uses a 7z container. "
-                  "Both store the already-encoded images in reading order without changing their quality. "
+                  "CBZ packages images as a ZIP archive; CB7 uses a 7z container; PDF puts one image "
+                  "on each page. All three store the already-encoded images in reading order without "
+                  "changing their quality. A PDF holds JPEG and PNG pages, so choosing it asks which to "
+                  "use; it is kept until Comic Stitcher closes, then your usual archive format returns. "
                   "Choose No archive if you want only a folder of processed images.")
         for index, description in enumerate(("Most widely supported comic archive; images stored inside ZIP.",
                                               "7z comic archive; verify that your comic reader supports CB7.",
+                                              "A PDF with one page per image, in JPEG or PNG. "
+                                              "ComicInfo.xml has no place in a PDF.",
                                               "Do not create an archive; keep processed images instead.")):
             self.archive_format.setItemData(index, description, Qt.ToolTipRole)
         self.keep_images = QCheckBox("Keep lossless PNG pages")
@@ -2818,7 +2857,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.front_to_back = QCheckBox("Save comic in front-to-back page order")
         self.front_to_back.setChecked(self.settings.value("front_to_back", False, type=bool))
         self.front_to_back.setToolTip(tooltip_text(
-            "Checked: the finished CBZ/CB7 and saved PNG pages start with the front cover. "
+            "Checked: the finished comic and saved PNG pages start with the front cover. "
             "Unchecked: keep back-to-front order, with the back cover first. "
             "Joined spreads stay intact and keep their approved orientation. The original PDF is not changed."))
         self.front_to_back.hide()
@@ -4508,25 +4547,35 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                 width, height = height, width
             limits["width"] = max(limits["width"], width)
             limits["height"] = max(limits["height"], height)
-        dialog = OutputOptionsDialog(self.opt, self.custom_resize_values, self, size_limits=limits if self.plan else None)
-        if dialog.exec() == QDialog.Accepted:
-            self.custom_resize_values = dialog.apply_to(self.opt)
+        pdf = self._archive_choice() == "pdf"
+        dialog = OutputOptionsDialog(self.opt, self.custom_resize_values, self,
+                                     size_limits=limits if self.plan else None, pdf=pdf)
+        if dialog.exec() != QDialog.Accepted:
+            return False
+        self.custom_resize_values = dialog.apply_to(self.opt)
+        if pdf:
+            self.pdf_resize_values = self.custom_resize_values
+        else:
+            self.usual_resize_values = self.custom_resize_values
             self._save_output_preferences()
-            self.refresh_export()
+        self.refresh_export()
+        return True
 
     def _save_output_preferences(self):
-        self.settings.setValue("reduced_custom", self.opt.reduced_custom)
-        self.settings.setValue("reduced_settings", json.dumps(self.opt.reduced_settings))
-        for key, value in (("jpeg_quality", self.opt.jpeg_quality),
-                           ("webp_quality", self.opt.webp_quality),
-                           ("output_format", self.opt.format),
-                           ("spread_format", self.opt.spread_format),
-                           ("output_sizes", self.opt.size_output)):
+        """Save the usual output options; PDF's own are never saved."""
+        opt = self.usual_opt
+        self.settings.setValue("reduced_custom", opt.reduced_custom)
+        self.settings.setValue("reduced_settings", json.dumps(opt.reduced_settings))
+        for key, value in (("jpeg_quality", opt.jpeg_quality),
+                           ("webp_quality", opt.webp_quality),
+                           ("output_format", opt.format),
+                           ("spread_format", opt.spread_format),
+                           ("output_sizes", opt.size_output)):
             self.settings.setValue(key, value)
         for name in ("jpeg_progressive", "jpeg_optimize", "jpeg_subsampling", "jpeg_smooth",
                      "webp_lossless", "webp_method", "webp_sharp_yuv", "png_compress"):
-            self.settings.setValue(name, getattr(self.opt, name))
-        for key, value in self.custom_resize_values.items():
+            self.settings.setValue(name, getattr(opt, name))
+        for key, value in self.usual_resize_values.items():
             self.settings.setValue("resize_" + key, value)
         self.settings.sync()
 
@@ -4558,11 +4607,37 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.naming.setItemData(1, f"First filename: {titled}", Qt.ToolTipRole)
         self.naming.setItemData(2, f"First filename: {custom}", Qt.ToolTipRole)
 
+    def _archive_choice(self):
+        return ARCHIVE_CHOICES[self.archive_format.currentIndex()]
+
+    def _use_pdf_options(self, pdf: bool):
+        """Switch between the usual output options and PDF's own for this session."""
+        if pdf:
+            if self.pdf_opt is None:
+                self.pdf_opt = pdf_page_options(self.usual_opt)
+                self.pdf_resize_values = dict(self.usual_resize_values)
+            self.opt, self.custom_resize_values = self.pdf_opt, self.pdf_resize_values
+        else:
+            self.opt, self.custom_resize_values = self.usual_opt, self.usual_resize_values
+
     def _archive_changed(self, *_):
-        if self.archive_format.currentIndex() == 2:
+        choice, previous = self._archive_choice(), getattr(self, "archive_previous", "cbz")
+        if choice == "pdf" and previous != "pdf":
+            self._use_pdf_options(True)
+            # Choosing PDF asks for the page format straight away; Cancel keeps the previous choice.
+            if not self.show_output_options():
+                self._use_pdf_options(False)
+                with QSignalBlocker(self.archive_format):
+                    self.archive_format.setCurrentIndex(ARCHIVE_CHOICES.index(previous))
+                choice = previous
+        elif choice != "pdf" and previous == "pdf":
+            self._use_pdf_options(False)
+        self.archive_previous = choice
+        if choice == "none":
             self.keep_images.setChecked(True)
-        self.keep_images.setEnabled(self.archive_format.currentIndex() != 2)
-        self.settings.setValue("archive_format", ("cbz", "cb7", "none")[self.archive_format.currentIndex()])
+        self.keep_images.setEnabled(choice != "none")
+        if choice != "pdf":
+            self.settings.setValue("archive_format", choice)
         self.refresh_export()
 
     def options_from_screen(self):
@@ -4574,8 +4649,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.opt.start = 1 if self.start_number.currentIndex() == 0 else 0
         self.opt.padding = (0, 2, 3, 4)[self.padding.currentIndex()]
         self.opt.keep_originals = self.handling.currentIndex() == 1
-        self.opt.cbz = self.archive_format.currentIndex() != 2
-        self.opt.archive_format = "cb7" if self.archive_format.currentIndex() == 1 else "cbz"
+        self.opt.cbz = self._archive_choice() != "none"
+        self.opt.archive_format = self._archive_choice() if self.opt.cbz else "cbz"
         self.opt.keep_images = self.keep_images.isChecked()
         self.opt.front_to_back = self.front_to_back.isChecked() if self.plan and self.plan.scan.right_to_left else True
         self.opt.workers = self.encoder_workers.value()
@@ -4719,6 +4794,9 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                              f"{'never enlarge pages'}")
             if opt.cbz:
                 lines.append(f"{opt.archive_format.upper()}: {title}{tag}.{opt.archive_format}")
+                if opt.archive_format == "pdf" and opt.comicinfo_xml is not None:
+                    lines.append("ComicInfo.xml is not included in the PDF"
+                                 + ("; it is saved with the PNG pages." if opt.keep_images else "."))
             if opt.keep_images:
                 lines.append(f"Lossless PNG pages: {title}{tag} - PNG pages")
         if self.plan.scan.right_to_left:
@@ -4805,7 +4883,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             suffix = f" - {kind.title()}" if len(kinds) == 2 else ""
             title = safe_book_name(opt.book_name) + suffix
             if opt.cbz:
-                line(f"{opt.archive_format.upper()} archive\n{title}.{opt.archive_format}")
+                line(f"{'PDF file' if opt.archive_format == 'pdf' else opt.archive_format.upper() + ' archive'}"
+                     f"\n{title}.{opt.archive_format}")
             if opt.keep_images:
                 line(f"Lossless PNG pages\n{title} - PNG pages")
             if kind == "reduced":

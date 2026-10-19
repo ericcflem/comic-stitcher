@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Export to PDF: choose PDF in the Archive format list. A window then asks for
+  the pages' format, JPEG or PNG, with the usual settings for each and for the
+  full-size and reduced copies. JPEG pages are stored byte for byte and PNG pages
+  keep their compressed data. Copied pages that aren't JPEG or PNG are converted
+  to the chosen format. PDF and its page settings are kept until Comic Stitcher
+  closes, then your usual archive format and output options return; they are
+  never saved over them. ComicInfo.xml isn't included in a PDF.
 - Spread suggestions: new seam test. It skips the slicing debris often found
   at a split page's edge (a copy of the neighbouring page's last column, or a
   blank strip), lets lines land a little higher or lower across the seam so

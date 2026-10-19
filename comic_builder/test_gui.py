@@ -553,6 +553,69 @@ class ThumbnailTest(unittest.TestCase):
             finally:
                 window.close()
 
+    def test_pdf_asks_for_page_format_and_is_kept_only_for_the_session(self):
+        from .gui import ARCHIVE_CHOICES
+        pdf, cb7 = ARCHIVE_CHOICES.index("pdf"), ARCHIVE_CHOICES.index("cb7")
+        first = ComicWindow()
+        try:
+            # Usual settings: WebP pages in a CB7.
+            first.opt.format = "webp"
+            first.opt.reduced_settings = {"format": "webp"}
+            first._save_output_preferences()
+            first.archive_format.setCurrentIndex(cb7)
+            seen = []
+            def cancel(dialog):
+                seen.append(dialog)
+                return QDialog.Rejected
+            with patch.object(OutputOptionsDialog, "exec", cancel):
+                first.archive_format.setCurrentIndex(pdf)
+            # Cancel keeps the previous archive format and the usual options.
+            self.assertEqual(first.archive_format.currentIndex(), cb7)
+            self.assertIs(first.opt, first.usual_opt)
+            self.assertEqual(first.opt.format, "webp")
+            dialog = seen[0]
+            self.assertTrue(dialog.for_pdf)
+            self.assertEqual(dialog.windowTitle(), "PDF page format")
+            self.assertIn("JPEG and PNG", dialog.pdf_note.text())
+            for combo in (dialog.format, dialog.spread_format, dialog.reduced_format):
+                self.assertFalse(any(combo.itemText(i).startswith("WebP") for i in range(combo.count())))
+            self.assertEqual(dialog.format.currentText(), "JPEG")  # WebP becomes JPEG.
+            def choose_png(dialog):
+                dialog.format.setCurrentText("PNG")
+                dialog.reduced_format.setCurrentText("PNG")
+                return dialog.accept() or dialog.result()
+            with patch.object(OutputOptionsDialog, "exec", choose_png):
+                first.archive_format.setCurrentIndex(pdf)
+            self.assertEqual(first.archive_format.currentIndex(), pdf)
+            opt = first.options_from_screen()
+            self.assertEqual((opt.archive_format, opt.format, opt.reduced_settings["format"]),
+                             ("pdf", "png", "png"))
+            # Edit options while PDF is chosen opens the PDF window again, with the PDF choices.
+            def check_pdf_window(dialog):
+                self.assertTrue(dialog.for_pdf)
+                self.assertEqual(dialog.format.currentText(), "PNG")
+                return QDialog.Rejected
+            with patch.object(OutputOptionsDialog, "exec", check_pdf_window):
+                first.show_output_options()
+            # Saving preferences (as an export does) saves only the usual options.
+            first._save_output_preferences()
+            # Back to CBZ: the usual WebP options return; PDF's are kept for this session.
+            first.archive_format.setCurrentIndex(ARCHIVE_CHOICES.index("cbz"))
+            self.assertEqual(first.options_from_screen().format, "webp")
+            with patch.object(OutputOptionsDialog, "exec", lambda dialog: dialog.accept() or dialog.result()):
+                first.archive_format.setCurrentIndex(pdf)
+            self.assertEqual(first.options_from_screen().format, "png")
+        finally:
+            first.close()
+        # Next time Comic Stitcher starts: the last archive format other than PDF, usual options.
+        second = ComicWindow()
+        try:
+            self.assertEqual(second.archive_format.currentIndex(), ARCHIVE_CHOICES.index("cbz"))
+            self.assertEqual(second.opt.format, "webp")
+            self.assertIsNone(second.pdf_opt)
+        finally:
+            second.close()
+
     def test_sharp_yuv_option_is_per_size_and_needs_lossy_webp_and_cwebp(self):
         window = ComicWindow()
         self.addCleanup(window.close)

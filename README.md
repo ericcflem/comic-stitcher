@@ -120,7 +120,7 @@ The **Final Comic Review** stage provides a full overview of the issue layout pr
 
 Comic Stitcher offers flexible export pipelines for different devices or storage preferences:
 
-* **Output Formats:** Export as `CBZ` (ZIP), `CB7` (7z), or a folder of processed images in PNG format.
+* **Output Formats:** Export as `CBZ` (ZIP), `CB7` (7z), `PDF`, or a folder of processed images in PNG format. Choosing PDF asks whether its pages should be JPEG or PNG; JPEG pages go in exactly as encoded. PDF is kept until Comic Stitcher closes, then your usual archive format returns.
 * **Multi-Resolution Export:** Generate full-resolution archives, web/mobile optimized copies (e.g., fixed 1920px height downsampling), or both simultaneously.
 * **Passthrough Optimization:** Unmodified pages can be copied without re-encoding to preserve exact source bytes.
 * **File Naming:** Page names default to the archive name plus a padded number. Customize prefixes, zero-padding, and starting indices (`0` or `1`).
