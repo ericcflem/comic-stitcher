@@ -26,7 +26,7 @@ $info = Get-Item -LiteralPath $iscc
 New-Item -ItemType Directory -Force -Path 'runtime-integration' | Out-Null
 & $iscc 'setup_windows.iss' 2>&1 | Tee-Object -FilePath 'runtime-integration\compiler.log'
 if ($LASTEXITCODE -ne 0) { throw 'Inno compilation failed.' }
-$installer = 'installer_dist\ComicStitcher-Setup-0.7.0.exe'
+$installer = 'installer_dist\ComicStitcher-Setup-0.8.0.exe'
 if (-not (Test-Path -LiteralPath $installer)) { throw 'Expected installer was not produced.' }
 & $python installer_evidence.py compare 'dist\ComicStitcher' --record 'runtime-integration\input-bundle.json' --output 'runtime-integration\input-unchanged-result.json'
 if ($LASTEXITCODE -ne 0) { throw 'Bundle changed during compilation.' }

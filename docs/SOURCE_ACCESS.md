@@ -1,10 +1,10 @@
-# Sources, licences and library replacement — 0.7.0
+# Sources, licences and library replacement — 0.8.0
 
 Repository: [ericcflem/comic-stitcher](https://github.com/ericcflem/comic-stitcher)
 
-Release/download location: [Version 0.7.0](https://github.com/ericcflem/comic-stitcher/releases/tag/v0.7.0)
+Release/download location: [Version 0.8.0](https://github.com/ericcflem/comic-stitcher/releases/tag/v0.8.0)
 
-Matching source asset: [ComicStitcher_Source_0.7.0.zip](https://github.com/ericcflem/comic-stitcher/releases/download/v0.7.0/ComicStitcher_Source_0.7.0.zip)
+Matching source asset: [ComicStitcher_Source_0.8.0.zip](https://github.com/ericcflem/comic-stitcher/releases/download/v0.8.0/ComicStitcher_Source_0.8.0.zip)
 
 The release page will provide the Windows installer and its matching source
 package as separate downloads, with SHA-256 checksums. The source package includes
@@ -38,6 +38,11 @@ See [REBUILDING_AND_REPLACING_LIBRARIES.md](REBUILDING_AND_REPLACING_LIBRARIES.m
 for frozen Python library rebuilds and coherent native library replacement.
 A changed library must retain compatible interfaces; no promise is made to
 support arbitrary incompatible modifications.
+
+Google's `cwebp.exe` (libwebp 1.6.0, used for WebP's sharp color conversion) is the
+official supplier binary, under libwebp's BSD licence and WebM patent grant; both
+texts are in `vendor/libwebp/` and the installed notices. Its source is available
+from the libwebp project.
 
 Microsoft's runtime and UnRAR retain separate supplier terms. They are not
 relicensed under MIT. Their required notices and Microsoft component conditions

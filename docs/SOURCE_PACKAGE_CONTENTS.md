@@ -7,7 +7,7 @@
 | `assets/` | App/page/interface icons and retained component notices |
 | `third_party_sources/` | Ten complete version-specific library source archives |
 | `third_party_notices/` | Notice texts extracted from all 26 exact pinned build-input wheels, plus the matching CPython notice; a conservative superset of final runtime notices |
-| `vendor/` | Verified official UnRAR executable, original licence and provenance |
+| `vendor/` | Verified official UnRAR executable, original licence and provenance; Google's official libwebp `cwebp.exe` with its BSD licence, patent grant and provenance |
 | `installer/`, `build_hooks/` | Installer source, Microsoft terms/input bindings and Qt packaging hook |
 | `audit/qt-supplier-configuration/` | Supplier-generated Qt feature headers and matching-section provenance; technical build information, not private user logs |
 | `audit/microsoft-runtime/bootstrapper-findings.json` | Hash-bound supplier prerequisite evidence required by the terms verifier |
@@ -20,8 +20,8 @@ the package. `retained-source-manifest.json` identifies the ten source archives;
 This package contains no compiled Comic Stitcher app/installer, virtual environment,
 wheelhouse, Microsoft installer EXE, comics, user settings, API keys or private
 Windows/VM test logs. Build scripts download hash-pinned wheels and Microsoft's
-verified prerequisite. The separately licensed UnRAR executable is intentionally
-included as a build input.
+verified prerequisite. The separately licensed UnRAR executable and Google's
+`cwebp.exe` are intentionally included as build inputs.
 
 A GitHub automatically generated source snapshot will not include ignored source
 archives or vendor binaries if those were omitted from the repository. The full

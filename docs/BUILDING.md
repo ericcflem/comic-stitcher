@@ -1,7 +1,7 @@
 # Building Comic Stitcher on Windows
 
 The reference build targets Windows x64 with **CPython 3.14.2 x64** and
-**Inno Setup 7.1.0**. The application version is 0.7.0. These are the recorded
+**Inno Setup 7.1.0**. The application version is 0.8.0. These are the recorded
 build inputs. On Linux, Comic Stitcher is installed from source with
 `linux/install.sh` (see the README); there is no Linux or Mac build to make here.
 

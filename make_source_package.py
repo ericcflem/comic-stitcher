@@ -60,7 +60,7 @@ def update() -> None:
     files.sort(key=lambda item: item["path"])
     LISTING.write_text(json.dumps({
         "scope": f"Comic Stitcher {version()} source package. Library source archives and "
-                 "unrar.exe are unchanged since 0.6.38.",
+                 "unrar.exe are unchanged since 0.6.38; cwebp.exe is libwebp 1.6.0.",
         "files": files}, indent=2) + "\n", encoding="utf-8")
     print(f"Listed {len(files)} files in {LISTING.name}.")
 
