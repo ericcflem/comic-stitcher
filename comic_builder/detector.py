@@ -33,7 +33,9 @@ def strip_stats(arr: np.ndarray, side: str, width: int) -> dict:
     h, w = arr.shape[:2]
     width = max(1, min(width, w // 4))
     strip = arr[:, :width] if side == "left" else arr[:, w - width :]
-    return _strip_metrics(strip, width)
+    stats = _strip_metrics(strip, width)
+    stats["plain_px"] = _plain_edge_width(strip, side)
+    return stats
 
 
 def _strip_metrics(strip: np.ndarray, width: int) -> dict:
@@ -63,9 +65,179 @@ def is_solid_border(stats: dict, std_thresh: float, vert_thresh: float) -> bool:
     return stats["std"] <= std_thresh and stats["vertical_std"] <= vert_thresh
 
 
+BORDER_MIN_PLAIN_PX = 4  # A plain strip this wide at the very edge is a border on its own.
+
+
+def _plain_edge_width(strip: np.ndarray, side: str) -> int:
+    """How many columns at the page edge are one flat colour from top to bottom.
+
+    Catches borders narrower than the strip examined: a 6 px white frame with
+    artwork just inside it is still a frame. Slicing debris is 1-3 px wide.
+    """
+    columns = strip if side == "left" else strip[:, ::-1]
+    spread = columns.astype(np.float32).std(axis=0).max(axis=1)  # per column, worst channel
+    plain = 0
+    for value in spread:
+        if value >= 3:
+            break
+        plain += 1
+    return plain
+
+
+# --- Seam scoring -----------------------------------------------------------
+#
+# A seam is judged two ways and the results are combined in seam_score():
+#
+# 1. Roughness ratio (the main test). Crossing a real seam should look no
+#    rougher than moving the same distance inside either page. The outermost
+#    columns are skipped when they are slicing debris (often a copy of the
+#    neighbouring page's last column, or a blank strip), and lines may land a
+#    little higher or lower on the far side so diagonals still count as
+#    continuing. Rows with nothing in them near the edge are ignored. About 1
+#    means "as smooth as the page itself"; false pairs usually score 1.5-7.
+#
+# 2. Pixel match (the previous method). Kept as a fallback because a very
+#    high value catches designed spreads whose shapes do not line up exactly.
+#
+# Tuned on 1,042 pages from four books (84 real spreads). See CHANGELOG.
+
+ROUGHNESS_WINDOW_ROWS = 48     # Rows compared together; windows overlap by half.
+ROUGHNESS_MAX_SLOPE = 2.5      # Largest vertical drift (px per column) a line may have.
+ROUGHNESS_ASSUMED_LOSS = 2     # Columns assumed lost when the publisher sliced the spread.
+ROUGHNESS_MIN_DETAIL = 15.0    # Rows near the edge flatter than this carry no evidence.
+ROUGHNESS_MIN_EVIDENCE = 0.05  # Share of the page height that must carry evidence.
+ROUGHNESS_MAX_TRIM = 6         # Most debris columns skipped at an edge.
+ROUGHNESS_LIKELY = 1.1         # Ratio at or below this maps to continuity 0.55 ("likely").
+ROUGHNESS_POSSIBLE = 1.5       # Ratio at or below this maps to continuity 0.40 ("possible").
+PIXEL_MATCH_TRUSTED = 0.85     # A pixel-match score this high is accepted on its own.
+NO_EVIDENCE = 99.0             # Ratio reported when nothing crosses the seam.
+
+
+def _debris_columns(edge: np.ndarray) -> int:
+    """How many outermost columns to skip; ``edge`` has column 0 at the page edge."""
+    gray = edge.mean(axis=2)
+    jumps = np.abs(np.diff(gray[:, :14], axis=1)).mean(axis=0)  # jump between column k and k+1
+    normal = max(float(np.median(jumps[6:14])), 1.0)
+    skip = 0
+    for k in range(ROUGHNESS_MAX_TRIM):
+        if jumps[k] > 2.5 * normal + 2:
+            skip = k + 1
+    # A blank strip in front of detailed art is debris too, even when the art
+    # is mostly white and the strip therefore makes no unusual jump.
+    detail = edge[:, :14].std(axis=0).max(axis=1)
+    if float(np.median(detail[6:14])) > 10:
+        for k in range(ROUGHNESS_MAX_TRIM):
+            if detail[k] >= 2:
+                break
+            skip = max(skip, k + 1)
+    return skip + 1  # The very outermost column is never trusted.
+
+
+def _best_shift_difference(p: np.ndarray, q: np.ndarray, max_shift: int, window: int) -> np.ndarray:
+    """For each overlapping row window, the smallest mean difference between
+    columns p and q when q may slide up or down by up to ``max_shift`` rows."""
+    h = p.shape[0]
+    step = window // 2
+    count = (h - window) // step + 1
+    starts = np.arange(count) * step
+    best = np.full(count, np.inf)
+    for s in range(-max_shift, max_shift + 1):
+        d = np.full(h, 255.0)
+        if s >= 0:
+            d[:h - s] = np.abs(p[:h - s] - q[s:]).mean(axis=1)
+        else:
+            d[-s:] = np.abs(p[-s:] - q[:h + s]).mean(axis=1)
+        c = np.concatenate([[0.0], np.cumsum(d)])
+        best = np.minimum(best, (c[starts + window] - c[starts]) / window)
+    return best
+
+
+def _window_detail(col: np.ndarray, window: int) -> np.ndarray:
+    """Largest per-channel standard deviation of each row window of one column."""
+    h = col.shape[0]
+    step = window // 2
+    count = (h - window) // step + 1
+    c1 = np.concatenate([np.zeros((1, 3)), np.cumsum(col, axis=0)])
+    c2 = np.concatenate([np.zeros((1, 3)), np.cumsum(col * col, axis=0)])
+    starts = np.arange(count) * step
+    mean = (c1[starts + window] - c1[starts]) / window
+    var = (c2[starts + window] - c2[starts]) / window - mean * mean
+    return np.sqrt(np.maximum(var, 0)).max(axis=1)
+
+
+def _roughness(left: np.ndarray, right: np.ndarray) -> tuple[float, int, int] | None:
+    """(ratio, debris columns skipped on the left page, on the right page),
+    or None when the images are too small to measure."""
+    window = ROUGHNESS_WINDOW_ROWS
+    h = min(left.shape[0], right.shape[0])
+    if left.ndim != 3 or right.ndim != 3 or h < 4 * window or min(left.shape[1], right.shape[1]) < 40:
+        return None
+    a = left[:h, ::-1].astype(np.float64)   # Column 0 is the page edge on both sides.
+    b = right[:h].astype(np.float64)
+    ta, tb = _debris_columns(a), _debris_columns(b)
+    p, q = a[:, ta], b[:, tb]
+    gap = ta + tb + 1 + ROUGHNESS_ASSUMED_LOSS
+    if ta + gap >= a.shape[1] or tb + gap >= b.shape[1]:
+        return None
+    shift = int(round(ROUGHNESS_MAX_SLOPE * gap))
+    seam = _best_shift_difference(p, q, shift, window)
+    inside = np.maximum(_best_shift_difference(p, a[:, ta + gap], shift, window),
+                        _best_shift_difference(q, b[:, tb + gap], shift, window))
+    detail = np.maximum(_window_detail(p, window), _window_detail(q, window))
+    useful = detail > ROUGHNESS_MIN_DETAIL
+    if useful.sum() < max(3, ROUGHNESS_MIN_EVIDENCE * useful.size):
+        return NO_EVIDENCE, ta, tb
+    return float(seam[useful].sum() / max(float(inside[useful].sum()), 1e-6)), ta, tb
+
+
+def roughness_ratio(left: np.ndarray, right: np.ndarray) -> float | None:
+    """Seam roughness relative to each page's own texture (lower is better).
+
+    Returns None when the images are too small to measure, and NO_EVIDENCE
+    when nothing near the seam can be compared.
+    """
+    result = _roughness(left, right)
+    return None if result is None else result[0]
+
+
+def _ratio_to_continuity(ratio: float) -> float:
+    """Map a roughness ratio onto the 0-1 continuity scale (higher is better),
+    so ROUGHNESS_LIKELY and ROUGHNESS_POSSIBLE land on the review cutoffs
+    backend.LIKELY_MIN_SCORE (0.55) and POSSIBLE_MIN_SCORE (0.40)."""
+    slope = (0.55 - 0.40) / (ROUGHNESS_POSSIBLE - ROUGHNESS_LIKELY)
+    return float(min(1.0, max(0.0, 0.55 + slope * (ROUGHNESS_LIKELY - ratio))))
+
+
 def seam_score(left: np.ndarray, right: np.ndarray, band: int = 24) -> dict:
     """
     How well the right edge of `left` continues into the left edge of `right`.
+
+    ``continuity`` runs from 0 (bad) to 1 (excellent). It comes from the
+    roughness ratio, except that a trusted pixel-match score is used when it is
+    higher. Tiny images that cannot be measured use the pixel match alone.
+    """
+    score = _pixel_match_score(left, right, band)
+    result = _roughness(left, right)
+    if result is None:
+        ratio, pixel = None, score["continuity"]
+        continuity = pixel
+    else:
+        ratio, ta, tb = result
+        # The fallback must not see slicing debris either: a copied edge
+        # column would otherwise make two unrelated pages look identical.
+        pixel = _pixel_match_score(left[:, :left.shape[1] - ta], right[:, tb:], band)["continuity"]
+        continuity = _ratio_to_continuity(ratio)
+        if pixel >= PIXEL_MATCH_TRUSTED:
+            continuity = max(continuity, pixel)
+    score["pixel_match"] = pixel
+    score["roughness_ratio"] = None if ratio is None else round(ratio, 3)
+    score["continuity"] = round(float(continuity), 3)
+    return score
+
+
+def _pixel_match_score(left: np.ndarray, right: np.ndarray, band: int = 24) -> dict:
+    """
+    The previous seam test: compares pixels at the same height across the join.
 
     Lower edge_mad and higher hist_corr => more likely a real split spread.
     """
@@ -138,10 +310,15 @@ def classify_page(path: Path, index: int, border_px: int, std_thresh: float, ver
         ImageOps.exif_transpose(im, in_place=True)
         w, h = im.size
         width = max(1, min(border_px, w // 4))
-        left = _strip_metrics(np.asarray(im.crop((0, 0, width, h)).convert("RGB"), dtype=np.uint8), width)
-        right = _strip_metrics(np.asarray(im.crop((w - width, 0, w, h)).convert("RGB"), dtype=np.uint8), width)
-    left_solid = is_solid_border(left, std_thresh, vert_thresh)
-    right_solid = is_solid_border(right, std_thresh, vert_thresh)
+        left_strip = np.asarray(im.crop((0, 0, width, h)).convert("RGB"), dtype=np.uint8)
+        right_strip = np.asarray(im.crop((w - width, 0, w, h)).convert("RGB"), dtype=np.uint8)
+    left, right = _strip_metrics(left_strip, width), _strip_metrics(right_strip, width)
+    left["plain_px"] = _plain_edge_width(left_strip, "left")
+    right["plain_px"] = _plain_edge_width(right_strip, "right")
+    left_solid = (is_solid_border(left, std_thresh, vert_thresh)
+                  or left["plain_px"] >= min(BORDER_MIN_PLAIN_PX, width))
+    right_solid = (is_solid_border(right, std_thresh, vert_thresh)
+                   or right["plain_px"] >= min(BORDER_MIN_PLAIN_PX, width))
 
     if left_solid and right_solid:
         hint = "single_framed"
