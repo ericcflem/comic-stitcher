@@ -30,6 +30,8 @@ Those notices retain the component copyrights and licensing distinctions.
 
 Archive handling uses py7zr and its dependencies, including LGPL components.
 When included, UnRAR is used for extraction under its separate freeware terms.
+Google's cwebp (libwebp) encodes WebP pages when sharp color conversion is
+turned on, under libwebp's BSD licence and patent grant.
 
 Phosphor interface icons retain their MIT notice. The page icons were created by
 Eric Fleming. The application icon was developed using Gemini/Grok and manual

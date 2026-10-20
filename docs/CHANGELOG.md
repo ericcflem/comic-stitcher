@@ -1,51 +1,62 @@
 # Changelog
 
-## Unreleased
+## 0.8.0
+
+**New**
 
 - Export to PDF: choose PDF in the Archive format list. A window then asks for
   the pages' format, JPEG or PNG, with the usual settings for each and for the
-  full-size and reduced copies. JPEG pages are stored byte for byte and PNG pages
-  keep their compressed data. Copied pages that aren't JPEG or PNG are converted
-  to the chosen format. PDF and its page settings are kept until Comic Stitcher
-  closes, then your usual archive format and output options return; they are
-  never saved over them. ComicInfo.xml isn't included in a PDF.
-- Spread suggestions: new seam test. It skips the slicing debris often found
-  at a split page's edge (a copy of the neighbouring page's last column, or a
-  blank strip), lets lines land a little higher or lower across the seam so
-  diagonal line art counts as continuing, and compares the seam with each
-  page's own texture instead of with fixed limits. Blank page edges and plain
-  paper margins no longer look like perfect matches. The previous pixel
-  comparison remains as a fallback for very confident matches. Tested on 1,042
-  pages from four books (84 real spreads): every spread is now suggested (83 as
-  likely, previously 68, with 2 never suggested), and false suggestions fell
-  from 17 to 6. Review checkpoints saved by earlier versions start the review
-  again, since the suggestions differ.
-- Spread suggestions: a plain strip at least 4 px wide down a page's whole edge
-  now counts as a border even when artwork starts inside the 14 px strip that is
-  examined, so pages with thin white frames are no longer paired. A seam is also
-  only judged when enough of its height (5%) has something to compare; before,
-  a few agreeing patches could make two framed pages look like a perfect match.
+  full-size and reduced copies. JPEG pages are stored byte for byte and PNG
+  pages keep their compressed data. Copied pages that aren't JPEG or PNG are
+  converted to the chosen format. PDF and its page settings are kept until Comic
+  Stitcher closes, then your usual archive format and output options return;
+  they are never saved over them. ComicInfo.xml isn't included in a PDF.
 - WebP export: new **Sharp color conversion (sharp YUV)** option under the WebP
   encoder settings. Edges between strong colors, such as red lettering or blue
   sky against black ink, stay clean instead of bleeding or darkening. Encoding
   takes about twice as long and files are a few percent larger, so it is off by
   default. Windows builds include Google's `cwebp` encoder for it; on Linux,
   `linux/install.sh` offers to install it.
-- Spread suggestions: plain page edges in any colour (teal, brown, tinted grey)
-  now count as borders, as black, white and grey always did. Pages on matching
-  coloured backgrounds are no longer suggested as spreads.
-- Linux: started from the app menu, Comic Stitcher now tells the desktop it has
+
+**Spread suggestions**
+
+- New seam test. It skips the slicing debris often found at a split page's edge
+  (a copy of the neighbouring page's last column, or a blank strip), lets lines
+  land a little higher or lower across the seam so diagonal line art counts as
+  continuing, and compares the seam with each page's own texture instead of with
+  fixed limits. Blank page edges and plain paper margins no longer look like
+  perfect matches. The previous pixel comparison remains as a fallback for very
+  confident matches. Tested on 1,042 pages from four books (84 real spreads):
+  every spread is now suggested (83 as likely, previously 68, with 2 never
+  suggested), and false suggestions fell from 17 to 6. A saved review of a
+  comic that is scanned again (an archive or PDF) starts over, since the
+  suggestions differ.
+- A plain strip at least 4 px wide down a page's whole edge now counts as a
+  border even when artwork starts inside the 14 px strip that is examined, so
+  pages with thin white frames are no longer paired. A seam is also only judged
+  when enough of its height (5%) has something to compare; before, a few
+  agreeing patches could make two framed pages look like a perfect match.
+- Plain page edges in any colour (teal, brown, tinted grey) now count as
+  borders, as black, white and grey always did. Pages on matching coloured
+  backgrounds are no longer suggested as spreads.
+
+**PDF import**
+
+- Original JPEGs are now offered for PDFs made by TCPDF (such as Humanoids'
+  books), which add a page number below the page, a hairline along its edge and
+  an invisible link. Each JPEG is still extracted byte for byte.
+- When the original JPEGs can't be extracted, the Import PDF window says why,
+  for example "Page 1: the JPEG is CMYK.", and the reason is logged.
+- The suggested rendering resolution now follows the page artwork. Lettering
+  layers (often at a higher resolution) and a minority of larger scans no longer
+  push it up, so the suggestion doesn't enlarge most of the book. The log lists
+  what each sampled page measured.
+
+**Linux**
+
+- Started from the app menu, Comic Stitcher now tells the desktop it has
   finished starting, so the busy cursor stops once the window appears instead of
   spinning for about 15 seconds.
-- PDF import: original JPEGs are now offered for PDFs made by TCPDF (such as
-  Humanoids' books), which add a page number below the page, a hairline along its
-  edge and an invisible link. Each JPEG is still extracted byte for byte.
-- PDF import: when the original JPEGs can't be extracted, the Import PDF window
-  says why, for example "Page 1: the JPEG is CMYK.", and the reason is logged.
-- PDF import: the suggested rendering resolution now follows the page artwork.
-  Lettering layers (often at a higher resolution) and a minority of larger scans
-  no longer push it up, so the suggestion doesn't enlarge most of the book. The
-  log lists what each sampled page measured.
 
 ## 0.7.0
 
