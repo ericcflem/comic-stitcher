@@ -2,12 +2,12 @@
 
 ## Unreleased
 
-- WebP export: very large, finely detailed pages no longer stop the export with
-  "PARTITION0_OVERFLOW". libwebp keeps the first part of a lossy WebP under
-  512 KB; when a page overflows it, Comic Stitcher encodes it again with
-  libwebp's own limits relaxed (simpler block descriptions where needed, at a
-  small cost in quality). A page that still can't fit gets a message suggesting
-  JPEG, PNG or lossless WebP.
+- WebP export: large, finely detailed pages (halftone scans, for example) no
+  longer stop the export with "PARTITION0_OVERFLOW" at the fastest compression
+  efforts (0-2). libwebp keeps the first part of a lossy WebP under 512 KB, and
+  only measures it as it goes from effort 3. Such a page is now encoded again at
+  effort 3, then, if needed, with libwebp's limits relaxed. A page that still
+  can't fit gets a message suggesting JPEG, PNG or lossless WebP.
 
 ## 0.8.0
 

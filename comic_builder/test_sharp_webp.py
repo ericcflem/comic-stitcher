@@ -158,6 +158,14 @@ class PartitionOverflowTests(unittest.TestCase):
         self.assertEqual([c[c.index("-sharp_yuv") + 1:c.index("-o")] for c in calls],
                          [[], ["-partition_limit", "50"], ["-partition_limit", "100"]])
 
+    def test_fast_effort_levels_retry_at_effort_3_first(self):
+        calls, fake = self.fake_cwebp(works_with=("-m", "3"))
+        with tempfile.TemporaryDirectory() as tmp, fake, \
+                patch.object(sharp_webp, "cwebp_tool", return_value="cwebp"):
+            save_sharp_webp(Image.new("RGB", (8, 8)), Path(tmp) / "page.webp", 90, 0)
+        self.assertEqual([c[c.index("-m") + 1] for c in calls], ["0", "3"])
+        self.assertNotIn("-partition_limit", calls[1])
+
     def test_a_page_that_never_fits_says_what_to_do(self):
         _, fake = self.fake_cwebp(works_with=None)
         with tempfile.TemporaryDirectory() as tmp, fake, \
@@ -195,6 +203,44 @@ class PartitionOverflowTests(unittest.TestCase):
             with patch("comic_builder.backend.sharp_yuv_available", return_value=False):
                 with self.assertRaisesRegex(RuntimeError, "too large and detailed"):
                     _save_image(image, target, "webp", ExportOptions("t"))
+
+
+def dithered_page(size=4000, seed=0):
+    """A finely dithered page, like a halftone scan, that overflows at effort 0."""
+    rng = np.random.default_rng(seed)
+    field = Image.fromarray((rng.random((size // 40, size // 40)) * 255).astype(np.uint8)).resize(
+        (size, size), Image.BICUBIC)
+    dots = ((rng.random((size, size)) < np.asarray(field, np.float32) / 255) * 255).astype(np.uint8)
+    return Image.fromarray(np.stack([dots // 3, dots // 2 + 40, dots], -1))
+
+
+class RealOverflowTests(unittest.TestCase):
+    """The real libwebp limit, on a page like the halftone scan that stopped an export."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.page = dithered_page()
+        try:
+            pillow_webp(cls.page, quality=90, method=0)
+        except ValueError as exc:
+            if "encoding error 6" not in str(exc):
+                raise
+        else:
+            raise unittest.SkipTest("this libwebp doesn't overflow on the test page")
+
+    def test_pillow_encode_retries_at_effort_3(self):
+        buffer = io.BytesIO()
+        with patch("comic_builder.backend.sharp_yuv_available", return_value=False):
+            _save_image(self.page, buffer, "webp", ExportOptions("t", webp_quality=90, webp_method=0))
+        self.assertEqual(buffer.getvalue(), pillow_webp(self.page, quality=90, method=3))
+
+    @unittest.skipUnless(sharp_webp.sharp_yuv_available(), "cwebp is not installed")
+    def test_sharp_yuv_encode_retries_at_effort_3(self):
+        buffer = io.BytesIO()
+        _save_image(self.page, buffer, "webp",
+                    ExportOptions("t", webp_quality=90, webp_method=0, webp_sharp_yuv=True))
+        with Image.open(io.BytesIO(buffer.getvalue())) as saved:
+            self.assertEqual(saved.size, self.page.size)
 
 
 class MissingToolTests(unittest.TestCase):
