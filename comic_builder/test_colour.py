@@ -97,6 +97,15 @@ class EncodingTests(unittest.TestCase):
         info = classify_page(self.folder / "page.png", 0, 14, 16.0, 18.0)
         self.assertAlmostEqual(info.left_stats["mean_color"][0], 117, delta=1)
 
+    def test_thumbnails_and_previews_show_sixteen_bit_grey(self):
+        # The thumbnail strip showed "Image error": Pillow can't shrink 16-bit grey.
+        try:
+            from .gui import pixels_from_pil
+        except ImportError:
+            self.skipTest("Qt is not installed")
+        data, width, height = pixels_from_pil(grey16(257 * 117, (400, 600)), (100, 84))
+        self.assertEqual(data[:4], bytes((117, 117, 117, 255)))
+
     def test_pdf_holds_sixteen_bit_grey_as_grey(self):
         from pypdf import PdfReader
         from .pdf_export import write_pdf
