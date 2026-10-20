@@ -21,7 +21,7 @@ import py7zr
 from PIL import Image, ImageFile, ImageOps, ImageCms
 from io import BytesIO
 
-from .sharp_webp import save_sharp_webp
+from .sharp_webp import PARTITION0_OVERFLOW, save_sharp_webp, sharp_yuv_available
 
 from .pdf_export import PDF_IMAGE_SUFFIXES, verify_pdf, write_pdf
 from .detector import (
@@ -661,8 +661,23 @@ def _save_image(image: Image.Image, path: Path, fmt: str, opt: ExportOptions) ->
     elif fmt == "webp" and opt.webp_sharp_yuv and not opt.webp_lossless:
         save_sharp_webp(image, path, opt.webp_quality, opt.webp_method, colour_metadata.get("icc_profile"))
     elif fmt == "webp":
-        image.save(path, "WEBP", quality=opt.webp_quality, method=opt.webp_method,
-                   lossless=opt.webp_lossless, **colour_metadata)
+        try:
+            image.save(path, "WEBP", quality=opt.webp_quality, method=opt.webp_method,
+                       lossless=opt.webp_lossless, **colour_metadata)
+        except ValueError as exc:
+            # A very large, detailed page can overflow lossy WebP's first partition
+            # (libwebp error 6). Pillow can't relax that limit; cwebp can, and
+            # otherwise writes the same file Pillow would.
+            if opt.webp_lossless or str(exc).split(":")[0] != f"encoding error {PARTITION0_OVERFLOW}":
+                raise
+            if not sharp_yuv_available():
+                raise RuntimeError(
+                    f"This page ({image.width:,} × {image.height:,} px) is too large and detailed for "
+                    "lossy WebP at these settings. Export it as JPEG or PNG, or as lossless WebP; "
+                    "installing libwebp's cwebp tool (the \"webp\" package) lets Comic Stitcher "
+                    "work around this.") from exc
+            save_sharp_webp(image, path, opt.webp_quality, opt.webp_method,
+                            colour_metadata.get("icc_profile"), sharp_yuv=False)
     else:
         raise ValueError(f"Unsupported format: {fmt}")
 
