@@ -2482,6 +2482,11 @@
       "sha256": "e0f6bec53f51908f801999511edb3bed53e8a076fa5c4ba4f5efbd59dbc421a3"
     },
     {
+      "path": "vendor/cwebp.exe",
+      "bytes": 753664,
+      "sha256": "6a2f5cb5dce71366353ab1d9caf9c636e039f25703acfce1c148eed346f2f72a"
+    },
+    {
       "path": "vendor/libwebp/COPYING",
       "bytes": 1496,
       "sha256": "5aec868f669e384a22372a4e8a1a6cd7d44c64cd451f960ca69cc170d1e13acf"
