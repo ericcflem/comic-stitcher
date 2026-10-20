@@ -37,6 +37,7 @@ from . import __version__, diagnostics
 from .import_sources import expand_sources
 from .startup_notice import finish_startup, take_startup_id
 from .single_instance import LaunchBroker
+from .colour import standard_mode
 from .detector import collect_images
 from .archive_import import ARCHIVE_EXTS, import_archive
 from .pdf_import import import_pdf, measure_pdf_pages, pdf_workers, rendered_dimensions, suggest_from_pages
@@ -196,7 +197,7 @@ def review_control(button, symbol, label, tip=None, icon_label=None):
 
 def pixels_from_pil(image: Image.Image, max_size: tuple[int, int]) -> tuple[bytes, int, int]:
     """Keep Pillow and raw pixels in workers; construct Qt images on the GUI thread."""
-    image = ImageOps.exif_transpose(image)
+    image = standard_mode(ImageOps.exif_transpose(image))  # 16-bit grey and CMYK shown correctly.
     image.thumbnail(max_size, Image.Resampling.LANCZOS)
     if image.mode != "RGBA":
         image = image.convert("RGBA")
@@ -3822,8 +3823,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             with Image.open(a) as left, Image.open(b) as right:
                 h = min(left.height, right.height)
                 strip = min(240, left.width // 3, right.width // 3)
-                L = left.crop((left.width - strip, 0, left.width, h)).convert("RGB")
-                R = right.crop((0, 0, strip, h)).convert("RGB")
+                L = standard_mode(left.crop((left.width - strip, 0, left.width, h))).convert("RGB")
+                R = standard_mode(right.crop((0, 0, strip, h))).convert("RGB")
                 seam = Image.new("RGB", (2 * strip, h))
                 seam.paste(L, (0, 0))
                 seam.paste(R, (strip, 0))
@@ -3875,8 +3876,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                 h = min(left.height, right.height)
                 strip = min(240, left.width // 3, right.width // 3)
                 seam = Image.new("RGB", (2 * strip, h))
-                seam.paste(left.crop((left.width - strip, 0, left.width, h)).convert("RGB"), (0, 0))
-                seam.paste(right.crop((0, 0, strip, h)).convert("RGB"), (strip, 0))
+                seam.paste(standard_mode(left.crop((left.width - strip, 0, left.width, h))).convert("RGB"), (0, 0))
+                seam.paste(standard_mode(right.crop((0, 0, strip, h))).convert("RGB"), (strip, 0))
                 pix = pixmap_from_pil(seam, (900, 6000))
                 painter = QPainter(pix)
                 painter.setPen(QPen(QColor("#ffe500"), 2))
