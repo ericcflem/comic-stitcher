@@ -55,6 +55,10 @@ If compiler discovery fails, supply the actual ISCC.exe location:
 build_runtime_installer_windows.bat "C:\path\to\Inno Setup 7\ISCC.exe"
 ```
 
+If Inno Setup fails because antivirus is scanning the new installer (it suggests
+antivirus as the cause), the build tries again by itself, up to three times, ten
+seconds apart.
+
 ## Repeat builds
 
 Run `build_runtime_installer_windows.bat` again to incorporate source or document

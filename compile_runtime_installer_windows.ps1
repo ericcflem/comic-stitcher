@@ -24,8 +24,17 @@ $iscc = $candidates | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathTyp
 if (-not $iscc) { throw 'ISCC.exe not found. Supply -Compiler or set INNO_ISCC.' }
 $info = Get-Item -LiteralPath $iscc
 New-Item -ItemType Directory -Force -Path 'runtime-integration' | Out-Null
-& $iscc 'setup_windows.iss' 2>&1 | Tee-Object -FilePath 'runtime-integration\compiler.log'
-if ($LASTEXITCODE -ne 0) { throw 'Inno compilation failed.' }
+# Antivirus often scans the new installer just as Inno adds its icon and version
+# details, which briefly locks the file and fails the build. Try again a few
+# seconds later before giving up.
+$attempts = 3
+for ($attempt = 1; $attempt -le $attempts; $attempt++) {
+    & $iscc 'setup_windows.iss' 2>&1 | Tee-Object -FilePath 'runtime-integration\compiler.log'
+    if ($LASTEXITCODE -eq 0) { break }
+    if ($attempt -eq $attempts) { throw "Inno compilation failed $attempts times; see runtime-integration\compiler.log." }
+    Write-Host "Inno compilation failed (attempt $attempt of $attempts), often because antivirus was scanning the new installer. Trying again in 10 seconds..."
+    Start-Sleep -Seconds 10
+}
 $installer = 'installer_dist\ComicStitcher-Setup-0.8.0.exe'
 if (-not (Test-Path -LiteralPath $installer)) { throw 'Expected installer was not produced.' }
 & $python installer_evidence.py compare 'dist\ComicStitcher' --record 'runtime-integration\input-bundle.json' --output 'runtime-integration\input-unchanged-result.json'
