@@ -6,6 +6,8 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageOps
 
+from .colour import standard_mode
+
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff", ".bmp"}
 
 def natural_key(path: Path):
@@ -16,7 +18,7 @@ def natural_key(path: Path):
 def load_rgb(path: Path) -> np.ndarray:
     with Image.open(path) as im:
         ImageOps.exif_transpose(im, in_place=True)
-        return np.asarray(im.convert("RGB"), dtype=np.uint8)
+        return np.asarray(standard_mode(im).convert("RGB"), dtype=np.uint8)
 
 
 def load_edge_rgb(path: Path, side: str, band: int = 24) -> np.ndarray:
@@ -25,7 +27,7 @@ def load_edge_rgb(path: Path, side: str, band: int = 24) -> np.ndarray:
         ImageOps.exif_transpose(im, in_place=True)
         width = min(im.width, max(8 * band, 2))
         x = 0 if side == "left" else im.width - width
-        return np.asarray(im.crop((x, 0, x + width, im.height)).convert("RGB"), dtype=np.uint8)
+        return np.asarray(standard_mode(im.crop((x, 0, x + width, im.height))).convert("RGB"), dtype=np.uint8)
 
 
 def strip_stats(arr: np.ndarray, side: str, width: int) -> dict:
@@ -310,8 +312,8 @@ def classify_page(path: Path, index: int, border_px: int, std_thresh: float, ver
         ImageOps.exif_transpose(im, in_place=True)
         w, h = im.size
         width = max(1, min(border_px, w // 4))
-        left_strip = np.asarray(im.crop((0, 0, width, h)).convert("RGB"), dtype=np.uint8)
-        right_strip = np.asarray(im.crop((w - width, 0, w, h)).convert("RGB"), dtype=np.uint8)
+        left_strip = np.asarray(standard_mode(im.crop((0, 0, width, h))).convert("RGB"), dtype=np.uint8)
+        right_strip = np.asarray(standard_mode(im.crop((w - width, 0, w, h))).convert("RGB"), dtype=np.uint8)
     left, right = _strip_metrics(left_strip, width), _strip_metrics(right_strip, width)
     left["plain_px"] = _plain_edge_width(left_strip, "left")
     right["plain_px"] = _plain_edge_width(right_strip, "right")

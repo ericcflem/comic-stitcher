@@ -23,6 +23,7 @@ from io import BytesIO
 
 from .sharp_webp import OVERFLOW_MIN_METHOD, PARTITION0_OVERFLOW, save_sharp_webp, sharp_yuv_available
 
+from .colour import standard_mode
 from .pdf_export import PDF_IMAGE_SUFFIXES, verify_pdf, write_pdf
 from .detector import (
     classify_page, collect_images, is_candidate_pair, load_edge_rgb,
@@ -542,7 +543,9 @@ def planned_names(plan: BookPlan, opt: ExportOptions, reduced: bool = False) -> 
 
 
 def _working_colour(image: Image.Image) -> Image.Image:
-    """Convert tagged RGB artwork to sRGB before combining or resampling."""
+    """Bring a page to ordinary 8-bit colour, and tagged RGB artwork to sRGB,
+    before combining, resampling or encoding it."""
+    image = standard_mode(image)  # 16-bit grey and CMYK pages; see colour.py.
     profile = image.info.get("icc_profile")
     if not profile or image.mode not in ("RGB", "RGBA"):
         return image
@@ -709,7 +712,7 @@ def _encode_entry(source: str, right: str | None, destination: str,
     else:
         image = stitched_image(Path(source), Path(right), rotation, page_rotations)
     try:
-        if image.info.get("icc_profile") and (fmt is not None or png_destination):
+        if fmt is not None or png_destination:
             converted = _working_colour(image)
             if converted is not image:
                 image.close()
@@ -829,11 +832,10 @@ def _estimate_sample(source: str, right: str | None, rotation: int, page_rotatio
             strip.info.update(image.info)
             image.close()
             image = strip
-        if image.info.get("icc_profile"):
-            converted = _working_colour(image)
-            if converted is not image:
-                image.close()
-                image = converted
+        converted = _working_colour(image)
+        if converted is not image:
+            image.close()
+            image = converted
         sizes = []
         for wanted, reduce in ((full, False), (reduced, True)):
             if wanted is None:

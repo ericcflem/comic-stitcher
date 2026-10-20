@@ -15,6 +15,8 @@ from pathlib import Path
 
 from PIL import Image
 
+from .colour import standard_mode
+
 PAGE_DPI = 300  # The resolution of comic page scans and of most publishers' PDFs.
 PDF_IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png")
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
@@ -158,7 +160,9 @@ def _decoded_image(writer: _Writer, path: Path):
             image = Image.new("RGB", rgba.size, "white")
             image.paste(rgba, mask=rgba.getchannel("A"))
         elif image.mode not in ("L", "RGB", "CMYK"):
-            image = image.convert("RGB")
+            image = standard_mode(image)  # 16-bit grey is scaled to 8 bits, not clipped.
+            if image.mode not in ("L", "RGB"):
+                image = image.convert("RGB")
         components = {"L": 1, "RGB": 3, "CMYK": 4}[image.mode]
         stream = zlib.compress(image.tobytes(), 6)
         size = image.size

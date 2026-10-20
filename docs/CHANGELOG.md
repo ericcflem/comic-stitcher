@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- 16-bit greyscale pages (from some scanners' PNG and TIFF files) are now scaled
+  to 8 bits instead of clipped. Before, anything lighter than nearly black came
+  out white in JPEG, WebP, PDF and reduced copies, in previews, and to the spread
+  scanner. Full-size PNG copies of them are now 8-bit like every other page.
+- CMYK pages can be saved as PNG; before, the export stopped with "cannot write
+  mode CMYK as PNG". CMYK pages with an embedded colour profile are converted to
+  RGB with that profile, so their colours match how they were meant to print;
+  without one, the previous conversion is used.
 - WebP export: large, finely detailed pages (halftone scans, for example) no
   longer stop the export with "PARTITION0_OVERFLOW" at the fastest compression
   efforts (0-2). libwebp keeps the first part of a lossy WebP under 512 KB, and
