@@ -21,7 +21,7 @@ import py7zr
 from PIL import Image, ImageFile, ImageOps, ImageCms
 from io import BytesIO
 
-from .sharp_webp import save_sharp_webp
+from .sharp_webp import OVERFLOW_MIN_METHOD, PARTITION0_OVERFLOW, save_sharp_webp, sharp_yuv_available
 
 from .pdf_export import PDF_IMAGE_SUFFIXES, verify_pdf, write_pdf
 from .detector import (
@@ -661,8 +661,36 @@ def _save_image(image: Image.Image, path: Path, fmt: str, opt: ExportOptions) ->
     elif fmt == "webp" and opt.webp_sharp_yuv and not opt.webp_lossless:
         save_sharp_webp(image, path, opt.webp_quality, opt.webp_method, colour_metadata.get("icc_profile"))
     elif fmt == "webp":
-        image.save(path, "WEBP", quality=opt.webp_quality, method=opt.webp_method,
-                   lossless=opt.webp_lossless, **colour_metadata)
+        def pillow_webp(method):
+            image.save(path, "WEBP", quality=opt.webp_quality, method=method,
+                       lossless=opt.webp_lossless, **colour_metadata)
+        def overflowed(exc):
+            return (not opt.webp_lossless
+                    and str(exc).split(":")[0] == f"encoding error {PARTITION0_OVERFLOW}")
+        try:
+            pillow_webp(opt.webp_method)
+        except ValueError as exc:
+            # A large, detailed page can overflow lossy WebP's first partition
+            # (libwebp error 6) at the fastest effort levels; from effort 3 the
+            # encoder keeps it in bounds, so try again there.
+            if not overflowed(exc):
+                raise
+            try:
+                if opt.webp_method >= OVERFLOW_MIN_METHOD:
+                    raise
+                pillow_webp(OVERFLOW_MIN_METHOD)
+            except ValueError as again:
+                if not overflowed(again):
+                    raise
+                # cwebp can relax libwebp's limits further; Pillow can't.
+                if not sharp_yuv_available():
+                    raise RuntimeError(
+                        f"This page ({image.width:,} × {image.height:,} px) is too large and detailed for "
+                        "lossy WebP at these settings. Export it as JPEG or PNG, or as lossless WebP; "
+                        "installing libwebp's cwebp tool (the \"webp\" package) lets Comic Stitcher "
+                        "work around this.") from again
+                save_sharp_webp(image, path, opt.webp_quality, opt.webp_method,
+                                colour_metadata.get("icc_profile"), sharp_yuv=False)
     else:
         raise ValueError(f"Unsupported format: {fmt}")
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- WebP export: large, finely detailed pages (halftone scans, for example) no
+  longer stop the export with "PARTITION0_OVERFLOW" at the fastest compression
+  efforts (0-2). libwebp keeps the first part of a lossy WebP under 512 KB, and
+  only measures it as it goes from effort 3. Such a page is now encoded again at
+  effort 3, then, if needed, with libwebp's limits relaxed. A page that still
+  can't fit gets a message suggesting JPEG, PNG or lossless WebP.
+
 ## 0.8.0
 
 **New**

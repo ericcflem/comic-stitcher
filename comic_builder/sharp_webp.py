@@ -25,6 +25,21 @@ from pathlib import Path
 from PIL import Image
 
 MINIMUM_VERSION = (1, 0)  # Reading the image from standard input.
+PARTITION0_OVERFLOW = 6  # libwebp's error code when a large, detailed page overflows its header.
+# libwebp keeps the first part of a lossy WebP (block types and prediction
+# modes) under 512 KB. Large, finely detailed pages (halftone screens, for
+# example) can exceed it at the fastest effort levels, 0 to 2, which don't
+# measure that part as they go. From effort 3 the encoder keeps it in bounds
+# itself, so an overflowing page is encoded again at effort 3 (or the effort
+# chosen, if higher). A partition limit, then a single segment, are further
+# fallbacks: they let the encoder describe blocks more simply where needed.
+OVERFLOW_MIN_METHOD = 3
+OVERFLOW_FALLBACKS = ((), ("-partition_limit", "50"), ("-partition_limit", "100"),
+                      ("-partition_limit", "100", "-segments", "1"))
+
+
+class PartitionOverflow(RuntimeError):
+    """The page is too large and detailed for lossy WebP even with every fallback."""
 
 
 def _candidates() -> list[str]:
@@ -120,12 +135,25 @@ def save_sharp_webp(image: Image.Image, path: Path, quality: int, method: int,
                            "Turn the option off, or install cwebp (the \"webp\" package).")
     if image.mode not in ("RGB", "RGBA"):
         image = image.convert("RGBA" if image.has_transparency_data else "RGB")
-    command = [tool, "-quiet", "-q", str(quality), "-m", str(method),
-               *(["-sharp_yuv"] if sharp_yuv else []), "-o", "-", "--", "-"]
-    result = subprocess.run(command, input=_input(image), capture_output=True, check=False, **_hidden_window())
-    if result.returncode != 0 or not result.stdout:
+    picture = _input(image)
+    attempts = [(method, ())]
+    for fallback in OVERFLOW_FALLBACKS:
+        if (max(method, OVERFLOW_MIN_METHOD), fallback) not in attempts:
+            attempts.append((max(method, OVERFLOW_MIN_METHOD), fallback))
+    for effort, fallback in attempts:
+        command = [tool, "-quiet", "-q", str(quality), "-m", str(effort),
+                   *(["-sharp_yuv"] if sharp_yuv else []), *fallback, "-o", "-", "--", "-"]
+        result = subprocess.run(command, input=picture, capture_output=True, check=False, **_hidden_window())
+        if result.returncode == 0 and result.stdout:
+            break
         message = result.stderr.decode(errors="replace").strip() or f"exit code {result.returncode}"
-        raise RuntimeError(f"cwebp could not encode the image: {message}")
+        if "PARTITION0_OVERFLOW" not in message:
+            raise RuntimeError(f"cwebp could not encode the image: {message}")
+    else:
+        raise PartitionOverflow(
+            f"This page ({image.width:,} × {image.height:,} px) is too large and detailed for lossy WebP, "
+            "even at a higher compression effort with libwebp's size limits relaxed. Export it as JPEG "
+            "or PNG, or as lossless WebP.")
     data = result.stdout
     if icc_profile:
         data = with_icc(data, icc_profile, image.size)
