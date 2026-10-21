@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Batch queue: drag a comic up or down to change the order comics are exported
+  in, or select it and press Ctrl with Up, Down, Home or End.
 - Pages whose names differ only in capitalisation (`comic - 001.jpg` and
   `comic - 001.JPG`), which Linux and comic archives allow, are no longer
   refused. They are kept in the order Linux file managers and comic readers

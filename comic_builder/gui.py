@@ -570,6 +570,41 @@ class DropMarker(QWidget):
         painter.drawLine(self.width() // 2, 4, self.width() // 2, self.height() - 4)
 
 
+class QueueList(QListWidget):
+    """The batch queue: drag a comic, or press Ctrl with the arrow keys, Home or
+    End, to change the order comics are exported in."""
+    reordered = Signal()
+
+    def __init__(self):
+        super().__init__()
+        self.setDragDropMode(QListWidget.InternalMove)
+        self.setDefaultDropAction(Qt.MoveAction)
+        self.setSelectionMode(QListWidget.SingleSelection)
+
+    def dropEvent(self, event):
+        super().dropEvent(event)
+        self.reordered.emit()
+
+    def move_current(self, target: int):
+        row = self.currentRow()
+        target = max(0, min(self.count() - 1, target))
+        if row < 0 or target == row:
+            return
+        item = self.takeItem(row)
+        self.insertItem(target, item)
+        self.setCurrentRow(target)
+        self.reordered.emit()
+
+    def keyPressEvent(self, event):
+        if event.modifiers() & Qt.ControlModifier:
+            row = self.currentRow()
+            moves = {Qt.Key_Up: row - 1, Qt.Key_Down: row + 1, Qt.Key_Home: 0, Qt.Key_End: self.count() - 1}
+            if event.key() in moves:
+                self.move_current(moves[event.key()])
+                return
+        super().keyPressEvent(event)
+
+
 class ThumbnailStrip(QWidget):
     def __init__(self, owner):
         super().__init__()
@@ -5082,11 +5117,14 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                             "QListWidget::item:selected { color:#102a43; background:#dceeff; } "
                             "QPushButton { padding:7px 12px; }")
         layout = QVBoxLayout(dialog)
-        note = QLabel("Output files and folders will be saved alongside each comic's originals. "
+        note = QLabel("Comics are exported from the top down; drag one to change the order. "
+                      "Output files and folders will be saved alongside each comic's originals. "
                       "Removing an item leaves its source untouched.")
         note.setWordWrap(True)
         layout.addWidget(note)
-        listing = QListWidget()
+        listing = QueueList()
+        listing.setToolTip(tooltip_text("Drag a comic to change the export order, or select it and press "
+                                        "Ctrl with Up, Down, Home or End."))
         listing.setWordWrap(True)
         listing.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         layout.addWidget(listing)
@@ -5108,10 +5146,19 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                 destinations = "\n".join(path.name for path in outputs)
                 item = QListWidgetItem(f"{opt.book_name}\n" + " · ".join(copies) + "\n" + destinations)
                 item.setToolTip("\n".join(str(path) for path in outputs))
+                item.setData(Qt.UserRole, id(job))
                 listing.addItem(item)
             remove.setEnabled(False)
             start.setEnabled(bool(self.queue_jobs))
         listing.currentRowChanged.connect(lambda index: remove.setEnabled(index >= 0))
+        def reordered():
+            # The list's new order becomes the queue's order.
+            jobs = {id(job): job for job in self.queue_jobs}
+            order = [jobs[listing.item(row).data(Qt.UserRole)] for row in range(listing.count())]
+            if len(order) == len(self.queue_jobs) and order != self.queue_jobs:
+                self.queue_jobs[:] = order
+                diagnostics.note("Queue reordered: %s", " | ".join(job.options.book_name for job in order))
+        listing.reordered.connect(reordered)
         def remove_selected():
             index = listing.currentRow()
             if index < 0:
