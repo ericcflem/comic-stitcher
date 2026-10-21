@@ -1405,6 +1405,33 @@ class ThumbnailTest(unittest.TestCase):
                 window.queue_jobs.clear()
                 window.close()
 
+    def test_queue_can_be_viewed_from_the_export_screen_while_reviewing(self):
+        from PySide6.QtWidgets import QPushButton
+        from .gui import QueueList
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            Image.new("RGB", (40, 60), "white").save(root / "001.png")
+            window = ComicWindow()
+            try:
+                self.assertTrue(window.export_queue_button.isHidden())  # Nothing queued yet.
+                window.queue_jobs.append(QueuedComic(BookPlan(scan_manual_folder(root)),
+                                                     ExportOptions("Queued", workers=1), None, None, None))
+                window._refresh_queue_status()
+                self.assertFalse(window.export_queue_button.isHidden())
+                self.assertEqual(window.export_queue_button.text(), "View queue (1)…")
+                def check(dialog):
+                    self.assertEqual(dialog.findChild(QueueList).count(), 1)
+                    buttons = {b.text(): b for b in dialog.findChildren(QPushButton)}
+                    for name in ("Start export", "Add comic files…", "Add folder…"):
+                        self.assertTrue(buttons[name].isHidden(), name)
+                    self.assertTrue(any("Finish the comic" in label.text() for label in dialog.findChildren(QLabel)))
+                    return QDialog.Rejected
+                with patch.object(QDialog, "exec", check):
+                    window.export_queue_button.click()
+            finally:
+                window.queue_jobs.clear()
+                window.close()
+
     def test_add_another_batch_item_returns_to_import_without_exporting(self):
         from .gui import QFileDialog
         window = ComicWindow()

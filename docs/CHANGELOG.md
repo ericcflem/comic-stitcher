@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Batch queue: the export screen has a **View queue** button whenever comics are
+  queued, however they were added, so the queue can be checked, reordered or
+  trimmed while the next comic is set up.
 - Batch queue: drag a comic up or down to change the order comics are exported
   in, or select it and press Ctrl with Up, Down, Home or End.
 - Pages whose names differ only in capitalisation (`comic - 001.jpg` and

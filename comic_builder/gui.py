@@ -3031,8 +3031,15 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.create_button.clicked.connect(self.start_export)
         self.add_queue_button = QPushButton("Add to queue")
         self.add_queue_button.clicked.connect(self.add_to_queue)
+        # The queue so far, available while the next comic is being set up.
+        self.export_queue_button = QPushButton("View queue…")
+        self.export_queue_button.setToolTip(tooltip_text(
+            "See, reorder or remove the comics already queued. Finish this comic to start the queue."))
+        self.export_queue_button.clicked.connect(lambda: self.show_queue(reviewing=True))
+        self.export_queue_button.hide()
         controls.addWidget(back)
         controls.addStretch()
+        controls.addWidget(self.export_queue_button)
         controls.addWidget(self.add_queue_button)
         controls.addWidget(self.create_button)
         page_box.addWidget(self.export_hint)
@@ -5104,11 +5111,16 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             text += f" · {waiting} waiting for review"
         self.queue_status.setText(text)
         self.queue_view_button.setEnabled(bool(count))
+        if hasattr(self, "export_queue_button"):
+            self.export_queue_button.setText(f"View queue ({count})…")
+            self.export_queue_button.setVisible(bool(count))
         self.queue_start_button.setEnabled(bool(count) and self.active_queue_job is None and
                                            not (self.worker and self.worker.isRunning()))
         self.next_import_button.setVisible(bool(waiting))
 
-    def show_queue(self, *, batch_review=False):
+    def show_queue(self, *, batch_review=False, reviewing=False):
+        """The queued comics. While another comic is being reviewed (reviewing), the
+        queue can be reordered and trimmed, but not started or added to."""
         dialog = OutlinedDialog(self)
         dialog.setWindowTitle("Review batch" if batch_review else "Comics ready to export")
         dialog.resize(760, 480)
@@ -5119,7 +5131,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         layout = QVBoxLayout(dialog)
         note = QLabel("Comics are exported from the top down; drag one to change the order. "
                       "Output files and folders will be saved alongside each comic's originals. "
-                      "Removing an item leaves its source untouched.")
+                      "Removing an item leaves its source untouched."
+                      + (" Finish the comic you're working on to start the queue." if reviewing else ""))
         note.setWordWrap(True)
         layout.addWidget(note)
         listing = QueueList()
@@ -5149,7 +5162,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                 item.setData(Qt.UserRole, id(job))
                 listing.addItem(item)
             remove.setEnabled(False)
-            start.setEnabled(bool(self.queue_jobs))
+            start.setEnabled(bool(self.queue_jobs) and not reviewing)
         listing.currentRowChanged.connect(lambda index: remove.setEnabled(index >= 0))
         def reordered():
             # The list's new order becomes the queue's order.
@@ -5187,6 +5200,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         ui_primary(start)
         controls.addWidget(start)
         layout.addLayout(controls)
+        for button in (files, folder, start):
+            button.setVisible(not reviewing)
         refresh()
         dialog.exec()
         dialog.deleteLater()
