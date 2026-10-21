@@ -626,6 +626,14 @@ class ThumbnailTest(unittest.TestCase):
         self.assertIn("lowercase comes first", notice.informativeText())
         self.assertIn("In 1 of these sets, the pages are identical copies", notice.informativeText())
         notice.close()
+        # Pages from an archive are shown by file name, without their folder in the archive.
+        window._show_case_twins_notice([(("Fire Power/comic - 001.jpg", "Fire Power/comic - 001.JPG"), False)])
+        self.assertIn("“comic - 001.jpg” and “comic - 001.JPG”.", window.case_twins_notice.text())
+        window.case_twins_notice.close()
+        # Unless only the folders' capitalisation differs: then the folders tell them apart.
+        window._show_case_twins_notice([(("Part A/001.jpg", "part a/001.jpg"), False)])
+        self.assertIn("“Part A/001.jpg”", window.case_twins_notice.text())
+        window.case_twins_notice.close()
 
     def test_sharp_yuv_option_is_per_size_and_needs_lossy_webp_and_cwebp(self):
         window = ComicWindow()

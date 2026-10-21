@@ -3623,6 +3623,11 @@ class ComicWindow(OutlinedWindow, QMainWindow):
     def _show_case_twins_notice(self, twins):
         """Pages whose names differ only in capitalisation: say so once, before review."""
         names, _ = twins[0]
+        # Archive pages are named with their folder inside the archive, which is
+        # the same for both; just the file names say which pages these are.
+        short = [name.replace("\\", "/").rsplit("/", 1)[-1] for name in names]
+        if len(set(short)) == len(short):
+            names = short
         copies = sum(identical for _, identical in twins)
         diagnostics.note("Names differing only in capitalisation: %d sets (%d identical); first: %s",
                          len(twins), copies, " / ".join(names))
