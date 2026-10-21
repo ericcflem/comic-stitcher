@@ -616,6 +616,17 @@ class ThumbnailTest(unittest.TestCase):
         finally:
             second.close()
 
+    def test_case_twins_notice_names_the_pages_and_flags_copies(self):
+        window = ComicWindow()
+        self.addCleanup(window.close)
+        window._show_case_twins_notice([(("comic - 001.jpg", "comic - 001.JPG"), False),
+                                        (("comic - 002.jpg", "comic - 002.JPG"), True)])
+        notice = window.case_twins_notice
+        self.assertIn("“comic - 001.jpg” and “comic - 001.JPG” (2 sets)", notice.text())
+        self.assertIn("lowercase comes first", notice.informativeText())
+        self.assertIn("In 1 of these sets, the pages are identical copies", notice.informativeText())
+        notice.close()
+
     def test_sharp_yuv_option_is_per_size_and_needs_lossy_webp_and_cwebp(self):
         window = ComicWindow()
         self.addCleanup(window.close)

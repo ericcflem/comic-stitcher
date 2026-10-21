@@ -10,9 +10,31 @@ from .colour import standard_mode
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff", ".bmp"}
 
+def _natural(text: str) -> list:
+    return [int(part) if part.isdigit() else part for part in re.split(r"(\d+)", text)]
+
+
+def name_sort_key(name: str):
+    """Sort file names the way Linux file managers and comic readers do.
+
+    Numbers sort by value ("page 2" before "page 10") and capitalisation is
+    ignored. Names that differ only in capitalisation ("001.jpg", "001.JPG")
+    put lowercase first, as GNOME Files, KDE Dolphin and Ubuntu's Document
+    Viewer do, so a book that reads correctly there keeps its order here.
+    """
+    return _natural(name.casefold()), _natural(name.swapcase())
+
+
 def natural_key(path: Path):
-    parts = re.split(r"(\d+)", path.name.lower())
-    return [int(p) if p.isdigit() else p for p in parts]
+    return name_sort_key(path.name)
+
+
+def case_twin_groups(names: list[str]) -> list[list[int]]:
+    """Indexes of names that are the same apart from capitalisation, in groups."""
+    groups: dict[str, list[int]] = {}
+    for index, name in enumerate(names):
+        groups.setdefault(name.casefold(), []).append(index)
+    return [group for group in groups.values() if len(group) > 1]
 
 
 def load_rgb(path: Path) -> np.ndarray:

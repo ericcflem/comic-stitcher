@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import os
-import re
 import shutil
 import stat
 import sys
@@ -12,9 +11,9 @@ from pathlib import Path, PurePosixPath
 import py7zr
 import rarfile
 
-from .backend import scan_folder
+from .backend import describe_case_twins, scan_folder
 from .comicinfo import MAX_XML_BYTES
-from .detector import IMAGE_EXTS
+from .detector import IMAGE_EXTS, name_sort_key
 
 ARCHIVE_EXTS = {".cbz", ".zip", ".cb7", ".7z", ".cbr", ".rar"}
 MAX_PAGES = 10_000
@@ -30,8 +29,25 @@ def _safe_name(name: str) -> bool:
 
 
 def _sort_name(name: str):
-    return [int(part) if part.isdigit() else part.casefold()
-            for part in re.split(r"(\d+)", name.replace("\\", "/"))]
+    return name_sort_key(name.replace("\\", "/"))
+
+
+def _extraction_layers(pages: list[tuple[str, int]]) -> list[list[str]]:
+    """Split pages so no two in one batch differ only in capitalisation.
+
+    Extracted side by side, "001.jpg" and "001.JPG" would overwrite each other
+    on Windows and macOS, so each such twin is extracted into its own folder.
+    """
+    seen: dict[str, int] = {}
+    layers: list[list[str]] = []
+    for name, _ in pages:
+        key = name.replace("\\", "/").casefold()
+        layer = seen.get(key, 0)
+        seen[key] = layer + 1
+        if layer == len(layers):
+            layers.append([])
+        layers[layer].append(name)
+    return layers
 
 
 def _check_entries(entries: list[tuple[str, int]]) -> list[tuple[str, int]]:
@@ -40,8 +56,8 @@ def _check_entries(entries: list[tuple[str, int]]) -> list[tuple[str, int]]:
         raise ValueError("This archive contains no supported page images.")
     if len(pages) > MAX_PAGES or sum(size for _, size in pages) > MAX_BOOK_BYTES:
         raise ValueError("This archive exceeds the supported page count or extracted size.")
-    if len({name.replace("\\", "/").casefold() for name, _ in pages}) != len(pages):
-        raise ValueError("This archive contains duplicate image paths.")
+    if len({name.replace("\\", "/") for name, _ in pages}) != len(pages):
+        raise ValueError("This archive contains the same image path twice.")
     for name, size in pages:
         if not _safe_name(name) or size < 0 or size > MAX_PAGE_BYTES:
             raise ValueError(f"Unsafe or oversized image entry: {name!r}")
@@ -198,16 +214,25 @@ def import_archive(source: Path, destination: Path, manual: bool = False, progre
                 raise ValueError("ComicInfo.xml cannot be a symlink.")
             unpack = destination / "_archive_extract"
             unpack.mkdir()
-            archive.extract(path=unpack, targets=[name for name, _ in pages] + ([metadata] if metadata else []))
+        # Twins differing only in capitalisation go to separate folders (see
+        # _extraction_layers); py7zr extracts once per opened archive.
+        layers = _extraction_layers(pages)
+        folder_of = {}
+        for number, names in enumerate(layers):
+            folder = unpack / str(number)
+            folder.mkdir()
+            with py7zr.SevenZipFile(source, "r", max_extract_size=MAX_BOOK_BYTES) as archive:
+                archive.extract(path=folder, targets=names + ([metadata] if metadata and number == 0 else []))
+            folder_of.update((name, folder) for name in names)
         for index, (name, _) in enumerate(pages, 1):
-            original = unpack.joinpath(*PurePosixPath(name.replace("\\", "/")).parts)
+            original = folder_of[name].joinpath(*PurePosixPath(name.replace("\\", "/")).parts)
             if original.is_symlink() or not original.is_file() or not original.resolve().is_relative_to(unpack.resolve()):
                 raise ValueError(f"Unsafe image entry: {name!r}")
             shutil.copyfile(original, destination / f"{index:06d}{Path(name).suffix.lower()}")
             if progress:
                 progress(index, len(pages) * total_steps)
         if metadata:
-            xml = unpack.joinpath(*PurePosixPath(metadata.replace("\\", "/")).parts)
+            xml = (unpack / "0").joinpath(*PurePosixPath(metadata.replace("\\", "/")).parts)
             if xml.is_symlink() or not xml.resolve().is_relative_to(unpack.resolve()) or xml.stat().st_size > MAX_XML_BYTES:
                 raise ValueError('Unsafe ComicInfo.xml entry.')
             shutil.copyfile(xml, destination / 'ComicInfo.xml')
@@ -217,4 +242,9 @@ def import_archive(source: Path, destination: Path, manual: bool = False, progre
                        if progress else None, manual=manual, right_to_left=right_to_left)
     scan.output_folder = source.parent
     scan.source_archive = source
+    # The staged copies are numbered, so name any capitalisation twins by
+    # their names in the archive.
+    names = [PurePosixPath(name.replace("\\", "/")).as_posix() for name, _ in pages]
+    staged = [destination / f"{index:06d}{Path(name).suffix.lower()}" for index, (name, _) in enumerate(pages, 1)]
+    scan.case_twins = describe_case_twins(names, staged)
     return scan
