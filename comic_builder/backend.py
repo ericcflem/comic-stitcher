@@ -26,6 +26,7 @@ from .sharp_webp import OVERFLOW_MIN_METHOD, PARTITION0_OVERFLOW, save_sharp_web
 from .colour import standard_mode
 from .pdf_export import PDF_IMAGE_SUFFIXES, verify_pdf, write_pdf
 from .detector import (
+    case_twin_groups,
     classify_page, collect_images, is_candidate_pair, load_edge_rgb,
     seam_score,
 )
@@ -72,6 +73,17 @@ class Scan:
     screenshot_source: Path | None = None
     flagged_pages: set[int] = field(default_factory=set)
     right_to_left: bool = False
+    # Pages whose names differ only in capitalisation: (their names, whether
+    # the files are identical). Possible on Linux and inside archives.
+    case_twins: list[tuple[tuple[str, ...], bool]] = field(default_factory=list)
+
+
+def describe_case_twins(names: list[str], files: list[Path]) -> list[tuple[tuple[str, ...], bool]]:
+    """Groups of names differing only in capitalisation, and whether each group's files match."""
+    import filecmp
+    return [(tuple(names[i] for i in group),
+             all(filecmp.cmp(files[group[0]], files[i], shallow=False) for i in group[1:]))
+            for group in case_twin_groups(names)]
 
 
 class BoundaryOverrideRequired(ValueError):
@@ -102,8 +114,9 @@ def scan_folder(folder: Path, progress: Callable[[int, int], None] | None = None
         paths.reverse()
     if not paths:
         raise ValueError("No supported page images were found in this folder.")
-    if len({p.name.casefold() for p in paths}) != len(paths):
-        raise ValueError("Two pages have the same name except for capitalization; rename them before scanning.")
+    # Names differing only in capitalisation are kept, in the order Linux file
+    # managers show them (see name_sort_key); the import notes them for review.
+    case_twins = describe_case_twins([p.name for p in paths], paths)
 
     if manual:
         pages = []
@@ -121,7 +134,8 @@ def scan_folder(folder: Path, progress: Callable[[int, int], None] | None = None
                 progress(i + 1, len(paths))
         # Every neighbor is reviewable, regardless of the edge art or page numbers.
         candidates = [Candidate(i, i + 1, 0.0, True) for i in range(len(pages) - 1)]
-        return Scan(folder, pages, candidates, manual_mode=True, right_to_left=right_to_left)
+        return Scan(folder, pages, candidates, manual_mode=True, right_to_left=right_to_left,
+                    case_twins=case_twins)
 
     # Only infer numbering gaps if every name follows the same prefix + digits pattern.
     matches = [re.fullmatch(r"(.*?)(\d+)", p.stem) for p in paths]
@@ -173,7 +187,8 @@ def scan_folder(folder: Path, progress: Callable[[int, int], None] | None = None
     candidates.sort(key=lambda c: (not c.likely, c.left))
     if progress:
         progress(2 * len(paths), 2 * len(paths))
-    return Scan(folder, pages, candidates, gaps, numbers is None, right_to_left=right_to_left)
+    return Scan(folder, pages, candidates, gaps, numbers is None, right_to_left=right_to_left,
+                case_twins=case_twins)
 
 
 def scan_manual_folder(folder: Path, progress: Callable[[int, int], None] | None = None, *, right_to_left=False) -> Scan:
@@ -531,7 +546,7 @@ def planned_names(plan: BookPlan, opt: ExportOptions, reduced: bool = False) -> 
     result = []
     for index, (left, right) in enumerate(entries, opt.start):
         if opt.keep_originals and not reduced:
-            suffix = (plan.scan.pages[left].path.suffix if right is None and left not in plan.rotations
+            suffix = (plan.scan.pages[left].path.suffix.lower() if right is None and left not in plan.rotations
                       else {"png": ".png", "jpeg": ".jpg", "webp": ".webp"}[opt.spread_format])
         else:
             suffix = {"jpeg": ".jpg", "webp": ".webp", "png": ".png"}[opt.format]

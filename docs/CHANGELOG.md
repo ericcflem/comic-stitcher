@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Pages whose names differ only in capitalisation (`comic - 001.jpg` and
+  `comic - 001.JPG`), which Linux and comic archives allow, are no longer
+  refused. They are kept in the order Linux file managers and comic readers
+  show them (capitalisation ignored, lowercase first), and a note before review
+  names them and says if any are identical copies. Archives extract them
+  without one overwriting the other, on Windows too. The same image path twice
+  in one archive is still refused.
+- Copied pages with upper-case extensions (`.JPG`) are saved with lowercase
+  ones, like every other page, and the file pickers on Linux show archives,
+  PDFs and images with upper-case extensions.
 - 16-bit greyscale pages (from some scanners' PNG and TIFF files) are now scaled
   to 8 bits instead of clipped. Before, anything lighter than nearly black came
   out white in JPEG, WebP, PDF and reduced copies, in previews, and to the spread

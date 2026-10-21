@@ -1831,7 +1831,7 @@ class ScreenshotCropDialog(OutlinedWindow, QDialog):
     def replace_screenshot(self):
         index = self.list.currentRow()
         path, _ = QFileDialog.getOpenFileName(self, "Replace this screenshot", "",
-                                              "Images (*.png *.jpg *.jpeg *.webp *.tif *.tiff *.bmp)")
+                                              "Images (*.png *.PNG *.jpg *.JPG *.jpeg *.JPEG *.webp *.WEBP *.tif *.TIF *.tiff *.TIFF *.bmp *.BMP)")
         if not path:
             return
         replacement = Path(path)
@@ -3232,8 +3232,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
     def choose_file(self):
         sources, _ = QFileDialog.getOpenFileNames(
             self, "Select comic file", "",
-            "Comic files (*.cbz *.cbr *.cb7 *.zip *.rar *.7z *.pdf);;"
-            "PDF documents (*.pdf);;Comic archives (*.cbz *.cbr *.cb7 *.zip *.rar *.7z)")
+            "Comic files (*.cbz *.CBZ *.cbr *.CBR *.cb7 *.CB7 *.zip *.ZIP *.rar *.RAR *.7z *.7Z *.pdf *.PDF);;"
+            "PDF documents (*.pdf *.PDF);;Comic archives (*.cbz *.CBZ *.cbr *.CBR *.cb7 *.CB7 *.zip *.ZIP *.rar *.RAR *.7z *.7Z)")
         if sources:
             self._import_paths([Path(source) for source in sources])
 
@@ -3620,6 +3620,34 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                         pdf_dpi=int(self.settings.value("pdf_dpi", 300)) if extract else None,
                         manual_mode=manual_mode, pdf_smooth_images=smooth_images)
 
+    def _show_case_twins_notice(self, twins):
+        """Pages whose names differ only in capitalisation: say so once, before review."""
+        names, _ = twins[0]
+        # Archive pages are named with their folder inside the archive, which is
+        # the same for both; just the file names say which pages these are.
+        short = [name.replace("\\", "/").rsplit("/", 1)[-1] for name in names]
+        if len(set(short)) == len(short):
+            names = short
+        copies = sum(identical for _, identical in twins)
+        diagnostics.note("Names differing only in capitalisation: %d sets (%d identical); first: %s",
+                         len(twins), copies, " / ".join(names))
+        text = ("Some pages have names that differ only in capitalisation"
+                if len(twins) > 1 else "Two pages have names that differ only in capitalisation")
+        notice = QMessageBox(QMessageBox.Information, "Page names differ only in capitalisation",
+                             f"{text}, such as “{names[0]}” and “{names[1]}”"
+                             + (f" ({len(twins)} sets)." if len(twins) > 1 else "."), QMessageBox.Ok, self)
+        details = ("They are kept in the order Linux file managers show them: capitalisation is ignored, "
+                   "and lowercase comes first. Check their order in review.")
+        if copies:
+            which = ("These pages are" if len(twins) == 1 else "In every set, the pages are"
+                     if copies == len(twins) else f"In {copies} of these sets, the pages are")
+            details += (f"\n\n{which} identical copies of the same image. If the extra copies "
+                        "aren't meant to be there, remove them in review.")
+        notice.setInformativeText(details)
+        notice.setAttribute(Qt.WA_DeleteOnClose)
+        notice.open()  # Doesn't hold up the review.
+        self.case_twins_notice = notice
+
     def scan_done(self, scan):
         # Folder-based imports publish beside the input folder. File imports
         # already carry their source file's destination from the importer.
@@ -3685,6 +3713,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         else:
             suggested = sum(c.likely or c.continuity >= POSSIBLE_MIN_SCORE for c in scan.candidates)
             self.statusBar().showMessage(f"{len(scan.pages)} pages; {suggested} suggested pairs")
+        if scan.case_twins and not resumed:
+            self._show_case_twins_notice(scan.case_twins)
         if resumed and resumed.get("stage") in ("preview", "export"):
             self.preview_index = max(0, int(resumed.get("preview_index", 0)))
             self.enter_preview()
@@ -5125,7 +5155,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         else:
             selected, _ = QFileDialog.getOpenFileNames(
                 self, "Add comic files", "",
-                "Comic files (*.cbz *.cbr *.cb7 *.zip *.rar *.7z *.pdf)")
+                "Comic files (*.cbz *.CBZ *.cbr *.CBR *.cb7 *.CB7 *.zip *.ZIP *.rar *.RAR *.7z *.7Z *.pdf *.PDF)")
             paths = [Path(path) for path in selected]
         if paths:
             self.batch_import_active = True
