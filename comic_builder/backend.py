@@ -94,6 +94,47 @@ def _classify(path: Path, index: int):
     return classify_page(path, index, BORDER_STRIP_PX, BORDER_MAX_STD, BORDER_MAX_VERTICAL_STD)
 
 
+# Worker processes take a moment to start, so small or light books scan in one.
+SCAN_PARALLEL_MIN_PAGES = 12
+SCAN_PARALLEL_MIN_BYTES = 40 * 1024 * 1024
+
+
+def _classify_job(path: str, index: int):
+    """Top level, so Windows spawn and PyInstaller can run it in a worker process."""
+    try:
+        return _classify(Path(path), index)
+    except Exception as exc:
+        raise ValueError(f"Cannot read image {Path(path).name}: {exc}") from exc
+
+
+def _scan_jobs(function, jobs: list[tuple], workers: int, done: Callable[[], None]) -> list:
+    """function(*job) for every job, in order; in parallel processes when worthwhile.
+
+    Each page is decoded on its own, so pages spread across processes like
+    export does. The results are the same either way.
+    """
+    if workers <= 1 or len(jobs) < SCAN_PARALLEL_MIN_PAGES:
+        results = []
+        for job in jobs:
+            results.append(function(*job))
+            done()
+        return results
+    results = [None] * len(jobs)
+    with ProcessPoolExecutor(max_workers=min(workers, len(jobs)), mp_context=get_context("spawn")) as pool:
+        pending = {pool.submit(function, *job): index for index, job in enumerate(jobs)}
+        try:
+            while pending:
+                finished, _ = wait(pending, return_when=FIRST_COMPLETED)
+                for future in finished:
+                    results[pending.pop(future)] = future.result()
+                    done()
+        except BaseException:
+            for future in pending:
+                future.cancel()
+            raise
+    return results
+
+
 def _measured_candidate(left: int, right: int, visual_left: Path, visual_right: Path,
                         left_info, right_info) -> Candidate:
     """Score the seam between two neighbouring pages, as they appear side by side."""
@@ -105,7 +146,7 @@ def _measured_candidate(left: int, right: int, visual_left: Path, visual_right: 
 
 
 def scan_folder(folder: Path, progress: Callable[[int, int], None] | None = None,
-                *, manual: bool = False, right_to_left: bool = False) -> Scan:
+                *, manual: bool = False, right_to_left: bool = False, workers: int = 0) -> Scan:
     folder = folder.expanduser().resolve(strict=True)
     if not folder.is_dir():
         raise ValueError("Choose a folder of images.")
@@ -145,14 +186,15 @@ def scan_folder(folder: Path, progress: Callable[[int, int], None] | None = None
         if all((b < a if right_to_left else b > a) for a, b in zip(proposed, proposed[1:], strict=False)):
             numbers = proposed
 
-    info = []
-    for i, path in enumerate(paths):
-        try:
-            info.append(_classify(path, i))
-        except Exception as exc:
-            raise ValueError(f"Cannot read image {path.name}: {exc}") from exc
+    workers = encoding_workers(workers)
+    if sum(path.stat().st_size for path in paths) < SCAN_PARALLEL_MIN_BYTES:
+        workers = 1
+    steps = {"done": 0}
+    def step():
+        steps["done"] += 1
         if progress:
-            progress(i + 1, len(paths) * 2)
+            progress(steps["done"], len(paths) * 2)
+    info = _scan_jobs(_classify_job, [(str(path), i) for i, path in enumerate(paths)], workers, step)
 
     pages: list[Page] = []
     group = -1
@@ -174,16 +216,15 @@ def scan_folder(folder: Path, progress: Callable[[int, int], None] | None = None
         pages.append(Page(path, i, assigned_group, p.width, p.height,
                           stat.st_size, stat.st_mtime_ns))
 
-    candidates = []
+    pairs = []
     for i in range(len(pages) - 1):
         a, b = pages[i:i + 2]
         visual_left, visual_right = (b, a) if right_to_left else (a, b)
         left_info, right_info = (info[i + 1], info[i]) if right_to_left else (info[i], info[i + 1])
         if a.group >= 0 and a.group == b.group and is_candidate_pair(left_info, right_info):
-            candidates.append(_measured_candidate(i, i + 1, visual_left.path, visual_right.path,
-                                                  left_info, right_info))
-        if progress:
-            progress(len(paths) + i + 1, len(paths) * 2)
+            pairs.append((i, i + 1, visual_left.path, visual_right.path, left_info, right_info))
+    steps["done"] = len(paths) + (len(pages) - 1 - len(pairs))  # Pairs that need no measuring.
+    candidates = _scan_jobs(_measured_candidate, pairs, workers, step)
     candidates.sort(key=lambda c: (not c.likely, c.left))
     if progress:
         progress(2 * len(paths), 2 * len(paths))

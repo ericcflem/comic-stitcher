@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Spread suggestions: scanning large books now spreads the pages across worker
+  processes, as export does (half the processor's threads, up to six), so it
+  finishes several times faster on multi-core computers. Small books, under
+  about 40 MB of pages, still scan in one process, which is quicker for them.
+  The suggestions are identical either way.
 - Batch queue: drag a comic up or down to change the order comics are exported
   in, or select it and press Ctrl with Up, Down, Home or End.
 - Pages whose names differ only in capitalisation (`comic - 001.jpg` and
