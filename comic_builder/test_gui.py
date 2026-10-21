@@ -1367,6 +1367,44 @@ class ThumbnailTest(unittest.TestCase):
                 window.queue_jobs.clear()
                 window.close()
 
+    def test_queue_order_can_be_changed_by_dragging_or_keyboard(self):
+        from PySide6.QtWidgets import QListWidget, QPushButton
+        from .gui import QueueList
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            Image.new("RGB", (40, 60), "white").save(root / "001.png")
+            window = ComicWindow()
+            try:
+                for name in ("First", "Second", "Third"):
+                    window.queue_jobs.append(QueuedComic(BookPlan(scan_manual_folder(root)),
+                                                         ExportOptions(name, workers=1), None, None, None))
+                names = lambda: [job.options.book_name for job in window.queue_jobs]
+                def reorder(dialog):
+                    listing = dialog.findChild(QueueList)
+                    self.assertEqual(listing.dragDropMode(), QListWidget.InternalMove)
+                    # Keyboard: Ctrl+End sends the selected comic to the bottom, Ctrl+Up moves it up one.
+                    listing.setCurrentRow(0)
+                    QTest.keyClick(listing, Qt.Key_End, Qt.ControlModifier)
+                    self.assertEqual(names(), ["Second", "Third", "First"])
+                    QTest.keyClick(listing, Qt.Key_Up, Qt.ControlModifier)
+                    self.assertEqual(names(), ["Second", "First", "Third"])
+                    # A drag ends with the list in its new order; the queue follows it.
+                    listing.insertItem(0, listing.takeItem(2))
+                    listing.reordered.emit()
+                    self.assertEqual(names(), ["Third", "Second", "First"])
+                    self.assertTrue(listing.item(0).text().startswith("Third"))
+                    # Removing still removes the comic shown in that row.
+                    listing.setCurrentRow(1)
+                    {b.text(): b for b in dialog.findChildren(QPushButton)}["Remove selected"].click()
+                    self.assertEqual(names(), ["Third", "First"])
+                    return QDialog.Rejected
+                with patch.object(QDialog, "exec", reorder):
+                    window.show_queue()
+                self.assertEqual(names(), ["Third", "First"])
+            finally:
+                window.queue_jobs.clear()
+                window.close()
+
     def test_add_another_batch_item_returns_to_import_without_exporting(self):
         from .gui import QFileDialog
         window = ComicWindow()
