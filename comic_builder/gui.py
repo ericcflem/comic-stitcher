@@ -82,8 +82,11 @@ class _DropDownHeight(QObject):
         self.height = height
 
     def eventFilter(self, watched, event):
-        if event.type() == QEvent.Polish and isinstance(watched, QComboBox):
-            watched.setFixedHeight(self.height)
+        # Polish: first set-up. StyleChange: a window's style sheet was applied
+        # again, which can restore the style's own minimum height.
+        if event.type() in (QEvent.Polish, QEvent.StyleChange) and isinstance(watched, QComboBox):
+            if watched.minimumHeight() != self.height or watched.maximumHeight() != self.height:
+                watched.setFixedHeight(self.height)
         return False
 
 

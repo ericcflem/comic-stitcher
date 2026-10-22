@@ -64,7 +64,8 @@ class ThumbnailTest(unittest.TestCase):
             normal_size = window.size()
             control_height = window.handling.height()
             self.assertGreaterEqual(window.metadata_button.height(), window.metadata_button.sizeHint().height())
-            self.assertEqual(window.book_scroll.verticalScrollBar().maximum(), 0)
+            self.assertEqual(window.book_scroll.verticalScrollBar().maximum(), 0,
+                             [(c.minimumHeight(), c.height()) for c in (window.naming, window.start_number, window.padding)])
             window.naming.setCurrentIndex(2)
             QTest.qWait(20)
             self.assertEqual(window.size(), normal_size)
