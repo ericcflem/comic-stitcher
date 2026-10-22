@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
     QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox,
     QProgressBar, QPushButton, QScrollArea, QSizePolicy, QSpinBox,
     QStackedWidget, QTabWidget, QVBoxLayout, QWidget, QGroupBox, QStyle,
+    QDialogButtonBox, QProxyStyle, QStyleFactory,
 )
 
 from .backend import (
@@ -90,11 +91,24 @@ class _DropDownHeight(QObject):
         return False
 
 
+class _WindowsButtonOrder(QProxyStyle):
+    """Fusion, with dialog buttons in the Windows order on every system (Linux
+    desktops otherwise reorder them, putting Cancel in the middle)."""
+
+    def styleHint(self, hint, option=None, widget=None, returnData=None):
+        if hint == QStyle.SH_DialogButtonLayout:
+            return QDialogButtonBox.WinLayout
+        return super().styleHint(hint, option, widget, returnData)
+
+
 def ui_app_style(app):
-    """Drop-down lists share one height everywhere: the height an ordinary one
-    has with a 24-pixel minimum, as the Create your comic screen always used."""
+    """The Fusion style with Windows dialog button order, and drop-down lists of
+    one height everywhere: the height an ordinary one has with a 24-pixel
+    minimum, as the Create your comic screen always used."""
     if getattr(app, "_drop_down_height", None) is not None:
         return
+    app._button_order_style = _WindowsButtonOrder(QStyleFactory.create("Fusion"))
+    app.setStyle(app._button_order_style)
     probe = QComboBox()
     probe.addItem("Automatic")
     probe.setStyleSheet("QComboBox { min-height:24px; }")
@@ -5389,8 +5403,7 @@ def main():
     if sys.platform.startswith("linux"):
         # Matches windows to the app-menu entry linux/install.sh creates (Wayland app id).
         QApplication.setDesktopFileName("comic-stitcher")
-    app.setStyle("Fusion")
-    ui_app_style(app)
+    ui_app_style(app)  # Fusion, with a few app-wide adjustments.
     broker = LaunchBroker()
     try:
         if not broker.start([Path(argument) for argument in sys.argv[1:]]):
