@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Dialog buttons are in the same order on Linux as on Windows. Linux desktops
+  reordered them, putting Cancel in the middle of some dialogs.
 - Buttons and drop-down lists are consistent heights. Plain buttons are all the
   standard height (those in the queue and import windows, and the Yes and No of
   warnings opened from the queue, were as tall as the blue ones); blue buttons

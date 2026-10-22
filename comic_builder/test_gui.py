@@ -1462,6 +1462,27 @@ class ThumbnailTest(unittest.TestCase):
             self.assertTrue(any(k.startswith(where) for k in combos), (where, combos))
         self.assertEqual(len(set(combos.values())), 1, (getattr(self.app, '_drop_down_height', None) and self.app._drop_down_height.height, details))
 
+    def test_dialog_buttons_use_the_windows_order_everywhere(self):
+        """Linux desktops reorder dialog buttons (Cancel lands in the middle);
+        the app keeps the Windows order on every system."""
+        from PySide6.QtWidgets import QPushButton
+        box = QMessageBox(QMessageBox.Question, "Temporary storage for this batch", "Test")
+        box.addButton("Clear temporary pages", QMessageBox.AcceptRole)
+        box.addButton("Keep for faster export", QMessageBox.ActionRole)
+        box.addButton(QMessageBox.Cancel)
+        yes_no = QMessageBox(QMessageBox.Question, "Remove this comic?", "Test", QMessageBox.Yes | QMessageBox.No)
+        try:
+            orders = []
+            for dialog in (box, yes_no):
+                dialog.show()
+                self.app.processEvents()
+                buttons = [b for b in dialog.findChildren(QPushButton) if b.isVisible()]
+                orders.append([b.text().replace("&", "") for b in sorted(buttons, key=lambda b: b.mapToGlobal(b.rect().topLeft()).x())])
+            self.assertEqual(orders, [["Clear temporary pages", "Keep for faster export", "Cancel"], ["Yes", "No"]])
+        finally:
+            box.close()
+            yes_no.close()
+
     def make_book(self, root: Path, name: str, shade=0) -> Path:
         folder = root / name
         folder.mkdir()
