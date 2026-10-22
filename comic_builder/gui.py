@@ -18,7 +18,7 @@ from threading import Condition
 from uuid import uuid4
 
 from PIL import Image, ImageOps
-from PySide6.QtCore import QFile, QEvent, QSettings, QSize, Qt, QThread, QTimer, Signal, QUrl, QRectF, QSignalBlocker, QMimeData
+from PySide6.QtCore import QFile, QEvent, QObject, QSettings, QSize, Qt, QThread, QTimer, Signal, QUrl, QRectF, QSignalBlocker, QMimeData
 from PySide6.QtGui import QFontMetrics, QDesktopServices, QImage, QPixmap, QShortcut, QKeySequence, QPainter, QColor, QPen, QDrag, QIcon
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout,
@@ -77,8 +77,29 @@ def ui_heading(text, size=24):
 APP_STYLE = "QComboBox { min-height:24px; }"
 
 
+class _DropDownHeight(QObject):
+    """Fixes every drop-down list to one height as it is set up, so none grows
+    to fill a taller form row."""
+
+    def __init__(self, height, parent):
+        super().__init__(parent)
+        self.height = height
+
+    def eventFilter(self, watched, event):
+        if event.type() == QEvent.Polish and isinstance(watched, QComboBox):
+            watched.setFixedHeight(self.height)
+        return False
+
+
 def ui_app_style(app):
+    if getattr(app, "_drop_down_height", None) is not None:
+        return
     app.setStyleSheet(APP_STYLE)
+    probe = QComboBox()
+    probe.addItem("Automatic")
+    app._drop_down_height = _DropDownHeight(probe.sizeHint().height(), app)
+    probe.deleteLater()
+    app.installEventFilter(app._drop_down_height)
 
 
 def ui_primary(button):
