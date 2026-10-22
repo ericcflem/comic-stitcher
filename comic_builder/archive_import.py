@@ -169,7 +169,8 @@ def _import_rar(source: Path, destination: Path, progress, total_steps: int = 3)
         raise ValueError(f"Cannot read or extract this RAR/CBR archive: {exc}") from exc
 
 
-def import_archive(source: Path, destination: Path, manual: bool = False, progress=None, *, right_to_left=False):
+def import_archive(source: Path, destination: Path, manual: bool = False, progress=None, *, right_to_left=False,
+                   workers: int = 0):
     """Stage numbered image copies, then scan; archive and member data stay untouched."""
     source = source.expanduser().resolve(strict=True)
     extension = source.suffix.lower()
@@ -239,7 +240,7 @@ def import_archive(source: Path, destination: Path, manual: bool = False, progre
         shutil.rmtree(unpack)
     scan = scan_folder(destination,
                        progress=(lambda n, total: progress(len(pages) + n, len(pages) * total_steps))
-                       if progress else None, manual=manual, right_to_left=right_to_left)
+                       if progress else None, manual=manual, right_to_left=right_to_left, workers=workers)
     scan.output_folder = source.parent
     scan.source_archive = source
     # The staged copies are numbered, so name any capitalisation twins by

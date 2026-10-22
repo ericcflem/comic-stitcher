@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Settings: one **Worker processes** count replaces the three separate ones
+  (PDF rendering, screenshot, encoding). It covers scanning, PDF rendering,
+  screenshot measuring and cropping, and encoding. Automatic is unchanged: about
+  half the processor's threads, up to six, and up to four for PDF rendering. An
+  existing encoding count carries over.
 - Dialog buttons are in the same order on Linux as on Windows. Linux desktops
   reordered them, putting Cancel in the middle of some dialogs.
 - Buttons and drop-down lists are consistent heights. Plain buttons are all the

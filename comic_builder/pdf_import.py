@@ -146,8 +146,10 @@ def suggest_pdf_dpi(source: Path, sample_pages: int = SAMPLE_PAGES) -> int | Non
 
 
 def pdf_workers(requested: int = 0) -> int:
-    """Keep concurrent full-page bitmaps within a practical memory budget."""
-    return requested or min(4, max(1, (os.cpu_count() or 1) // 2))
+    """The chosen worker count; Automatic keeps concurrent full-page bitmaps
+    within a practical memory budget (up to four)."""
+    logical = os.cpu_count() or 1
+    return max(1, min(requested, logical)) if requested > 0 else min(4, max(1, logical // 2))
 
 
 def _render_chunk(source: str, target_folder: str, first: int, last: int,
@@ -193,11 +195,11 @@ def import_pdf(source: Path, destination: Path, dpi: int = 300,
     if extract_jpegs:
         from .pdf_jpegs import import_pdf_jpegs
         return import_pdf_jpegs(source, destination, manual=manual, progress=progress,
-                               right_to_left=right_to_left)
+                               right_to_left=right_to_left, workers=workers)
     if source.suffix.lower() != ".pdf" or not source.is_file():
         raise ValueError("Choose a PDF file.")
-    if not 72 <= dpi <= 600 or not 0 <= workers <= 8:
-        raise ValueError("Choose 72–600 dpi and up to eight rendering processes.")
+    if not 72 <= dpi <= 600 or workers < 0:
+        raise ValueError("Choose 72–600 dpi.")
     destination.mkdir(parents=True, exist_ok=True)
     if any(destination.iterdir()):
         raise ValueError("The temporary import folder is not empty.")
@@ -259,7 +261,7 @@ def import_pdf(source: Path, destination: Path, dpi: int = 300,
         raise ValueError("PDF rendering did not produce every page; temporary images were preserved for inspection.")
     scan = scan_folder(destination,
                        progress=(lambda n, total: progress(count + n, count * total_steps))
-                       if progress else None, manual=manual, right_to_left=right_to_left)
+                       if progress else None, manual=manual, right_to_left=right_to_left, workers=workers)
     scan.output_folder = source.parent
     scan.source_archive = source  # Also used for non-archive file imports.
     return scan
