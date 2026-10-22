@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Buttons are all one height. The blue buttons and those in the queue and import
+  windows were taller than the rest, and so were the Yes and No buttons of
+  warnings opened from the queue.
 - Batch queue: a comic joins the queue as soon as its Create your comic screen
   opens, with the settings shown; changing them updates its queue entry. The
   separate Review final output and Ready to queue steps are gone. The blue

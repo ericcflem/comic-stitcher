@@ -74,10 +74,14 @@ def ui_heading(text, size=24):
 
 
 def ui_primary(button):
+    """The blue button for a screen's main action. It is as tall as the app's
+    other buttons; colour, bold text and extra width make it stand out."""
+    height = button.sizeHint().height()  # The standard button height, before restyling.
     button.setStyleSheet("QPushButton { background:#1976cf; color:white; border:1px solid #1976cf; "
-                        "border-radius:5px; padding:7px 14px; font-weight:600; } "
+                        "border-radius:5px; padding:0 18px; font-weight:600; } "
                         "QPushButton:hover { background:#1266b6; } "
                         "QPushButton:disabled { background:#b9c5d0; border-color:#b9c5d0; }")
+    button.setFixedHeight(height)
 
 
 def ui_icon(widget, kind, size=72):
@@ -1983,7 +1987,7 @@ class ImportChoiceDialog(OutlinedWindow, QDialog):
         self._setup_outline()  # GNOME on Wayland: a visible window edge
         self.setWindowTitle("Start comic import")
         self.resize(540, 310)
-        self.setStyleSheet("QComboBox { min-height:28px; } QPushButton { padding:7px 14px; }")
+        self.setStyleSheet("QComboBox { min-height:28px; }")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 20, 24, 20)
         layout.setSpacing(16)
@@ -2786,7 +2790,6 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             "QWidget#exportBookContent, QWidget#exportBookViewport { background:#f9fbfd; } "
             "QGroupBox QLabel, QGroupBox QCheckBox { font-weight:400; color:#000000; } "
             "QLineEdit, QComboBox, QSpinBox { min-height:24px; } "
-            "QPushButton { padding:5px 10px; }"
             "QScrollArea#exportSettings, QWidget#exportSettingsViewport, QWidget#exportSettingsContent "
             "{ background:transparent; }")
         page_box = QVBoxLayout(self.export_page)
@@ -5054,8 +5057,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         dialog.resize(760, 480)
         dialog.setStyleSheet("QListWidget { font-size:14px; } "
                             "QListWidget::item { padding:10px; border-bottom:1px solid #d8e0e8; } "
-                            "QListWidget::item:selected { color:#102a43; background:#dceeff; } "
-                            "QPushButton { padding:7px 12px; }")
+                            "QListWidget::item:selected { color:#102a43; background:#dceeff; }")
         layout = QVBoxLayout(dialog)
         note = QLabel("Comics are exported from the top down; drag one to change the order. Double-click "
                       "a comic to change its settings. Output files and folders will be saved alongside "

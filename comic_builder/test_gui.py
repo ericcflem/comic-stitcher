@@ -1398,6 +1398,52 @@ class ThumbnailTest(unittest.TestCase):
                 window.queue_jobs.clear()
                 window.close()
 
+    def test_buttons_share_one_height(self):
+        """Blue and plain buttons, on screens, in the queue window and in the
+        message boxes it opens, are all the standard button height."""
+        from PySide6.QtWidgets import QPushButton
+        standard = QPushButton("Remove selected").sizeHint().height()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            window = ComicWindow()
+            try:
+                window.scan_done(scan_manual_folder(self.make_book(root, "book")))
+                window.show_export()
+                window.queue_jobs.append(QueuedComic(BookPlan(scan_manual_folder(self.make_book(root, "two"))),
+                                                     ExportOptions("Two", workers=1), None, None, None))
+                window._refresh_queue_status()
+                window.show()
+                self.app.processEvents()
+                heights = {b.text(): b.height() for b in (window.create_button, window.export_back_button,
+                                                           window.export_queue_button)}
+                print("button heights: standard", standard, heights)
+                self.assertEqual(set(heights.values()), {standard}, heights)
+                seen = {}
+                def check(dialog):
+                    dialog.show()
+                    self.app.processEvents()
+                    for button in dialog.findChildren(QPushButton):
+                        if not button.isHidden():
+                            seen[button.text()] = button.height()
+                    dialog.findChild(QueueList).setCurrentRow(0)
+                    box = QMessageBox(QMessageBox.Question, "Remove this comic?", "Test",
+                                      QMessageBox.Yes | QMessageBox.No, dialog)
+                    box.show()
+                    self.app.processEvents()
+                    for button in box.findChildren(QPushButton):
+                        seen["box " + button.text()] = button.height()
+                    box.close()
+                    return QDialog.Rejected
+                from .gui import QueueList
+                with patch.object(QDialog, "exec", check):
+                    window.export_queue_button.click()
+                print("queue window heights:", seen)
+                self.assertTrue(seen)
+                self.assertEqual(set(seen.values()), {standard}, seen)
+            finally:
+                window.queue_jobs.clear()
+                window.close()
+
     def make_book(self, root: Path, name: str, shade=0) -> Path:
         folder = root / name
         folder.mkdir()
