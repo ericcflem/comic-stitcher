@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout,
     QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox,
     QProgressBar, QPushButton, QScrollArea, QSizePolicy, QSpinBox,
-    QStackedWidget, QTabWidget, QVBoxLayout, QWidget, QGroupBox, QStyle, QGridLayout,
+    QStackedWidget, QTabWidget, QVBoxLayout, QWidget, QGroupBox, QStyle,
 )
 
 from .backend import (
@@ -568,6 +568,9 @@ class DropMarker(QWidget):
         painter = QPainter(self)
         painter.setPen(QPen(QColor("#ed3c9b"), 3, Qt.DotLine))
         painter.drawLine(self.width() // 2, 4, self.width() // 2, self.height() - 4)
+
+
+EXPORT_HINT = "This comic is in the queue with these settings; any change you make here updates it."
 
 
 class QueueList(QListWidget):
@@ -2132,6 +2135,10 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.import_work: tempfile.TemporaryDirectory | None = None
         self.batch_import_active = False
         self.queue_jobs: list[QueuedComic] = []
+        # The comic on the Create your comic screen, already in queue_jobs;
+        # editing_queued when it was reopened from the queue (pairs fixed).
+        self.current_job: QueuedComic | None = None
+        self.editing_queued = False
         self.import_prompt_active = False
         self.pdf_jpeg_reason = None  # Why the last PDF checked can't give up its original JPEGs.
         self.pending_imports: deque[Path] = deque()
@@ -3014,7 +3021,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         form.setVerticalSpacing(10)
         output_box.addLayout(form)
         box.addWidget(output_group)
-        self.export_hint = QLabel("Choose your settings, then review the output before creating the comic.")
+        self.export_hint = QLabel(EXPORT_HINT)
         self.export_hint.setWordWrap(True)
         self.keep_queue_pages = QCheckBox("Keep imported pages for faster queued export")
         self.keep_queue_pages.setToolTip(tooltip_text(
@@ -3024,23 +3031,21 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.keep_queue_pages.hide()
         box.addStretch()
         controls = QHBoxLayout()
-        back = QPushButton("Back to Comic Preview")
-        back.clicked.connect(self.return_preview_from_export)
-        self.create_button = QPushButton("Review final output")
+        self.export_back_button = QPushButton("Back to Comic Preview")
+        self.export_back_button.clicked.connect(self.return_preview_from_export)
+        # This comic is already in the queue; the blue button moves on.
+        self.create_button = QPushButton("Start export")
         ui_primary(self.create_button)
-        self.create_button.clicked.connect(self.start_export)
-        self.add_queue_button = QPushButton("Add to queue")
-        self.add_queue_button.clicked.connect(self.add_to_queue)
-        # The queue so far, available while the next comic is being set up.
+        self.create_button.clicked.connect(self.export_screen_continue)
         self.export_queue_button = QPushButton("View queue…")
         self.export_queue_button.setToolTip(tooltip_text(
-            "See, reorder or remove the comics already queued. Finish this comic to start the queue."))
+            "See the queued comics, this one included: reorder them, remove one, add another comic, "
+            "or double-click one to change its settings."))
         self.export_queue_button.clicked.connect(lambda: self.show_queue(reviewing=True))
         self.export_queue_button.hide()
-        controls.addWidget(back)
+        controls.addWidget(self.export_back_button)
         controls.addStretch()
         controls.addWidget(self.export_queue_button)
-        controls.addWidget(self.add_queue_button)
         controls.addWidget(self.create_button)
         page_box.addWidget(self.export_hint)
         page_box.addLayout(controls)
@@ -3087,6 +3092,11 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.pages.addWidget(self.progress_page)
 
     def new_comic(self):
+        if self.current_job is not None:  # Leaving a comic that was never settled: drop it.
+            if self.current_job in self.queue_jobs:
+                self.queue_jobs.remove(self.current_job)
+            self.current_job = None
+            self.editing_queued = False
         if self.screenshot_stage_dir is not None and self.replay_count > 0:
             shutil.rmtree(self.screenshot_stage_dir, ignore_errors=True)
         self.screenshot_stage_dir = None
@@ -4598,7 +4608,15 @@ class ComicWindow(OutlinedWindow, QMainWindow):
 
     def show_export(self):
         self.pages.setCurrentWidget(self.export_page)
-        self._save_review_report()
+        if not self.editing_queued:
+            self._save_review_report()
+            if self.current_job is None and self.plan is not None:
+                # Reaching this screen queues the comic with the settings shown.
+                self.current_job = QueuedComic(self.plan, replace(self.options_from_screen()),
+                                               self.session_source, None, self.screenshot_stage_dir)
+                self.queue_jobs.append(self.current_job)
+                diagnostics.note("Comic added to queue: %s", self.current_job.options.book_name)
+        self._refresh_queue_status()
         self._compact_window()
         self.refresh_export()
 
@@ -4746,12 +4764,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             self.book_scroll.setFixedHeight(normal_height + 2)
             self.book_form.setRowVisible(self.custom_prefix_row, self.naming.currentIndex() == 2)
         if hasattr(self, "create_button"):
-            self.create_button.setVisible(not self.batch_import_active)
-            self.add_queue_button.setText("Review final output" if self.batch_import_active else "Review queued output")
-            if self.batch_import_active:
-                ui_primary(self.add_queue_button)
-            else:
-                self.add_queue_button.setStyleSheet("")
+            self.create_button.setText("Review next comic" if self.pending_imports else "Start export")
+            self.export_back_button.setVisible(not self.editing_queued)
         if hasattr(self, "export_scroll"):
             QTimer.singleShot(0, self._fit_export_settings)  # After any text change is laid out.
         if self.plan is None:
@@ -4773,14 +4787,14 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             planned_names(self.plan, opt, reduced=opt.size_output == "reduced")
             if not opt.cbz and not opt.keep_images:
                 raise ValueError("Choose an archive, processed images, or both.")
-            self.export_hint.setText("Choose your settings, then review the output before creating the comic.")
+            self.export_hint.setText(EXPORT_HINT)
             self.create_button.setEnabled(True)
-            self.add_queue_button.setEnabled(True)
+            if self.current_job is not None:
+                self.current_job.options = replace(opt)  # The queued entry follows the screen.
             self._schedule_size_estimate()
         except (ValueError, IndexError) as exc:
             self.export_hint.setText(str(exc))
             self.create_button.setEnabled(False)
-            self.add_queue_button.setEnabled(False)
             self._cancel_size_estimate("")
 
     def _estimate_wanted(self):
@@ -4807,6 +4821,9 @@ class ComicWindow(OutlinedWindow, QMainWindow):
 
     def _start_size_estimate(self):
         if not self._estimate_wanted():
+            return
+        if self.editing_queued and self.current_job.reimport_source is not None:
+            self.size_estimate.setText("Not available: this comic's pages are imported again at export")
             return
         try:
             opt = self.options_from_screen()
@@ -4837,46 +4854,6 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.settings.setValue("estimate_size", checked)
         self._schedule_size_estimate()
 
-    def export_review_text(self, opt: ExportOptions) -> str:
-        title = safe_book_name(opt.book_name)
-        full_names = planned_names(self.plan, opt)
-        reduced_names = planned_names(self.plan, opt, reduced=True)
-        lines = [f"Source: {self.plan.scan.source_archive or self.plan.scan.folder}",
-                 f"{len(self.plan.scan.pages)} source pages → {len(full_names)} final pages per copy "
-                 f"({len(self.plan.approved())} joined spreads)",
-                 f"Numbering: starts at {opt.start}"]
-        if self.plan.rotations:
-            lines.append(f"Rotated final pages: {len(self.plan.rotations)} (orientation shown in final preview)")
-        kinds = ("full", "reduced") if opt.size_output == "both" else (opt.size_output,)
-        for kind in kinds:
-            names = reduced_names if kind == "reduced" else full_names
-            tag = f" - {'Full' if kind == 'full' else 'Reduced'}" if opt.size_output == "both" else ""
-            lines.extend(("", f"{kind.title()} copy: {names[0]} … {names[-1]}"))
-            if kind == "full" and opt.keep_originals:
-                lines.append(f"Unchanged single pages copied without re-encoding; joins and rotated singles: {opt.spread_format.upper()}")
-            else:
-                quality = (f", {'lossless effort' if opt.format == 'webp' and opt.webp_lossless else 'quality'} "
-                           f"{opt.jpeg_quality if opt.format == 'jpeg' else opt.webp_quality}"
-                           if opt.format != "png" else " (lossless)")
-                lines.append(f"Format: {opt.format.upper()}{' (lossless)' if opt.format == 'webp' and opt.webp_lossless else ''}{quality}")
-                if opt.format == "webp" and opt.webp_sharp_yuv and not opt.webp_lossless:
-                    lines[-1] += "; sharp color conversion"
-            if kind == "reduced":
-                lines.append(f"Resize by {opt.resize_mode} to {opt.resize_pixels} px; "
-                             f"{opt.resize_filter}; {'gamma correction' if opt.resize_gamma else 'no gamma correction'}; "
-                             f"{'never enlarge pages'}")
-            if opt.cbz:
-                lines.append(f"{opt.archive_format.upper()}: {title}{tag}.{opt.archive_format}")
-                if opt.archive_format == "pdf" and opt.comicinfo_xml is not None:
-                    lines.append("ComicInfo.xml is not included in the PDF"
-                                 + ("; it is saved with the PNG pages." if opt.keep_images else "."))
-            if opt.keep_images:
-                lines.append(f"Lossless PNG pages: {title}{tag} - PNG pages")
-        if self.plan.scan.right_to_left:
-            lines.append("Page order: " + ("Front to back (front cover first)" if opt.front_to_back
-                                            else "Back to front (back cover first)"))
-        return "\n".join(lines)
-
     def _format_summary(self, opt, original=False):
         if original or opt.keep_originals and opt.size_output == "full":
             return f"Original formats · joined/rotated pages: {opt.spread_format.upper()}"
@@ -4888,118 +4865,6 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             opt.jpeg_quality if opt.format == "jpeg" else opt.webp_quality) + (
             " · sharp YUV" if opt.format == "webp" and opt.webp_sharp_yuv else "")
 
-    def _queue_action_text(self):
-        if not self.batch_import_active:
-            return "Add to queue"
-        return "Queue comic and review next" if self.pending_imports else "Queue comic and start exports"
-
-    def confirm_export(self, opt: ExportOptions, *, queue: bool = False) -> bool:
-        dialog = OutlinedDialog(self)
-        dialog.setWindowTitle("Review queued comic" if queue else "Review comic export")
-        dialog.resize(780 if opt.size_output == "both" else 620, 540)
-        dialog.setStyleSheet(
-            "QGroupBox { font-size:17px; font-weight:600; background:#fff; border:1px solid #ccd5de; "
-            "border-radius:9px; margin-top:28px; } "
-            "QGroupBox::title { subcontrol-origin:margin; subcontrol-position:top left; top:0px; left:12px; } "
-            "QPushButton { padding:7px 14px; }")
-        box = QVBoxLayout(dialog)
-        message = "This is what will be created when you start the queue. Does it look right?"
-        if queue and self.batch_import_active and not self.pending_imports:
-            message = (f"This is the last comic. Confirm to queue it and start exporting all "
-                       f"{len(self.queue_jobs) + 1} queued comics. Does it look right?")
-        box.setContentsMargins(22, 20, 22, 20)
-        box.setSpacing(14)
-        box.addWidget(ui_heading("Ready to queue" if queue else "Ready to export", 28))
-        note = QLabel(message if queue else "This is what will be created.")
-        note.setWordWrap(True)
-        box.addWidget(note)
-        if getattr(self, "export_name_notice", ""):
-            notice = QLabel(self.export_name_notice)
-            notice.setWordWrap(True)
-            notice.setTextFormat(Qt.PlainText)
-            box.addWidget(notice)
-        source = self.plan.scan.source_archive or self.plan.scan.folder
-        source_label = ui_heading(f"Source: {source.name}", 17)
-        source_label.setToolTip(str(source))
-        box.addWidget(source_label)
-        stats = [f"{len(self.plan.scan.pages)} source pages", f"{len(self.plan.entries())} final pages",
-                 f"{len(self.plan.approved())} spreads joined", f"Numbering starts at {opt.start}"]
-        if self.plan.removed_pages:
-            stats.append(f"{len(self.plan.removed_pages)} removed")
-        if self.plan.rotations:
-            stats.append(f"{len(self.plan.rotations)} rotated")
-        counts = QGridLayout()
-        counts.setSpacing(8)
-        for index, text in enumerate(stats):
-            pill = QLabel(text)
-            pill.setAlignment(Qt.AlignCenter)
-            pill.setStyleSheet("background:white; border:1px solid #ccd5de; "
-                              "padding:8px 10px; border-radius:13px;")
-            counts.addWidget(pill, index // 4, index % 4)
-        box.addLayout(counts)
-        copies = QHBoxLayout()
-        kinds = ("full", "reduced") if opt.size_output == "both" else (opt.size_output,)
-        for kind in kinds:
-            card = QGroupBox(f"{kind.title()} copy")
-            content = QVBoxLayout(card)
-            content.setContentsMargins(14, 16, 14, 14)
-            content.setSpacing(10)
-            def line(text, content=content):
-                label = QLabel(text)
-                label.setWordWrap(True)
-                label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-                content.addWidget(label)
-            line(self._format_summary(copy_encoding_options(opt, kind == "reduced"), original=kind == "full" and opt.keep_originals))
-            names = planned_names(self.plan, opt, reduced=kind == "reduced")
-            line("Filename pattern")
-            line(compact_filename_range(names))
-            suffix = f" - {kind.title()}" if len(kinds) == 2 else ""
-            title = safe_book_name(opt.book_name) + suffix
-            if opt.cbz:
-                line(f"{'PDF file' if opt.archive_format == 'pdf' else opt.archive_format.upper() + ' archive'}"
-                     f"\n{title}.{opt.archive_format}")
-            if opt.keep_images:
-                line(f"Lossless PNG pages\n{title} - PNG pages")
-            if kind == "reduced":
-                line(f"{opt.resize_mode.title()} {opt.resize_pixels} px · {opt.resize_filter.title()}")
-                line(("Gamma correction" if opt.resize_gamma else "No gamma correction") + " · " +
-                     ("Never enlarge pages"))
-            content.addStretch()
-            copies.addWidget(card, 1)
-        box.addLayout(copies)
-        if self.plan.scan.right_to_left:
-            order = QLabel("Page order: " + ("Front to back — front cover first" if opt.front_to_back
-                                             else "Back to front — back cover first"))
-            box.addWidget(order)
-        if opt.comicinfo_xml is not None:
-            box.addWidget(QLabel("ComicInfo.xml included · Final page count and page references updated"))
-        destination = QLabel(f"Destination: {self.plan.scan.output_folder or self.plan.scan.folder}")
-        destination.setWordWrap(True)
-        destination.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        box.addWidget(destination)
-        box.addStretch()
-        controls = QHBoxLayout()
-        back = QPushButton("Back to Settings")
-        back.clicked.connect(dialog.reject)
-        create = QPushButton(self._queue_action_text() if queue else "Create Comic")
-        create.setDefault(True)
-        ui_primary(create)
-        create.clicked.connect(dialog.accept)
-        controls.addWidget(back)
-        controls.addStretch()
-        if queue and self.batch_import_active and not self.pending_imports:
-            review = QPushButton("Review batch…")
-            def review_batch():
-                self.queue_followup = "review"
-                dialog.accept()
-            review.clicked.connect(review_batch)
-            controls.addWidget(review)
-        controls.addWidget(create)
-        box.addLayout(controls)
-        accepted = dialog.exec() == QDialog.Accepted
-        dialog.deleteLater()
-        return accepted
-
     def _preflight_export(self, opt: ExportOptions) -> list[Path]:
         self.export_name_notice = ""
         planned_names(self.plan, opt, reduced=opt.size_output == "reduced")
@@ -5007,11 +4872,12 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             planned_names(self.plan, opt, reduced=True)
         if not opt.cbz and not opt.keep_images:
             raise ValueError("Choose an archive, processed images, or both.")
-        check_sources(self.plan.scan)
+        if not (self.current_job is not None and self.current_job.reimport_source is not None):
+            check_sources(self.plan.scan)  # Re-imported pages are checked when they're imported.
         if opt.comicinfo_xml is not None:
             parse_xml(opt.comicinfo_xml)
         outputs = queued_outputs(self.plan, opt)
-        reserved = {str(path).casefold() for job in self.queue_jobs
+        reserved = {str(path).casefold() for job in self.queue_jobs if job is not self.current_job
                     for path in queued_outputs(job.plan, job.options)}
         folder = self.plan.scan.output_folder or self.plan.scan.folder
         existing = {str(path).casefold() for path in folder.iterdir()}
@@ -5046,16 +4912,112 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             self.settings.setValue("front_to_back", opt.front_to_back)
         self.settings.sync()
 
-    def start_export(self):
+    def export_screen_continue(self):
+        """The blue button: Review next comic, or Start export."""
+        if not self._settle_current_job():
+            return
+        if self.pending_imports:
+            self._commit_current_job()
+            self.new_comic()
+            QTimer.singleShot(0, self._open_next_pending)
+        elif self.queue_jobs == [self.current_job] and not self.editing_queued:
+            # Just this comic: export it directly, keeping it ready to export again.
+            self.queue_jobs.clear()
+            self.current_job = None
+            self._refresh_queue_status()
+            self.start_export(checked=True)
+        else:
+            self._commit_current_job()
+            self.new_comic()
+            self.start_queue()
+
+    def _settle_current_job(self) -> bool:
+        """Check this comic's settings before moving on; False (after saying why) if they won't do."""
+        if self.current_job is None:
+            return True
         opt = self.options_from_screen()
         try:
             self._preflight_export(opt)
         except Exception as exc:
-            QMessageBox.warning(self, "Cannot export", str(exc))
-            return
-        if not self.confirm_export(opt):
-            return
+            QMessageBox.warning(self, "Check this comic's settings", str(exc))
+            return False
+        if self.export_name_notice:
+            QMessageBox.information(self, "Name changed", self.export_name_notice)
         self._remember_export_preferences(opt)
+        self.current_job.options = replace(opt)
+        return True
+
+    def _commit_current_job(self):
+        """This comic stays queued as it is; the window moves on to another."""
+        job = self.current_job
+        if job is None:
+            return
+        if not self.editing_queued:
+            self._save_review_report()
+            job.plan = copy.deepcopy(self.plan)
+            job.session_source = self.session_source
+            job.screenshot_stage_dir = self.screenshot_stage_dir
+            job.import_work = self.import_work
+            source = self.plan.scan.source_archive
+            if self.import_work is not None and source is not None and not self.keep_queue_pages.isChecked():
+                stat = source.stat()
+                job.reimport_source = source
+                job.source_stat = (stat.st_size, stat.st_mtime_ns)
+                job.pdf_options = dict(self.pdf_session_options)
+                self.import_work.cleanup()
+                job.import_work = None
+            self.import_work = None  # Retained imports are owned by the queued job.
+        diagnostics.note("Queued comic settled: %s", job.options.book_name)
+        self.current_job = None
+        self.editing_queued = False
+
+    def _load_options_to_screen(self, opt: ExportOptions):
+        """Show a queued comic's settings on the Create your comic screen."""
+        self.book_name.setText(opt.book_name)
+        if opt.custom_prefix is not None:
+            self.custom_page_prefix.setText(opt.custom_prefix)
+        self.naming.setCurrentIndex(2 if opt.custom_prefix is not None else 1 if opt.prefixed else 0)
+        self.start_number.setCurrentIndex(0 if opt.start == 1 else 1)
+        self.padding.setCurrentIndex({0: 0, 2: 1, 3: 2, 4: 3}.get(opt.padding, 0))
+        self.handling.setCurrentIndex(1 if opt.keep_originals else 0)
+        choice = opt.archive_format if opt.cbz else "none"
+        resize = {"mode": opt.resize_mode, "pixels": opt.resize_pixels, "reduce_only": opt.resize_reduce_only,
+                  "gamma": opt.resize_gamma, "filter": opt.resize_filter}
+        with QSignalBlocker(self.archive_format):
+            self.archive_format.setCurrentIndex(ARCHIVE_CHOICES.index(choice))
+        self.archive_previous = choice
+        if choice == "pdf":
+            self.pdf_opt, self.pdf_resize_values = replace(opt), resize
+        else:
+            self.usual_opt, self.usual_resize_values = replace(opt), resize
+        self._use_pdf_options(choice == "pdf")
+        self.keep_images.setEnabled(choice != "none")
+        self.keep_images.setChecked(opt.keep_images)
+        self.front_to_back.setChecked(opt.front_to_back)
+        self.encoder_workers.setValue(opt.workers)
+        with QSignalBlocker(self.include_comicinfo):
+            self.include_comicinfo.setChecked(opt.comicinfo_xml is not None)
+        self.metadata_button.setEnabled(opt.comicinfo_xml is not None)
+
+    def _edit_queued_job(self, job: QueuedComic):
+        """Open a queued comic's settings. Its pages and pairs are kept as reviewed."""
+        self.plan = job.plan
+        self.current_job = job
+        self.editing_queued = True
+        self.active_right_to_left = job.plan.scan.right_to_left
+        self._load_options_to_screen(job.options)
+        self.show_export()
+
+    def start_export(self, checked=False):
+        """Export the comic on screen by itself (Start export with nothing else queued)."""
+        opt = self.options_from_screen()
+        if not checked:
+            try:
+                self._preflight_export(opt)
+            except Exception as exc:
+                QMessageBox.warning(self, "Cannot export", str(exc))
+                return
+            self._remember_export_preferences(opt)
         self._cancel_size_estimate("")
         self.size_worker.release()  # Export needs the processor.
         self.progress_label.setText("Creating comic…")
@@ -5065,42 +5027,6 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.pages.setCurrentWidget(self.progress_page)
         self._compact_window()
         self._run_worker(export_book, (self.plan, opt), self.export_done)
-
-    def add_to_queue(self):
-        self.queue_followup = "start"
-        opt = replace(self.options_from_screen())
-        try:
-            self._preflight_export(opt)
-        except Exception as exc:
-            QMessageBox.warning(self, "Cannot queue comic", str(exc))
-            return
-        if not self.confirm_export(opt, queue=True):
-            return
-        self._remember_export_preferences(opt)
-        self._save_review_report()
-        job = QueuedComic(copy.deepcopy(self.plan), opt, self.session_source,
-                          self.import_work, self.screenshot_stage_dir)
-        source = self.plan.scan.source_archive
-        if self.import_work is not None and source is not None and not self.keep_queue_pages.isChecked():
-            stat = source.stat()
-            job.reimport_source = source
-            job.source_stat = (stat.st_size, stat.st_mtime_ns)
-            job.pdf_options = dict(self.pdf_session_options)
-            self.import_work.cleanup()
-            job.import_work = None
-        self.queue_jobs.append(job)
-        self.import_work = None  # Retained imports are owned by the queued job.
-        diagnostics.note("Comic added to queue: %s", opt.book_name)
-        self.new_comic()
-        self._refresh_queue_status()
-        if self.pending_imports:
-            QTimer.singleShot(0, self._open_next_pending)
-        elif self.batch_import_active:
-            self.batch_import_active = False
-            if self.queue_followup == "review":
-                QTimer.singleShot(0, lambda: self.show_queue(batch_review=True))
-            else:
-                QTimer.singleShot(0, self.start_queue)
 
     def _refresh_queue_status(self):
         count = len(self.queue_jobs)
@@ -5118,33 +5044,33 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                                            not (self.worker and self.worker.isRunning()))
         self.next_import_button.setVisible(bool(waiting))
 
-    def show_queue(self, *, batch_review=False, reviewing=False):
-        """The queued comics. While another comic is being reviewed (reviewing), the
-        queue can be reordered and trimmed, but not started or added to."""
+    def show_queue(self, *, reviewing=False):
+        """The queued comics, in export order. From the Create your comic screen
+        (reviewing) the comic on screen is among them; starting the queue is left
+        to that screen's blue button."""
         dialog = OutlinedDialog(self)
-        dialog.setWindowTitle("Review batch" if batch_review else "Comics ready to export")
+        dialog.setWindowTitle("Queue")
         dialog.resize(760, 480)
         dialog.setStyleSheet("QListWidget { font-size:14px; } "
                             "QListWidget::item { padding:10px; border-bottom:1px solid #d8e0e8; } "
                             "QListWidget::item:selected { color:#102a43; background:#dceeff; } "
                             "QPushButton { padding:7px 12px; }")
         layout = QVBoxLayout(dialog)
-        note = QLabel("Comics are exported from the top down; drag one to change the order. "
-                      "Output files and folders will be saved alongside each comic's originals. "
-                      "Removing an item leaves its source untouched."
-                      + (" Finish the comic you're working on to start the queue." if reviewing else ""))
+        note = QLabel("Comics are exported from the top down; drag one to change the order. Double-click "
+                      "a comic to change its settings. Output files and folders will be saved alongside "
+                      "each comic's originals. Removing a comic leaves its source untouched.")
         note.setWordWrap(True)
         layout.addWidget(note)
         listing = QueueList()
         listing.setToolTip(tooltip_text("Drag a comic to change the export order, or select it and press "
-                                        "Ctrl with Up, Down, Home or End."))
+                                        "Ctrl with Up, Down, Home or End. Double-click to change its settings."))
         listing.setWordWrap(True)
         listing.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         layout.addWidget(listing)
         controls = QHBoxLayout()
         remove = QPushButton("Remove selected")
         start = QPushButton("Start export")
-        action = {"next": None}
+        action = {"next": None, "job": None}
         def refresh():
             listing.clear()
             for job in self.queue_jobs:
@@ -5162,30 +5088,47 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                 item.setData(Qt.UserRole, id(job))
                 listing.addItem(item)
             remove.setEnabled(False)
-            start.setEnabled(bool(self.queue_jobs) and not reviewing)
+            start.setEnabled(bool(self.queue_jobs))
         listing.currentRowChanged.connect(lambda index: remove.setEnabled(index >= 0))
+        def job_at(row):
+            jobs = {id(job): job for job in self.queue_jobs}
+            return jobs[listing.item(row).data(Qt.UserRole)]
         def reordered():
             # The list's new order becomes the queue's order.
-            jobs = {id(job): job for job in self.queue_jobs}
-            order = [jobs[listing.item(row).data(Qt.UserRole)] for row in range(listing.count())]
+            order = [job_at(row) for row in range(listing.count())]
             if len(order) == len(self.queue_jobs) and order != self.queue_jobs:
                 self.queue_jobs[:] = order
                 diagnostics.note("Queue reordered: %s", " | ".join(job.options.book_name for job in order))
         listing.reordered.connect(reordered)
+        def finish(next_action, job=None):
+            action["next"], action["job"] = next_action, job
+            dialog.accept()
         def remove_selected():
-            index = listing.currentRow()
-            if index < 0:
+            row = listing.currentRow()
+            if row < 0:
                 return
-            job = self.queue_jobs.pop(index)
+            job = job_at(row)
+            if job is self.current_job:
+                if QMessageBox.question(
+                        dialog, "Remove this comic?",
+                        f"“{job.options.book_name}” is the comic you're working on. Remove it from the queue "
+                        "and move on? Its source is untouched, and its saved review can be resumed by "
+                        "opening it again.", QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
+                    return
+                finish("skip current")
+                return
+            self.queue_jobs.remove(job)
             if job.import_work is not None:
                 job.import_work.cleanup()
             refresh()
             self._refresh_queue_status()
         remove.clicked.connect(remove_selected)
+        listing.itemDoubleClicked.connect(lambda item: finish("edit", job_at(listing.row(item))))
         controls.addWidget(remove)
-        def finish(next_action):
-            action["next"] = next_action
-            dialog.accept()
+        another = QPushButton("Add another comic")
+        another.setToolTip(tooltip_text("Keep these comics queued and go back to the start screen to add more."))
+        another.clicked.connect(lambda: finish("another"))
+        controls.addWidget(another)
         files = QPushButton("Add comic files…")
         files.clicked.connect(lambda: finish("files"))
         controls.addWidget(files)
@@ -5200,15 +5143,39 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         ui_primary(start)
         controls.addWidget(start)
         layout.addLayout(controls)
+        another.setVisible(reviewing)
         for button in (files, folder, start):
             button.setVisible(not reviewing)
         refresh()
         dialog.exec()
         dialog.deleteLater()
-        if action["next"] == "start":
+        self._queue_window_action(action["next"], action["job"])
+
+    def _queue_window_action(self, next_action, job=None):
+        if next_action == "start":
             self.start_queue()
-        elif action["next"] in ("files", "folder"):
-            self._add_batch_items(folder=action["next"] == "folder")
+        elif next_action in ("files", "folder"):
+            self._add_batch_items(folder=next_action == "folder")
+        elif next_action == "another":
+            if self._settle_current_job():
+                self._commit_current_job()
+                self.new_comic()
+                self._refresh_queue_status()
+        elif next_action == "skip current":
+            self.queue_jobs.remove(self.current_job)
+            self.current_job = None
+            self.editing_queued = False
+            self.new_comic()
+            self._refresh_queue_status()
+            if self.pending_imports:
+                QTimer.singleShot(0, self._open_next_pending)
+        elif next_action == "edit" and job is not None and job is not self.current_job:
+            if self.current_job is not None:
+                if not self._settle_current_job():
+                    return
+                self._commit_current_job()
+                self.new_comic()
+            self._edit_queued_job(job)
 
     def _add_batch_items(self, *, folder=False):
         if folder:
@@ -5227,6 +5194,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         if (not self.queue_jobs or self.active_queue_job is not None or
                 self.worker and self.worker.isRunning()):
             return
+        self.batch_import_active = False
         self.queue_completed = 0
         self.queue_results.clear()
         self.done_button.hide()
@@ -5353,7 +5321,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         if self.worker and self.worker.isRunning():
             QMessageBox.information(self, "Please wait", "The current scan or export must finish before closing.")
             event.ignore()
-        elif self.queue_jobs and QMessageBox.question(
+        elif [job for job in self.queue_jobs if job is not self.current_job or self.editing_queued] and QMessageBox.question(
                 self, "Discard queued exports?",
                 f"{len(self.queue_jobs)} reviewed comic(s) are waiting to export. "
                 "Closing will discard the queue and its export settings. "

@@ -25,7 +25,7 @@ from .session import clear_session
 from . import diagnostics
 from .gui import (ComicWindow, ImportChoiceDialog, OutputOptionsDialog, PdfImportDialog,
                   ScreenshotCropDialog, Worker, tooltip_text,
-                  QueuedComic, export_queued_comic)
+                  QueuedComic, export_queued_comic, queued_outputs)
 
 
 class ThumbnailTest(unittest.TestCase):
@@ -98,7 +98,6 @@ class ThumbnailTest(unittest.TestCase):
                 opt = window.options_from_screen()
                 self.assertEqual(opt.book_name, "Superhero v01")
                 self.assertEqual(opt.custom_prefix, "Superhero v01 - 300dpi - digital")
-                self.assertIn("digital - 01", window.export_review_text(opt))
                 window._remember_export_preferences(opt)
                 second = ComicWindow()
                 try:
@@ -1175,19 +1174,21 @@ class ThumbnailTest(unittest.TestCase):
                 window.batch_import_active = True
                 window.pending_imports.append(folder / "next.pdf")
                 window.show_export()
-                self.assertTrue(window.create_button.isHidden())
-                self.assertEqual(window.add_queue_button.text(), "Review final output")
+                # Reaching this screen queues the comic; one blue button moves on.
+                self.assertEqual(len(window.queue_jobs), 1)
+                self.assertEqual(window.create_button.text(), "Review next comic")
                 window.pending_imports.clear()
                 window.refresh_export()
-                self.assertEqual(window.add_queue_button.text(), "Review final output")
-                with patch.object(window, "confirm_export", return_value=True), \
-                     patch.object(window, "start_queue") as start:
-                    window.add_to_queue()
-                    self.wait_for(lambda: start.called)
-                    self.assertEqual(len(window.queue_jobs), 1)
-                    self.assertFalse(window.batch_import_active)
-                window.refresh_export()
-                self.assertFalse(window.create_button.isHidden())
+                self.assertEqual(window.create_button.text(), "Start export")
+                earlier = QueuedComic(BookPlan(scan_manual_folder(folder)), ExportOptions("Earlier", workers=1),
+                                      None, None, None)
+                window.queue_jobs.insert(0, earlier)
+                with patch.object(window, "start_queue") as start:
+                    window.create_button.click()
+                    start.assert_called_once()
+                self.assertEqual(len(window.queue_jobs), 2)
+                self.assertIsNone(window.plan)
+                self.assertIsNone(window.current_job)
                 window.queue_jobs.clear()
             finally:
                 window.close()
@@ -1207,9 +1208,10 @@ class ThumbnailTest(unittest.TestCase):
                 window.show_export()
                 window.book_name.setText("First Queued")
                 window.pending_imports.append(next_source)
-                with patch.object(window, "confirm_export", return_value=True), \
-                     patch.object(window, "_prepare_import") as prepare:
-                    window.add_to_queue()
+                window.refresh_export()
+                self.assertEqual(window.create_button.text(), "Review next comic")
+                with patch.object(window, "_prepare_import") as prepare:
+                    window.create_button.click()
                     self.wait_for(lambda: prepare.called)
                 prepare.assert_called_once_with(next_source)
                 self.assertEqual(len(window.queue_jobs), 1)
@@ -1300,41 +1302,6 @@ class ThumbnailTest(unittest.TestCase):
         finally:
             window.close()
 
-    def test_final_batch_confirmation_can_review_without_exporting(self, review_batch=True):
-        from PySide6.QtWidgets import QPushButton
-        with tempfile.TemporaryDirectory() as directory:
-            folder = Path(directory)
-            Image.new("RGB", (60, 80), "red").save(folder / "001.png")
-            window = ComicWindow()
-            try:
-                window.scan_done(scan_manual_folder(folder))
-                window.show_export()
-                window.book_name.setText("Last book")
-                window.batch_import_active = True
-                def review(dialog):
-                    next(b for b in dialog.findChildren(QPushButton)
-                         if b.text() == ("Review batch…" if review_batch else "Queue comic and start exports")).click()
-                    return QDialog.Accepted
-                with patch.object(QDialog, "exec", review), patch.object(QTimer, "singleShot") as schedule:
-                    window.add_to_queue()
-                self.assertEqual(len(window.queue_jobs), 1)
-                self.assertIsNone(window.plan)
-                self.assertIsNone(window.active_queue_job)
-                self.assertFalse((folder.parent / "Last book.cbz").exists())
-                callback = schedule.call_args.args[1]
-                if review_batch:
-                    with patch.object(window, "show_queue") as show:
-                        callback()
-                        show.assert_called_once_with(batch_review=True)
-                else:
-                    self.assertEqual(callback, window.start_queue)
-            finally:
-                window.queue_jobs.clear()
-                window.close()
-
-    def test_final_batch_confirmation_still_starts_directly(self):
-        self.test_final_batch_confirmation_can_review_without_exporting(review_batch=False)
-
     def test_batch_review_removal_keeps_source_and_disables_empty_export(self):
         from PySide6.QtWidgets import QPushButton, QListWidget
         with tempfile.TemporaryDirectory() as directory:
@@ -1347,8 +1314,7 @@ class ThumbnailTest(unittest.TestCase):
                 window.scan_done(scan_manual_folder(folder))
                 window.show_export()
                 window.book_name.setText("Queued book")
-                with patch.object(window, "confirm_export", return_value=True):
-                    window.add_to_queue()
+                window._queue_window_action("another")
                 def remove(dialog):
                     listing = dialog.findChild(QListWidget)
                     self.assertIn("Queued book.cbz", listing.item(0).text())
@@ -1360,7 +1326,7 @@ class ThumbnailTest(unittest.TestCase):
                     self.assertFalse(buttons["Start export"].isEnabled())
                     return QDialog.Rejected
                 with patch.object(QDialog, "exec", remove):
-                    window.show_queue(batch_review=True)
+                    window.show_queue()
                 self.assertEqual(source.read_bytes(), original)
                 self.assertFalse(window.queue_jobs)
             finally:
@@ -1424,12 +1390,132 @@ class ThumbnailTest(unittest.TestCase):
                     buttons = {b.text(): b for b in dialog.findChildren(QPushButton)}
                     for name in ("Start export", "Add comic files…", "Add folder…"):
                         self.assertTrue(buttons[name].isHidden(), name)
-                    self.assertTrue(any("Finish the comic" in label.text() for label in dialog.findChildren(QLabel)))
+                    self.assertFalse(buttons["Add another comic"].isHidden())
                     return QDialog.Rejected
                 with patch.object(QDialog, "exec", check):
                     window.export_queue_button.click()
             finally:
                 window.queue_jobs.clear()
+                window.close()
+
+    def make_book(self, root: Path, name: str, shade=0) -> Path:
+        folder = root / name
+        folder.mkdir()
+        for page in range(2):
+            Image.new("RGB", (60, 80), (shade, page * 90, 40)).save(folder / f"{page:03d}.png")
+        return folder
+
+    def test_reaching_the_export_screen_queues_the_comic_and_follows_changes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            window = ComicWindow()
+            try:
+                window.scan_done(scan_manual_folder(self.make_book(root, "book")))
+                self.assertFalse(window.queue_jobs)
+                window.show_export()
+                self.assertEqual(len(window.queue_jobs), 1)
+                job = window.queue_jobs[0]
+                self.assertIs(job, window.current_job)
+                window.book_name.setText("Renamed on screen")
+                self.assertEqual(job.options.book_name, "Renamed on screen")
+                self.assertEqual(window.export_queue_button.text(), "View queue (1)…")
+                # Back in the preview, the comic stays queued; returning doesn't add it twice.
+                window.return_preview_from_export()
+                window.show_export()
+                self.assertEqual(window.queue_jobs, [job])
+            finally:
+                window.queue_jobs.clear()
+                window.close()
+
+    def test_a_single_comic_exports_directly_and_can_be_exported_again(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            window = ComicWindow()
+            try:
+                window.show()
+                window.encoder_workers.setValue(1)
+                window.scan_done(scan_manual_folder(self.make_book(root, "book")))
+                window.show_export()
+                window.book_name.setText("Only One")
+                self.assertEqual(window.create_button.text(), "Start export")
+                window.create_button.click()
+                self.wait_for(lambda: not window.repeat_button.isHidden(), seconds=20)
+                self.assertTrue((root / "Only One.cbz").is_file())
+                self.assertFalse(window.queue_jobs)
+                window.repeat_button.click()  # The comic and its pages are still at hand.
+                self.assertIs(window.pages.currentWidget(), window.export_page)
+                self.assertEqual(len(window.queue_jobs), 1)
+            finally:
+                window.queue_jobs.clear()
+                window.close()
+
+    def test_double_click_reopens_a_queued_comics_settings(self):
+        from .gui import QueueList
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            window = ComicWindow()
+            try:
+                window.show()
+                for index, fmt in ((1, "png"), (2, "jpeg")):
+                    window.scan_done(scan_manual_folder(self.make_book(root, f"book-{index}", index * 60)))
+                    window.show_export()
+                    window.opt.format = fmt
+                    window.book_name.setText(f"Book {index}")
+                    window._queue_window_action("another")
+                first, second = window.queue_jobs
+                self.assertEqual(first.options.format, "png")
+                # On the third comic's screen, open the first comic's settings from the queue.
+                window.scan_done(scan_manual_folder(self.make_book(root, "book-3", 200)))
+                window.show_export()
+                window.book_name.setText("Book 3")
+                third = window.current_job
+                def open_first(dialog):
+                    listing = dialog.findChild(QueueList)
+                    self.assertEqual(listing.count(), 3)
+                    listing.itemDoubleClicked.emit(listing.item(0))
+                    return QDialog.Accepted
+                with patch.object(QDialog, "exec", open_first):
+                    window.export_queue_button.click()
+                self.assertIs(window.current_job, first)
+                self.assertTrue(window.editing_queued)
+                self.assertTrue(window.export_back_button.isHidden())  # Pairs and pages stay as reviewed.
+                self.assertEqual(window.book_name.text(), "Book 1")
+                self.assertEqual(window.options_from_screen().format, "png")
+                self.assertEqual(third.options.book_name, "Book 3")  # Still queued as left.
+                window.opt.format = "jpeg"
+                window.refresh_export()
+                self.assertEqual(first.options.format, "jpeg")
+                with patch.object(window, "start_queue") as start:
+                    window.create_button.click()
+                    start.assert_called_once()
+                self.assertEqual([job.options.book_name for job in window.queue_jobs], ["Book 1", "Book 2", "Book 3"])
+                self.assertEqual(first.options.format, "jpeg")
+                self.assertFalse(window.editing_queued)
+            finally:
+                window.queue_jobs.clear()
+                window.close()
+
+    def test_removing_the_comic_on_screen_skips_it(self):
+        from .gui import QueueList
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            window = ComicWindow()
+            try:
+                window.scan_done(scan_manual_folder(self.make_book(root, "book")))
+                window.show_export()
+                def remove_it(dialog):
+                    listing = dialog.findChild(QueueList)
+                    listing.setCurrentRow(0)
+                    {b.text(): b for b in dialog.findChildren(QPushButton)}["Remove selected"].click()
+                    return QDialog.Accepted
+                from PySide6.QtWidgets import QPushButton
+                with patch.object(QDialog, "exec", remove_it), \
+                        patch.object(QMessageBox, "question", return_value=QMessageBox.Yes):
+                    window.export_queue_button.click()
+                self.assertFalse(window.queue_jobs)
+                self.assertIsNone(window.plan)
+                self.assertEqual(window.pages.currentIndex(), 0)
+            finally:
                 window.close()
 
     def test_add_another_batch_item_returns_to_import_without_exporting(self):
@@ -1469,8 +1555,7 @@ class ThumbnailTest(unittest.TestCase):
                     window.show_export()
                     window.opt.format = "jpeg" if index == 1 else "png"
                     window.book_name.setText(f"Queued Book {index}")
-                    with patch.object(window, "confirm_export", return_value=True):
-                        window.add_to_queue()
+                    window._queue_window_action("another")
                     self.assertIsNone(window.plan)
                     self.assertEqual(len(window.queue_jobs), index)
                 self.assertEqual([job.options.format for job in window.queue_jobs], ["jpeg", "png"])
@@ -1511,8 +1596,7 @@ class ThumbnailTest(unittest.TestCase):
                 window.book_name.setText("Queued Archive")
                 window.keep_queue_pages.setChecked(keep)
                 window.encoder_workers.setValue(1)
-                with patch.object(window, "confirm_export", return_value=True):
-                    window.add_to_queue()
+                window._queue_window_action("another")
                 self.assertEqual(staged_path.exists(), keep)
                 if keep:
                     self.assertEqual(window.queue_jobs[0].import_work, staged)
@@ -1574,8 +1658,7 @@ class ThumbnailTest(unittest.TestCase):
                 window.scan_done(scan_manual_folder(folder))
                 window.show_export()
                 window.book_name.setText("Retry Me")
-                with patch.object(window, "confirm_export", return_value=True):
-                    window.add_to_queue()
+                window._queue_window_action("another")
                 (folder / "000.png").unlink()
                 with patch.object(QMessageBox, "warning") as warning:
                     window.start_queue()
@@ -1594,13 +1677,12 @@ class ThumbnailTest(unittest.TestCase):
             Image.new("RGB", (60, 80), "white").save(folder / "000.png")
             window = ComicWindow()
             try:
-                for _ in range(2):
+                for attempt in range(2):
                     window.scan_done(scan_manual_folder(folder))
                     window.show_export()
                     window.book_name.setText("Same Name")
-                    if not window.queue_jobs:
-                        with patch.object(window, "confirm_export", return_value=True):
-                            window.add_to_queue()
+                    if attempt == 0:
+                        window._queue_window_action("another")
                     else:
                         outputs = window._preflight_export(window.options_from_screen())
                         self.assertEqual(window.book_name.text(), "Same Name - New export")
@@ -1631,16 +1713,7 @@ class ThumbnailTest(unittest.TestCase):
                 self.assertEqual(opt.book_name, "Book - New export 2")
                 self.assertEqual(len(outputs), 4)
                 self.assertTrue(all("Book - New export 2 - " in path.name for path in outputs))
-                def inspect_confirmation(dialog):
-                    from PySide6.QtWidgets import QLabel
-                    labels = [label.text() for label in dialog.findChildren(QLabel)]
-                    self.assertTrue(any('This export will use “Book - New export 2”' in text
-                                        for text in labels))
-                    self.assertTrue(any('Book - New export 2 - Full.cbz' in text
-                                        for text in labels))
-                    return QDialog.Rejected
-                with patch.object(QDialog, "exec", inspect_confirmation):
-                    self.assertFalse(window.confirm_export(opt))
+                self.assertIn('This export will use “Book - New export 2”', window.export_name_notice)
                 export_book(window.plan, opt)
                 self.assertTrue(all(path.exists() for path in outputs))
                 for name, data in originals.items():
@@ -2410,15 +2483,9 @@ class ThumbnailTest(unittest.TestCase):
                 # Target cannot exceed the largest final page width.
                 self.assertEqual(window.options_from_screen().resize_mode, "width")
                 self.assertFalse(window.options_from_screen().resize_gamma)
-                review = window.export_review_text(window.options_from_screen())
-                self.assertIn("Full.cbz", review)
-                self.assertIn("Reduced.cbz", review)
-                self.assertIn("80 px", review)
-                QTimer.singleShot(0, lambda: next(w for w in self.app.topLevelWidgets()
-                                                 if w.windowTitle() == "Review comic export").reject())
-                window.start_export()
-                self.assertIs(window.pages.currentWidget(), window.export_page)
-                self.assertFalse(any(folder.glob("*.cbz")))
+                names = [path.name for path in queued_outputs(window.plan, window.options_from_screen())]
+                self.assertTrue(any(name.endswith("Full.cbz") for name in names))
+                self.assertTrue(any(name.endswith("Reduced.cbz") for name in names))
                 def cancel_output():
                     dialog = next(w for w in self.app.topLevelWidgets()
                                   if isinstance(w, OutputOptionsDialog) and w.isVisible())
