@@ -1406,7 +1406,7 @@ class ThumbnailTest(unittest.TestCase):
         from PySide6.QtWidgets import QComboBox, QPushButton
         from .gui import QueueList
         standard = QPushButton("Remove selected").sizeHint().height()
-        plain, blue, combos = {}, {}, {}
+        plain, blue, combos, details = {}, {}, {}, {}
 
         def measure(where, widget):
             widget.show()
@@ -1417,6 +1417,8 @@ class ThumbnailTest(unittest.TestCase):
             for combo in widget.findChildren(QComboBox):
                 if combo.isVisible():
                     combos[f"{where}: {combo.currentText()}"] = combo.height()
+                    details[f"{where}: {combo.currentText()}"] = (combo.height(), combo.minimumHeight(),
+                        combo.maximumHeight(), combo.sizeHint().height(), combo.testAttribute(Qt.WA_WState_Polished))
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -1457,7 +1459,7 @@ class ThumbnailTest(unittest.TestCase):
         self.assertGreater(next(iter(blue.values())), standard)
         for where in ("export", "import", "options"):
             self.assertTrue(any(k.startswith(where) for k in combos), (where, combos))
-        self.assertEqual(len(set(combos.values())), 1, combos)
+        self.assertEqual(len(set(combos.values())), 1, (getattr(self.app, '_drop_down_height', None) and self.app._drop_down_height.height, details))
 
     def make_book(self, root: Path, name: str, shade=0) -> Path:
         folder = root / name
