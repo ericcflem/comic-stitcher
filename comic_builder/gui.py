@@ -73,13 +73,9 @@ def ui_heading(text, size=24):
     return label
 
 
-# Styles for every window. Drop-down lists share one height wherever they are.
-APP_STYLE = "QComboBox { min-height:24px; }"
-
-
 class _DropDownHeight(QObject):
     """Fixes every drop-down list to one height as it is set up, so none grows
-    to fill a taller form row."""
+    to fill a taller form row or shrinks in a tight one."""
 
     def __init__(self, height, parent):
         super().__init__(parent)
@@ -92,11 +88,13 @@ class _DropDownHeight(QObject):
 
 
 def ui_app_style(app):
+    """Drop-down lists share one height everywhere: the height an ordinary one
+    has with a 24-pixel minimum, as the Create your comic screen always used."""
     if getattr(app, "_drop_down_height", None) is not None:
         return
-    app.setStyleSheet(APP_STYLE)
     probe = QComboBox()
     probe.addItem("Automatic")
+    probe.setStyleSheet("QComboBox { min-height:24px; }")
     app._drop_down_height = _DropDownHeight(probe.sizeHint().height(), app)
     probe.deleteLater()
     app.installEventFilter(app._drop_down_height)
