@@ -73,15 +73,21 @@ def ui_heading(text, size=24):
     return label
 
 
+# Styles for every window. Drop-down lists share one height wherever they are.
+APP_STYLE = "QComboBox { min-height:24px; }"
+
+
+def ui_app_style(app):
+    app.setStyleSheet(APP_STYLE)
+
+
 def ui_primary(button):
-    """The blue button for a screen's main action. It is as tall as the app's
-    other buttons; colour, bold text and extra width make it stand out."""
-    height = button.sizeHint().height()  # The standard button height, before restyling.
+    """The blue button for a screen's main action: a little taller than the
+    app's other buttons, which all share the standard height."""
     button.setStyleSheet("QPushButton { background:#1976cf; color:white; border:1px solid #1976cf; "
-                        "border-radius:5px; padding:0 18px; font-weight:600; } "
+                        "border-radius:5px; padding:7px 14px; font-weight:600; } "
                         "QPushButton:hover { background:#1266b6; } "
                         "QPushButton:disabled { background:#b9c5d0; border-color:#b9c5d0; }")
-    button.setFixedHeight(height)
 
 
 def ui_icon(widget, kind, size=72):
@@ -1987,7 +1993,6 @@ class ImportChoiceDialog(OutlinedWindow, QDialog):
         self._setup_outline()  # GNOME on Wayland: a visible window edge
         self.setWindowTitle("Start comic import")
         self.resize(540, 310)
-        self.setStyleSheet("QComboBox { min-height:28px; }")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 20, 24, 20)
         layout.setSpacing(16)
@@ -2789,7 +2794,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             "QGroupBox::title { subcontrol-origin:margin; subcontrol-position:top left; top:0px; left:12px; padding:0 4px; } "
             "QWidget#exportBookContent, QWidget#exportBookViewport { background:#f9fbfd; } "
             "QGroupBox QLabel, QGroupBox QCheckBox { font-weight:400; color:#000000; } "
-            "QLineEdit, QComboBox, QSpinBox { min-height:24px; } "
+            "QLineEdit, QSpinBox { min-height:24px; } "
             "QScrollArea#exportSettings, QWidget#exportSettingsViewport, QWidget#exportSettingsContent "
             "{ background:transparent; }")
         page_box = QVBoxLayout(self.export_page)
@@ -5363,6 +5368,7 @@ def main():
         # Matches windows to the app-menu entry linux/install.sh creates (Wayland app id).
         QApplication.setDesktopFileName("comic-stitcher")
     app.setStyle("Fusion")
+    ui_app_style(app)
     broker = LaunchBroker()
     try:
         if not broker.start([Path(argument) for argument in sys.argv[1:]]):
