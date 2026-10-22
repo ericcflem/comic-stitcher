@@ -45,7 +45,9 @@ class StandardModeTests(unittest.TestCase):
                                              outputMode="RGB")
         self.assertEqual(converted.mode, "RGB")
         self.assertEqual(converted.tobytes(), expected.tobytes())
-        self.assertEqual(converted.info["icc_profile"], srgb.tobytes())
+        # The new profile is sRGB (its header records when it was made, so compare the rest).
+        profile = converted.info["icc_profile"]
+        self.assertEqual(profile[:24] + profile[36:], srgb.tobytes()[:24] + srgb.tobytes()[36:])
         self.assertNotEqual(converted.tobytes(), page.convert("RGB").tobytes())
 
     def test_cmyk_without_a_usable_profile_uses_the_plain_conversion(self):

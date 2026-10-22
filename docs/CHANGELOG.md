@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Batch queue: a comic joins the queue as soon as its Create your comic screen
+  opens, with the settings shown; changing them updates its queue entry. The
+  separate Review final output and Ready to queue steps are gone. The blue
+  button reads **Review next comic** while dropped comics are waiting and
+  **Start export** otherwise; a single comic exports straight away and can still
+  be exported again. **View queue (N)** is on that screen whenever comics are
+  queued, with **Add another comic**, and double-clicking a queued comic opens
+  its settings to change them.
 - Spread suggestions: scanning large books now spreads the pages across worker
   processes, as export does (half the processor's threads, up to six), so it
   finishes several times faster on multi-core computers. Small books, under
