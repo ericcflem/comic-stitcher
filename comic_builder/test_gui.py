@@ -23,7 +23,7 @@ from .screenshot_geometry import propose_crops
 from .screenshot_import import CropChoice, stage_screenshots
 from .session import clear_session
 from . import diagnostics
-from .gui import (ComicWindow, ImportChoiceDialog, OutputOptionsDialog, PdfImportDialog,
+from .gui import (ComicWindow, ui_app_style, ImportChoiceDialog, OutputOptionsDialog, PdfImportDialog,
                   ScreenshotCropDialog, Worker, tooltip_text,
                   QueuedComic, export_queued_comic, queued_outputs)
 
@@ -33,6 +33,7 @@ class ThumbnailTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app = QApplication.instance() or QApplication([])
+        ui_app_style(cls.app)
 
     def setUp(self):
         summary_patch = patch.object(ComicWindow, "screenshot_crop_summary", return_value=False)
@@ -63,7 +64,8 @@ class ThumbnailTest(unittest.TestCase):
             normal_size = window.size()
             control_height = window.handling.height()
             self.assertGreaterEqual(window.metadata_button.height(), window.metadata_button.sizeHint().height())
-            self.assertEqual(window.book_scroll.verticalScrollBar().maximum(), 0)
+            self.assertEqual(window.book_scroll.verticalScrollBar().maximum(), 0,
+                             [(c.minimumHeight(), c.height()) for c in (window.naming, window.start_number, window.padding)])
             window.naming.setCurrentIndex(2)
             QTest.qWait(20)
             self.assertEqual(window.size(), normal_size)
@@ -1397,6 +1399,68 @@ class ThumbnailTest(unittest.TestCase):
             finally:
                 window.queue_jobs.clear()
                 window.close()
+
+    def test_buttons_and_drop_downs_share_their_heights(self):
+        """Plain buttons are all the standard height, wherever they are, including
+        message boxes opened from the queue; blue buttons all share one taller
+        height; drop-down lists match on every screen."""
+        from PySide6.QtWidgets import QComboBox, QPushButton
+        from .gui import QueueList
+        standard = QPushButton("Remove selected").sizeHint().height()
+        plain, blue, combos, details = {}, {}, {}, {}
+
+        def measure(where, widget):
+            widget.show()
+            self.app.processEvents()
+            for button in widget.findChildren(QPushButton):
+                if button.isVisible() and button.text():
+                    (blue if "#1976cf" in button.styleSheet() else plain)[f"{where}: {button.text()}"] = button.height()
+            for combo in widget.findChildren(QComboBox):
+                if combo.isVisible():
+                    combos[f"{where}: {combo.currentText()}"] = combo.height()
+                    details[f"{where}: {combo.currentText()}"] = (combo.height(), combo.minimumHeight(),
+                        combo.maximumHeight(), combo.sizeHint().height(), combo.testAttribute(Qt.WA_WState_Polished))
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            window = ComicWindow()
+            try:
+                window.scan_done(scan_manual_folder(self.make_book(root, "book")))
+                window.show_export()
+                window.queue_jobs.append(QueuedComic(BookPlan(scan_manual_folder(self.make_book(root, "two"))),
+                                                     ExportOptions("Two", workers=1), None, None, None))
+                window._refresh_queue_status()
+                measure("export", window)
+
+                def check(dialog):
+                    measure("queue", dialog)
+                    box = QMessageBox(QMessageBox.Question, "Remove this comic?", "Test",
+                                      QMessageBox.Yes | QMessageBox.No, dialog)
+                    measure("box", box)
+                    box.close()
+                    return QDialog.Rejected
+                with patch.object(QDialog, "exec", check):
+                    window.export_queue_button.click()
+                choice = ImportChoiceDialog(root / "book", folder=True)
+                measure("import", choice)
+                choice.close()
+                options = OutputOptionsDialog(ExportOptions("Two"), window.custom_resize_values, window)
+                measure("options", options)
+                options.reject()
+            finally:
+                window.queue_jobs.clear()
+                window.close()
+        print("standard", standard, "plain", plain, "blue", blue, "drop-downs", combos)
+        self.assertTrue(any(k.startswith("box") for k in plain), plain)
+        self.assertTrue(any(k.startswith("queue") for k in plain), plain)
+        self.assertEqual(set(plain.values()), {standard}, plain)
+        self.assertTrue(any(k.startswith("import") for k in blue), blue)
+        self.assertTrue(any(k.startswith("export") for k in blue), blue)
+        self.assertEqual(len(set(blue.values())), 1, blue)
+        self.assertGreater(next(iter(blue.values())), standard)
+        for where in ("export", "import", "options"):
+            self.assertTrue(any(k.startswith(where) for k in combos), (where, combos))
+        self.assertEqual(len(set(combos.values())), 1, (getattr(self.app, '_drop_down_height', None) and self.app._drop_down_height.height, details))
 
     def make_book(self, root: Path, name: str, shade=0) -> Path:
         folder = root / name

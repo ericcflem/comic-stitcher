@@ -18,7 +18,7 @@ from threading import Condition
 from uuid import uuid4
 
 from PIL import Image, ImageOps
-from PySide6.QtCore import QFile, QEvent, QSettings, QSize, Qt, QThread, QTimer, Signal, QUrl, QRectF, QSignalBlocker, QMimeData
+from PySide6.QtCore import QFile, QEvent, QObject, QSettings, QSize, Qt, QThread, QTimer, Signal, QUrl, QRectF, QSignalBlocker, QMimeData
 from PySide6.QtGui import QFontMetrics, QDesktopServices, QImage, QPixmap, QShortcut, QKeySequence, QPainter, QColor, QPen, QDrag, QIcon
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout,
@@ -73,7 +73,39 @@ def ui_heading(text, size=24):
     return label
 
 
+class _DropDownHeight(QObject):
+    """Fixes every drop-down list to one height as it is set up, so none grows
+    to fill a taller form row or shrinks in a tight one."""
+
+    def __init__(self, height, parent):
+        super().__init__(parent)
+        self.height = height
+
+    def eventFilter(self, watched, event):
+        # Polish: first set-up. StyleChange: a window's style sheet was applied
+        # again, which can restore the style's own minimum height.
+        if event.type() in (QEvent.Polish, QEvent.StyleChange) and isinstance(watched, QComboBox):
+            if watched.minimumHeight() != self.height or watched.maximumHeight() != self.height:
+                watched.setFixedHeight(self.height)
+        return False
+
+
+def ui_app_style(app):
+    """Drop-down lists share one height everywhere: the height an ordinary one
+    has with a 24-pixel minimum, as the Create your comic screen always used."""
+    if getattr(app, "_drop_down_height", None) is not None:
+        return
+    probe = QComboBox()
+    probe.addItem("Automatic")
+    probe.setStyleSheet("QComboBox { min-height:24px; }")
+    app._drop_down_height = _DropDownHeight(probe.sizeHint().height(), app)
+    probe.deleteLater()
+    app.installEventFilter(app._drop_down_height)
+
+
 def ui_primary(button):
+    """The blue button for a screen's main action: a little taller than the
+    app's other buttons, which all share the standard height."""
     button.setStyleSheet("QPushButton { background:#1976cf; color:white; border:1px solid #1976cf; "
                         "border-radius:5px; padding:7px 14px; font-weight:600; } "
                         "QPushButton:hover { background:#1266b6; } "
@@ -1983,7 +2015,6 @@ class ImportChoiceDialog(OutlinedWindow, QDialog):
         self._setup_outline()  # GNOME on Wayland: a visible window edge
         self.setWindowTitle("Start comic import")
         self.resize(540, 310)
-        self.setStyleSheet("QComboBox { min-height:28px; } QPushButton { padding:7px 14px; }")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 20, 24, 20)
         layout.setSpacing(16)
@@ -2785,8 +2816,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             "QGroupBox::title { subcontrol-origin:margin; subcontrol-position:top left; top:0px; left:12px; padding:0 4px; } "
             "QWidget#exportBookContent, QWidget#exportBookViewport { background:#f9fbfd; } "
             "QGroupBox QLabel, QGroupBox QCheckBox { font-weight:400; color:#000000; } "
-            "QLineEdit, QComboBox, QSpinBox { min-height:24px; } "
-            "QPushButton { padding:5px 10px; }"
+            "QLineEdit, QSpinBox { min-height:24px; } "
             "QScrollArea#exportSettings, QWidget#exportSettingsViewport, QWidget#exportSettingsContent "
             "{ background:transparent; }")
         page_box = QVBoxLayout(self.export_page)
@@ -5054,8 +5084,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         dialog.resize(760, 480)
         dialog.setStyleSheet("QListWidget { font-size:14px; } "
                             "QListWidget::item { padding:10px; border-bottom:1px solid #d8e0e8; } "
-                            "QListWidget::item:selected { color:#102a43; background:#dceeff; } "
-                            "QPushButton { padding:7px 12px; }")
+                            "QListWidget::item:selected { color:#102a43; background:#dceeff; }")
         layout = QVBoxLayout(dialog)
         note = QLabel("Comics are exported from the top down; drag one to change the order. Double-click "
                       "a comic to change its settings. Output files and folders will be saved alongside "
@@ -5361,6 +5390,7 @@ def main():
         # Matches windows to the app-menu entry linux/install.sh creates (Wayland app id).
         QApplication.setDesktopFileName("comic-stitcher")
     app.setStyle("Fusion")
+    ui_app_style(app)
     broker = LaunchBroker()
     try:
         if not broker.start([Path(argument) for argument in sys.argv[1:]]):

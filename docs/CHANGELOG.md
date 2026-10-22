@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Buttons and drop-down lists are consistent heights. Plain buttons are all the
+  standard height (those in the queue and import windows, and the Yes and No of
+  warnings opened from the queue, were as tall as the blue ones); blue buttons
+  share one slightly taller height; drop-down lists are one height everywhere.
 - Batch queue: a comic joins the queue as soon as its Create your comic screen
   opens, with the settings shown; changing them updates its queue entry. The
   separate Review final output and Ready to queue steps are gone. The blue
