@@ -2,9 +2,19 @@
 
 ## Unreleased
 
-- Batch queue: the export screen has a **View queue** button whenever comics are
-  queued, however they were added, so the queue can be checked, reordered or
-  trimmed while the next comic is set up.
+- Batch queue: a comic joins the queue as soon as its Create your comic screen
+  opens, with the settings shown; changing them updates its queue entry. The
+  separate Review final output and Ready to queue steps are gone. The blue
+  button reads **Review next comic** while dropped comics are waiting and
+  **Start export** otherwise; a single comic exports straight away and can still
+  be exported again. **View queue (N)** is on that screen whenever comics are
+  queued, with **Add another comic**, and double-clicking a queued comic opens
+  its settings to change them.
+- Spread suggestions: scanning large books now spreads the pages across worker
+  processes, as export does (half the processor's threads, up to six), so it
+  finishes several times faster on multi-core computers. Small books, under
+  about 40 MB of pages, still scan in one process, which is quicker for them.
+  The suggestions are identical either way.
 - Batch queue: drag a comic up or down to change the order comics are exported
   in, or select it and press Ctrl with Up, Down, Home or End.
 - Pages whose names differ only in capitalisation (`comic - 001.jpg` and
