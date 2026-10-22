@@ -4967,6 +4967,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                 self.import_work.cleanup()
                 job.import_work = None
             self.import_work = None  # Retained imports are owned by the queued job.
+            self.screenshot_stage_dir = None  # So is a screenshot staging folder.
         diagnostics.note("Queued comic settled: %s", job.options.book_name)
         self.current_job = None
         self.editing_queued = False
