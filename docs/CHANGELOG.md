@@ -8,6 +8,9 @@
   still be joined, removed or rotated. Converting a CBR to CBZ, with copied pages
   and optional ComicInfo.xml, takes an import, a look at the pages and an
   export. The choice resets to Suggested pairs for each comic.
+- The import dialog's **Right-to-left page order** checkbox is now labelled
+  **Back-to-front page order (manga)**, which says what it expects: the front
+  cover is the last page of the source. It works as before.
 
 ## 0.9.0
 

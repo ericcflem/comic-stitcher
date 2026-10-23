@@ -2079,7 +2079,7 @@ class ImportChoiceDialog(OutlinedWindow, QDialog):
             "still be joined, removed or rotated there. This choice resets to Suggested "
             "pairs for each comic."))
         row.addRow("Pair review", self.review_mode)
-        self.right_to_left = QCheckBox("Right-to-left page order")
+        self.right_to_left = QCheckBox("Back-to-front page order (manga)")
         self.right_to_left.setToolTip(tooltip_text(
             "Use when the front cover is the last page or image in the source. Reverse the source page "
             "sequence before pair detection, then check and stitch spreads in right-to-left order. "
