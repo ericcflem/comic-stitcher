@@ -2011,6 +2011,12 @@ class ImportDropZone(QFrame):
             QTimer.singleShot(0, lambda: self.dropped.emit(paths))
 
 
+# Pair review choices; the index is the setting. 1 and 2 read pages without
+# scoring their edges; 2 then leaves every pair unjoined and skips to the final review.
+REVIEW_MODES = ["Suggested pairs", "Manual — every neighboring pair", "None — the pages are already complete"]
+NO_PAIR_REVIEW = 2
+
+
 class ImportChoiceDialog(OutlinedWindow, QDialog):
     """Confirm the detected folder workflow and the pair review style."""
 
@@ -2064,12 +2070,16 @@ class ImportChoiceDialog(OutlinedWindow, QDialog):
         self.pdf_smooth_images = None
         row = QFormLayout()
         self.review_mode = QComboBox()
-        self.review_mode.addItems(["Suggested pairs", "Manual — every neighboring pair"])
+        self.review_mode.addItems(REVIEW_MODES)
         self.review_mode.setToolTip(tooltip_text(
             "Suggested pairs analyzes page edges and shows Likely and Possible matches. "
-            "Manual shows every neighboring pair without scoring their edges."))
+            "Manual shows every neighboring pair without scoring their edges. "
+            "None skips pair review and goes straight to the final review, for comics whose "
+            "spreads are already joined (converting a CBR to CBZ, for example); pages can "
+            "still be joined, removed or rotated there. This choice resets to Suggested "
+            "pairs for each comic."))
         row.addRow("Pair review", self.review_mode)
-        self.right_to_left = QCheckBox("Right-to-left page order")
+        self.right_to_left = QCheckBox("Back-to-front page order (manga)")
         self.right_to_left.setToolTip(tooltip_text(
             "Use when the front cover is the last page or image in the source. Reverse the source page "
             "sequence before pair detection, then check and stitch spreads in right-to-left order. "
@@ -2188,6 +2198,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.screenshot_stage_dir: Path | None = None
         self.possible_review_started = False
         self.active_manual_mode = False
+        self.skip_pair_review = False
         self.active_right_to_left = False
         self.review_report_path: Path | None = None
         self.pending_session: dict | None = None
@@ -2589,7 +2600,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         # Retain these state controls for the later workflow, but choose them
         # in the confirmation dialog instead of crowding the opening screen.
         self.review_mode = QComboBox(start)
-        self.review_mode.addItems(["Suggested pairs", "Manual — every neighboring pair"])
+        self.review_mode.addItems(REVIEW_MODES)
         self.review_mode.hide()
         self.screenshot_mode = QCheckBox(start)
         self.screenshot_mode.hide()
@@ -3151,6 +3162,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.review_report_path = None
         self.active_manual_mode = False
         self.active_right_to_left = False
+        self.skip_pair_review = False
         self.review_mode.setCurrentIndex(0)
         if self.import_work is not None:
             self.import_work.cleanup()
@@ -3498,7 +3510,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.progress_bar.setValue(0)
         self._run_worker(partial(stage_screenshots, right_to_left=self.active_right_to_left),
                          (choices, destination, self.screenshot_source,
-                          self.review_mode.currentIndex() == 1,
+                          self.review_mode.currentIndex() >= 1,
                           self.screenshot_workers_count),
                          self._screenshot_staged,
                          lambda done, total: self._screenshot_stage_progress(
@@ -3511,7 +3523,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                 f"Cropping screenshots: {done} of {screenshot_count}…")
         else:
             scan_percent = min(100, round(100 * (done - screenshot_count) / screenshot_count))
-            activity = "Reading" if self.review_mode.currentIndex() == 1 else "Scanning"
+            activity = "Reading" if self.review_mode.currentIndex() >= 1 else "Scanning"
             self.progress_label.setText(
                 f"{activity} {page_count} cropped pages for Pair Review… "
                 f"{scan_percent}% complete")
@@ -3563,6 +3575,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         if self.plan is not None:
             QMessageBox.information(self, "Import", "Choose Process another comic before importing a new one.")
             return
+        self.skip_pair_review = self.review_mode.currentIndex() == NO_PAIR_REVIEW
         if self.screenshot_mode.isChecked():
             if not folder.is_dir():
                 QMessageBox.information(self, "Screenshot import",
@@ -3574,7 +3587,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.screenshot_flagged_pages.clear()
         app_folder = diagnostics.log_path().parent.parent
         if manual_mode is None:
-            manual_mode = self.review_mode.currentIndex() == 1
+            manual_mode = self.review_mode.currentIndex() >= 1
         checkpoint = read_session(folder, app_folder) if not pdf_checked else None
         if checkpoint:
             choice = QMessageBox(self)
@@ -3590,6 +3603,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             choice.exec()
             if choice.clickedButton() == resume:
                 self.pending_session = checkpoint
+                self.skip_pair_review = False  # The saved decisions are restored instead.
                 manual_mode = bool(checkpoint.get("manual_mode", False))
                 self.active_right_to_left = bool(checkpoint.get("right_to_left", False))
                 self.review_mode.setCurrentIndex(int(manual_mode))
@@ -3769,6 +3783,10 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                 QMessageBox.warning(self, "Saved review unavailable",
                                     f"The saved decisions could not be restored: {exc}\nStarting a new review.")
                 resumed = None
+        if not resumed and self.skip_pair_review:
+            # No pair review: every neighboring pair stays unjoined. The final review can still join them.
+            self.plan.decisions = {index: False for index in range(len(scan.candidates))}
+            diagnostics.note("Pair review skipped: %d pages", len(scan.pages))
         self.replay_base_name = ""
         self.replay_count = 0
         self.possible_review_started = bool(resumed and resumed.get("possible_started"))
@@ -3795,7 +3813,9 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                                       else int(jpeg_sources))
         if jpeg_sources:
             self.statusBar().showMessage("JPEG source pages detected: unjoined pages can be copied without re-encoding.")
-        if scan.manual_mode:
+        if self.skip_pair_review and not resumed:
+            self.statusBar().showMessage(f"{len(scan.pages)} pages; pair review skipped")
+        elif scan.manual_mode:
             self.statusBar().showMessage(f"{len(scan.pages)} pages; manual review of neighboring pairs")
         elif scan.numbering_assumed:
             self.statusBar().showMessage("Page numbers could not be read consistently; using natural filename order.")
