@@ -918,6 +918,58 @@ def _estimate_sample(source: str, right: str | None, rotation: int, page_rotatio
         image.close()
 
 
+# Offer lossless WebP when its estimate is at most this share of the chosen lossy format's.
+LOSSLESS_HINT_SHARE = 0.75
+
+
+def lossless_alternative(opt: ExportOptions) -> ExportOptions | None:
+    """The same export with the full-size copy's encoded pages as lossless WebP,
+    for comparing sizes; None when there is nothing to compare.
+
+    Clean line art (black-and-white strips, for example) is often several times
+    smaller as lossless WebP than as JPEG or lossy WebP, with no loss at all.
+    Scans and full-colour art usually aren't, which the estimate shows. Only CBZ
+    and CB7 archives qualify (PDF pages are JPEG or PNG), and only when the
+    full-size copy's encoded pages use a lossy format.
+    """
+    if not opt.cbz or opt.archive_format not in ("cbz", "cb7") or opt.size_output not in ("full", "both"):
+        return None
+    field_name = "spread_format" if opt.keep_originals else "format"
+    chosen = getattr(opt, field_name)
+    if chosen == "png" or (chosen == "webp" and opt.webp_lossless):
+        return None
+    return replace(opt, **{field_name: "webp"}, webp_lossless=True, size_output="full",
+                   reduced_custom=False, keep_images=False)
+
+
+# The early check, run in the background during review: a few pages, fast lossless effort.
+LOSSLESS_CHECK_SAMPLES = 6
+LOSSLESS_CHECK_METHOD = 1
+# At the fast effort lossless only gets smaller at the chosen one, so a check
+# that finds it no smaller than the lossy format rules the suggestion out.
+LOSSLESS_CHECK_SKIP_SHARE = 1.0
+
+
+def lossless_check(plan: BookPlan, opt: ExportOptions,
+                   cancelled: Callable[[], bool] | None = None) -> float | None:
+    """Lossless WebP's estimated size as a share of the chosen lossy format's,
+    from a few sample pages at full size; None when there's nothing to compare
+    or when cancelled. Quick enough to run, on one process, while pages are reviewed.
+    """
+    alternative = lossless_alternative(opt)
+    if alternative is None:
+        return None
+    alternative = replace(alternative, webp_method=min(alternative.webp_method, LOSSLESS_CHECK_METHOD))
+    chosen = replace(opt, size_output="full", reduced_custom=False, keep_images=False)
+    lossy = estimate_export_size(plan, chosen, samples=LOSSLESS_CHECK_SAMPLES, cancelled=cancelled)
+    if lossy is None:
+        return None
+    lossless = estimate_export_size(plan, alternative, samples=LOSSLESS_CHECK_SAMPLES, cancelled=cancelled)
+    if lossless is None:
+        return None
+    return lossless["full"] / max(1, lossy["full"])
+
+
 def estimate_export_size(plan: BookPlan, opt: ExportOptions, samples: int = ESTIMATE_SAMPLES,
                          cancelled: Callable[[], bool] | None = None, workers: int = 1,
                          progress: Callable[[dict[str, int], int, int], None] | None = None,

@@ -32,7 +32,8 @@ from .backend import (
     BookPlan, BoundaryOverrideRequired, ExportOptions, check_sources, export_book, planned_names,
     safe_book_name, scan_folder, scan_manual_folder, stitched_image, rotated_image,
     encoding_workers, POSSIBLE_MIN_SCORE, copy_encoding_options, ENCODER_FIELDS,
-    estimate_export_size, ESTIMATE_SAMPLES,
+    estimate_export_size, ESTIMATE_SAMPLES, lossless_alternative, LOSSLESS_HINT_SHARE,
+    lossless_check, LOSSLESS_CHECK_SKIP_SHARE,
 )
 from . import __version__, diagnostics
 from .import_sources import expand_sources
@@ -428,6 +429,7 @@ class SizeEstimateWorker(QThread):
     ready = Signal(int, object)
     provisional = Signal(int, object)  # An early estimate while more samples are encoded.
     failed = Signal(int, str)
+    lossless = Signal(int, object)  # The full-size copy's estimate as lossless WebP, once the estimate is shown.
 
     def __init__(self):
         super().__init__()
@@ -439,9 +441,9 @@ class SizeEstimateWorker(QThread):
         self.pool = None
         self.pool_size = 0
 
-    def request(self, generation, plan, opt):
+    def request(self, generation, plan, opt, compare_lossless=True):
         with self.condition:
-            self.requested = (generation, copy.deepcopy(plan), replace(opt))
+            self.requested = (generation, copy.deepcopy(plan), replace(opt), compare_lossless)
             self.cancelled = False
             self.releasing = False
             self.condition.notify()
@@ -496,7 +498,7 @@ class SizeEstimateWorker(QThread):
                         self.releasing = False
                         self._end_pool()
                         continue
-                    generation, plan, opt = self.requested
+                    generation, plan, opt, compare_lossless = self.requested
                     self.requested = None
                 started = time.monotonic()
                 try:
@@ -514,8 +516,46 @@ class SizeEstimateWorker(QThread):
                 if result is not None:
                     diagnostics.note("Size estimate shown after %.1f s", time.monotonic() - started)
                     self.ready.emit(generation, result)
+                    if compare_lossless:
+                        self._compare_lossless(generation, plan, opt, workers)
         finally:
             self._end_pool()
+
+    def _compare_lossless(self, generation, plan, opt, workers):
+        """Estimate the same comic as lossless WebP, to suggest it when far smaller."""
+        alternative = lossless_alternative(opt)
+        if alternative is None or self._interrupted():
+            return
+        try:
+            result = estimate_export_size(plan, alternative, cancelled=self._interrupted, workers=workers,
+                                          executor=self._pool_for(min(workers, ESTIMATE_SAMPLES)))
+        except Exception as exc:  # Only a suggestion; say nothing.
+            diagnostics.note("Lossless WebP comparison failed: %s", exc)
+            self._end_pool()
+            return
+        if result is not None:
+            self.lossless.emit(generation, result["full"])
+
+
+class LosslessCheckWorker(QThread):
+    """The quick lossless WebP check, on one process, while the comic is reviewed."""
+    done = Signal(object, object)  # The plan checked, and lossless WebP's share of the size (or None).
+
+    def __init__(self, plan, opt):
+        super().__init__()
+        self.plan = plan
+        self.copy, self.opt = copy.deepcopy(plan), replace(opt)
+
+    def run(self):
+        try:
+            share = lossless_check(self.copy, self.opt, cancelled=self.isInterruptionRequested)
+        except Exception as exc:  # Only a suggestion; the full comparison can still run.
+            diagnostics.note("Lossless WebP check failed: %s", exc)
+            share = None
+        if share is not None:
+            diagnostics.note("Lossless WebP check: %.2f of the lossy size", share)
+        if not self.isInterruptionRequested():
+            self.done.emit(self.plan, share)
 
 
 class ReviewImageWorker(QThread):
@@ -3052,6 +3092,29 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.size_estimate.setStyleSheet("color:#203c55; padding-left:6px;")
         estimate_row.addWidget(self.size_estimate, 1)
         output_box.addLayout(estimate_row)
+        # Shown when lossless WebP would make the comic far smaller (clean line art).
+        self.lossless_hint_row = QWidget()
+        lossless_row = QHBoxLayout(self.lossless_hint_row)
+        lossless_row.setContentsMargins(0, 0, 0, 0)
+        self.lossless_hint = QLabel("")
+        self.lossless_hint.setWordWrap(True)
+        self.lossless_hint.setStyleSheet("color:#1b5e20; padding-left:6px;")
+        lossless_row.addWidget(self.lossless_hint, 1)
+        self.lossless_button = QPushButton("Use lossless WebP")
+        self.lossless_button.setToolTip(tooltip_text(
+            "Saves the pages Comic Stitcher encodes as lossless WebP: every pixel is kept exactly, "
+            "and clean line art such as black-and-white strips is often several times smaller "
+            "than JPEG. For this comic only: your usual output settings aren't changed, and the "
+            "next comic starts with them again."))
+        self.lossless_button.clicked.connect(self._use_lossless_webp)
+        lossless_row.addWidget(self.lossless_button)
+        self.lossless_hint_row.hide()
+        output_box.addWidget(self.lossless_hint_row)
+        self.estimate_full_size = None
+        self.lossless_for_this_comic = False  # Lossless WebP from the suggestion: never saved.
+        self.lossless_field = "format"
+        self.lossless_checks = []  # Running quick checks (kept until finished).
+        self.lossless_checked = (None, None)  # (plan, share) from the latest quick check.
         self.estimate_generation = 0
         self.estimate_png_pages = False
         self.estimate_timer = QTimer(self)
@@ -3063,6 +3126,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.size_worker.provisional.connect(
             lambda generation, sizes: self._size_estimate_ready(generation, sizes, final=False))
         self.size_worker.failed.connect(self._size_estimate_failed)
+        self.size_worker.lossless.connect(self._lossless_estimate_ready)
         self.pages.currentChanged.connect(self._schedule_size_estimate)
         self.pages.currentChanged.connect(self._hold_page_minimum)
         form.setVerticalSpacing(10)
@@ -3139,6 +3203,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.pages.addWidget(self.progress_page)
 
     def new_comic(self):
+        self._end_lossless_for_this_comic()
+        self._stop_lossless_checks()
         if self.current_job is not None:  # Leaving a comic that was never settled: drop it.
             if self.current_job in self.queue_jobs:
                 self.queue_jobs.remove(self.current_job)
@@ -3813,6 +3879,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                                       else int(jpeg_sources))
         if jpeg_sources:
             self.statusBar().showMessage("JPEG source pages detected: unjoined pages can be copied without re-encoding.")
+        self._start_lossless_check()  # Ready, usually, by the time Create your comic opens.
         if self.skip_pair_review and not resumed:
             self.statusBar().showMessage(f"{len(scan.pages)} pages; pair review skipped")
         elif scan.manual_mode:
@@ -4712,6 +4779,14 @@ class ComicWindow(OutlinedWindow, QMainWindow):
     def _save_output_preferences(self):
         """Save the usual output options; PDF's own are never saved."""
         opt = self.usual_opt
+        if getattr(self, "lossless_for_this_comic", False):
+            if self._lossless_still_chosen(opt):
+                # Chosen for this comic only: keep the saved format choices.
+                saved = self._saved_formats()
+                opt = replace(opt, **{self.lossless_field: saved[self.lossless_field],
+                                      "webp_lossless": saved["webp_lossless"]})
+            else:
+                self.lossless_for_this_comic = False  # Edit options chose something else.
         self.settings.setValue("reduced_custom", opt.reduced_custom)
         self.settings.setValue("reduced_settings", json.dumps(opt.reduced_settings))
         for key, value in (("jpeg_quality", opt.jpeg_quality),
@@ -4864,6 +4939,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             return
         self.estimate_generation += 1  # Any result still on its way is now out of date.
         self.size_estimate.setText("Estimating…")
+        self._show_early_lossless_hint()
         self.estimate_timer.start()
 
     def _cancel_size_estimate(self, text):
@@ -4875,6 +4951,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             else:
                 self.size_worker.release()
             self.size_estimate.setText(text)
+            self._show_early_lossless_hint()
 
     def _start_size_estimate(self):
         if not self._estimate_wanted():
@@ -4890,7 +4967,9 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.estimate_png_pages = not opt.cbz
         if not self.size_worker.isRunning():
             self.size_worker.start()  # Only once an estimate is first wanted.
-        self.size_worker.request(self.estimate_generation, self.plan, opt)
+        share = self._lossless_share()
+        self.size_worker.request(self.estimate_generation, self.plan, opt,
+                                 compare_lossless=share is None or share <= LOSSLESS_CHECK_SKIP_SHARE)
 
     def _size_estimate_ready(self, generation, sizes, final=True):
         if generation != self.estimate_generation:
@@ -4902,6 +4981,104 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             text = (f"Full: about {readable_size(sizes['full'])}  ·  "
                     f"Reduced: about {readable_size(sizes['reduced'])}{what}")
         self.size_estimate.setText(text if final else text + " (refining…)")
+        if final:
+            self.estimate_full_size = sizes.get("full")
+
+    def _lossless_estimate_ready(self, generation, lossless_size):
+        if generation != self.estimate_generation or not self.estimate_full_size:
+            return
+        if lossless_size > LOSSLESS_HINT_SHARE * self.estimate_full_size:
+            self._show_lossless_hint(None)  # The full estimate outweighs the quick check.
+            return
+        both = self.opt.size_output == "both"
+        self._show_lossless_hint(
+            f"{'The full-size copy' if both else 'This comic'} would be about "
+            f"{readable_size(lossless_size)} as lossless WebP, instead of about "
+            f"{readable_size(self.estimate_full_size)}, with no loss of quality.")
+
+    def _start_lossless_check(self):
+        """Begin the quick lossless WebP check while this comic is reviewed."""
+        self._stop_lossless_checks()
+        if self.plan is None:
+            return
+        opt = replace(self.usual_opt, keep_originals=self.handling.currentIndex() == 1,
+                      cbz=True, archive_format="cbz", size_output="full")
+        if lossless_alternative(opt) is None:
+            return  # The usual format is already lossless.
+        worker = LosslessCheckWorker(self.plan, opt)
+        worker.done.connect(self._lossless_check_done)
+        worker.finished.connect(lambda worker=worker: self.lossless_checks.remove(worker)
+                                if worker in self.lossless_checks else None)
+        self.lossless_checks.append(worker)
+        worker.start(QThread.Priority.LowPriority)
+
+    def _stop_lossless_checks(self):
+        for worker in self.lossless_checks:
+            worker.requestInterruption()
+        self.lossless_checked = (None, None)
+
+    def _lossless_check_done(self, plan, share):
+        if plan is not self.plan:
+            return
+        self.lossless_checked = (plan, share)
+        if self.lossless_hint_row.isHidden():
+            self._show_early_lossless_hint()
+
+    def _lossless_share(self):
+        plan, share = self.lossless_checked
+        return share if plan is not None and plan is self.plan else None
+
+    def _show_early_lossless_hint(self):
+        """The suggestion as soon as the quick check supports it; the full estimate adds sizes."""
+        share = self._lossless_share()
+        wanted = (share is not None and share <= LOSSLESS_HINT_SHARE
+                  and self.pages.currentWidget() is self.export_page and self.create_button.isEnabled()
+                  and lossless_alternative(self.opt) is not None)
+        self._show_lossless_hint("Lossless WebP would likely make this comic much smaller, with no loss "
+                                 "of quality." if wanted else None)
+
+    def _show_lossless_hint(self, text):
+        if not hasattr(self, "lossless_hint_row"):
+            return
+        shown = text is not None
+        if shown:
+            self.lossless_hint.setText(text)
+        if shown == self.lossless_hint_row.isHidden():
+            self.lossless_hint_row.setVisible(shown)
+            QTimer.singleShot(0, self._fit_export_settings)
+
+    def _use_lossless_webp(self):
+        """Lossless WebP for the pages this comic encodes; this comic only.
+
+        What suits one book (clean line art) can be a poor choice for the next (a
+        full-colour scan), so the saved output settings keep the usual format and
+        the next comic starts with it again.
+        """
+        self.lossless_field = "spread_format" if self.opt.keep_originals else "format"
+        setattr(self.opt, self.lossless_field, "webp")
+        self.opt.webp_lossless = True
+        self.lossless_for_this_comic = True
+        diagnostics.note("Lossless WebP chosen for this comic from the size suggestion")
+        self.refresh_export()
+
+    def _saved_formats(self) -> dict:
+        """The format choices saved by Edit options."""
+        image = str(self.settings.value("output_format", "jpeg"))
+        spread = str(self.settings.value("spread_format", "jpeg"))
+        return {"format": image if image in ("jpeg", "webp", "png") else "jpeg",
+                "spread_format": spread if spread in ("png", "jpeg", "webp") else "jpeg",
+                "webp_lossless": self.settings.value("webp_lossless", False, type=bool)}
+
+    def _lossless_still_chosen(self, opt) -> bool:
+        return getattr(opt, self.lossless_field) == "webp" and opt.webp_lossless
+
+    def _end_lossless_for_this_comic(self):
+        """Back to the saved format choices, as the next comic starts."""
+        if self.lossless_for_this_comic:
+            saved = self._saved_formats()
+            setattr(self.usual_opt, self.lossless_field, saved[self.lossless_field])
+            self.usual_opt.webp_lossless = saved["webp_lossless"]
+            self.lossless_for_this_comic = False
 
     def _size_estimate_failed(self, generation, _message):
         if generation == self.estimate_generation:
@@ -5048,6 +5225,11 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             self.pdf_opt, self.pdf_resize_values = replace(opt), resize
         else:
             self.usual_opt, self.usual_resize_values = replace(opt), resize
+            # A queued comic switched to lossless WebP by the suggestion keeps it, for itself only.
+            self.lossless_field = "spread_format" if opt.keep_originals else "format"
+            saved = self._saved_formats()
+            self.lossless_for_this_comic = (self._lossless_still_chosen(opt) and not (
+                saved[self.lossless_field] == "webp" and saved["webp_lossless"]))
         self._use_pdf_options(choice == "pdf")
         self.keep_images.setEnabled(choice != "none")
         self.keep_images.setChecked(opt.keep_images)
@@ -5395,8 +5577,10 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             self.thumb_worker.stop()
             self.review_worker.stop()
             self.size_worker.stop()
+            self._stop_lossless_checks()
             if (not self.thumb_worker.wait(3000) or not self.review_worker.wait(3000)
-                    or not self.size_worker.wait(10000)):
+                    or not self.size_worker.wait(10000)
+                    or not all(worker.wait(10000) for worker in list(self.lossless_checks))):
                 event.ignore()
                 self.statusBar().showMessage("Finishing an image before closing…")
                 return
