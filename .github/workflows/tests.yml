@@ -41,6 +41,21 @@ jobs:
 
       - uses: actions/checkout@v5
 
+      - name: TEMPORARY compile check of the uninstall code
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress | Out-Null
+          $iscc = Get-ChildItem 'C:\Program Files*\Inno Setup*\ISCC.exe' | Select-Object -First 1
+          $lines = @(
+            '[Setup]', 'AppName=Check', 'AppVersion=1', 'DefaultDirName={autopf}\Check',
+            'PrivilegesRequired=lowest', 'OutputDir=check-out',
+            '[Files]', 'Source: "README.md"; DestDir: "{app}"',
+            '#include "installer/uninstall_settings.iss"')
+          Set-Content -Path check.iss -Value $lines
+          & $iscc.FullName check.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup could not compile the uninstall code" }
+
       - uses: actions/setup-python@v6
         with:
           # Matches the Python bundled with the Windows release.
