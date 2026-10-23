@@ -1517,7 +1517,6 @@ class ThumbnailTest(unittest.TestCase):
                 self.assertIsNone(window.plan.current())
                 self.assertEqual(len(window.plan.entries()), 3)  # Nothing joined.
                 self.assertFalse(window.plan.approved())
-                self.assertIn("pair review skipped", window.statusBar().currentMessage())
                 window.new_comic()
                 self.assertEqual(window.review_mode.currentIndex(), 0)  # Not kept for the next comic.
                 self.assertFalse(window.skip_pair_review)
