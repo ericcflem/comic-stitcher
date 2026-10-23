@@ -2,10 +2,13 @@
 
 ## Unreleased
 
+- Windows: uninstalling now asks whether to remove your settings too: your
+  preferences, a remembered ComicVine API key, saved reviews, pair review
+  reports and logs. They are kept unless you choose Yes, as before.
 - Linux: CBR/RAR comics in the newer RAR5 format. unar, bsdtar, and 7-Zip
-  without its RAR support, can't read them fully, and the import failed with "Failed the read
-  enough data". Comic Stitcher now tries each installed extractor in turn
-  (UnRAR, unar, bsdtar, 7-Zip). If none can read the archive, or none is
+  without its RAR support, can't read them fully, and the import failed with
+  "Failed the read enough data". Comic Stitcher now tries each installed
+  extractor in turn (UnRAR, unar, bsdtar, 7-Zip). If none can read the archive, or none is
   installed, the message recommends UnRAR or 7-Zip's RAR support (`7zip-rar`)
   instead of unar. `linux/install.sh` offers to install UnRAR.
 - Pair review can be skipped: choose **None — the pages are already complete**
