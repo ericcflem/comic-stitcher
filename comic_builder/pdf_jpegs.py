@@ -394,7 +394,8 @@ def inspect_pdf_jpegs(source: Path, progress=None):
     return check_pdf_jpegs(source, progress)[0]
 
 
-def import_pdf_jpegs(source: Path, destination: Path, manual=False, progress=None, *, right_to_left=False):
+def import_pdf_jpegs(source: Path, destination: Path, manual=False, progress=None, *, right_to_left=False,
+                     workers: int = 0):
     source = Path(source).resolve(strict=True)
     reader = PdfReader(source)
     if _blocks_extraction(reader):
@@ -415,7 +416,7 @@ def import_pdf_jpegs(source: Path, destination: Path, manual=False, progress=Non
         (destination / f'{index:06d}.jpg').write_bytes(result[0])
         if progress:
             progress(index, count * passes)
-    scan = scan_folder(destination, manual=manual, right_to_left=right_to_left,
+    scan = scan_folder(destination, manual=manual, right_to_left=right_to_left, workers=workers,
                        progress=(lambda n, total: progress(count + n, count * passes)) if progress else None)
     scan.source_archive = source
     scan.output_folder = source.parent

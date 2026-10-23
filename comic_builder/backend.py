@@ -232,8 +232,9 @@ def scan_folder(folder: Path, progress: Callable[[int, int], None] | None = None
                 case_twins=case_twins)
 
 
-def scan_manual_folder(folder: Path, progress: Callable[[int, int], None] | None = None, *, right_to_left=False) -> Scan:
-    return scan_folder(folder, progress=progress, manual=True, right_to_left=right_to_left)
+def scan_manual_folder(folder: Path, progress: Callable[[int, int], None] | None = None, *, right_to_left=False,
+                       workers: int = 0) -> Scan:
+    return scan_folder(folder, progress=progress, manual=True, right_to_left=right_to_left, workers=workers)
 
 
 class BookPlan:

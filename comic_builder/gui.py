@@ -54,7 +54,6 @@ from .session import (cached_folder_scan, clear_session, read_session, restore_p
                       save_session, session_path)
 from .screenshot_import import (CropChoice, StagedScreenshots, analyze_screenshots,
                                 looks_like_screenshot_folder, stage_screenshots)
-from .screenshot_geometry import screenshot_workers
 
 
 def compact_filename_range(names):
@@ -1296,7 +1295,7 @@ class PdfPreviewWorker(QThread):
 
 
 class PdfImportDialog(OutlinedWindow, QDialog):
-    def __init__(self, source: Path, dpi: int, workers: int,
+    def __init__(self, source: Path, dpi: int,
                  smooth_images: bool = True, parent=None, *, manual: bool = False, right_to_left: bool = False,
                  jpeg_reason: str | None = None):
         super().__init__(parent)
@@ -1346,14 +1345,6 @@ class PdfImportDialog(OutlinedWindow, QDialog):
         self.dpi_note.setWordWrap(True)
         form.addRow("", self.dpi_note)
         self.dpi.valueChanged.connect(self._dpi_changed)
-        self.workers = QSpinBox()
-        self.workers.setRange(0, 8)
-        self.workers.setSpecialValueText(f"Automatic ({pdf_workers()} processes)")
-        self.workers.setValue(workers)
-        self.workers.hide()
-        form_hint(form, self.workers,
-                  "Independent processes render different groups of PDF pages. Automatic uses "
-                  "up to four to limit memory use. Fewer processes leave more capacity for other programs.")
         self.dpi.valueChanged.connect(self.update_dimensions)
         self.smooth_images = QCheckBox("Smooth embedded images")
         self.smooth_images.setChecked(smooth_images)
@@ -2129,7 +2120,7 @@ def export_queued_comic(job: QueuedComic, progress=None):
                               progress=prepare_progress, **(job.pdf_options or {}))
         else:
             scan = import_archive(source, destination, manual=job.plan.scan.manual_mode, right_to_left=job.plan.scan.right_to_left,
-                                  progress=prepare_progress)
+                                  progress=prepare_progress, workers=job.options.workers)
         old = job.plan.scan
         if ([(p.path.name, p.width, p.height) for p in scan.pages] !=
                 [(p.path.name, p.width, p.height) for p in old.pages] or
@@ -2174,6 +2165,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.resize(self.compact_size)
         self.setAcceptDrops(True)
         self.settings = QSettings("ComicStitcher", "Comic Stitcher")
+        self._merge_worker_settings()
         self.comicvine_session_key = retrieve_key(self.settings.value("comicvine_key_protected", ""))
         self.comicvine_client = ComicVineClient(self.comicvine_session_key)
         self.plan: BookPlan | None = None
@@ -2342,17 +2334,19 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         hint.setWordWrap(True)
         layout.addWidget(hint)
         form = QFormLayout()
-        counts = {}
-        for key, label, maximum, automatic in (("pdf_workers", "PDF rendering processes", 8, pdf_workers()),
-                ("screenshot_workers", "Screenshot workers", min(16, os.cpu_count() or 1), screenshot_workers()),
-                ("encoder_workers", "Encoding workers", min(16, os.cpu_count() or 1), encoding_workers())):
-            control = QSpinBox(dialog)
-            control.setRange(0, maximum)
-            control.setSpecialValueText(f"Automatic ({automatic})")
-            control.setValue(self.settings.value(key, 0, type=int))
-            form.addRow(label, control)
-            form_hint(form, control, "Automatic limits parallel work to leave room for other tasks. PDF rendering uses up to four processes; screenshot measurement/cropping and encoding use about half the logical processors, up to six. Set a lower count for a more responsive computer or a higher count for faster processing when memory allows.")
-            counts[key] = control
+        workers = QSpinBox(dialog)
+        workers.setObjectName("workers")
+        workers.setRange(0, max(1, min(16, os.cpu_count() or 1)))
+        workers.setSpecialValueText(f"Automatic ({encoding_workers()})")
+        workers.setValue(min(workers.maximum(), self.worker_count()))
+        form.addRow("Worker processes", workers)
+        form_hint(form, workers,
+                  "How many pages are worked on at the same time when scanning, rendering PDF pages, "
+                  "measuring and cropping screenshots, and encoding. Automatic uses about half the "
+                  f"logical processors, up to six ({encoding_workers()} on this computer); PDF rendering "
+                  f"uses up to four ({pdf_workers()} here), as rendered pages take more memory. Set a lower "
+                  "count for a more responsive computer, or a higher count for faster processing when "
+                  "memory allows.")
         layout.addLayout(form)
         notice = QCheckBox("Show the original-file notice at startup")
         notice.setChecked(not self.settings.value("hide_source_notice", False, type=bool))
@@ -2414,10 +2408,22 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             if entered_key != self.comicvine_session_key:
                 self.comicvine_client.set_key(entered_key)
             self.comicvine_session_key = entered_key
-            for key, control in counts.items():
-                self.settings.setValue(key, control.value())
+            self.settings.setValue("workers", workers.value())
             self.settings.setValue("hide_source_notice", not notice.isChecked())
-            self.encoder_workers.setValue(counts["encoder_workers"].value())
+            self.refresh_export()
+
+    def _merge_worker_settings(self):
+        """Earlier versions kept three worker counts (PDF rendering, screenshots,
+        encoding); one now covers every job, starting from the encoding count."""
+        old = ("encoder_workers", "pdf_workers", "screenshot_workers")
+        if not self.settings.contains("workers"):
+            self.settings.setValue("workers", self.settings.value("encoder_workers", 0, type=int))
+        for key in old:
+            self.settings.remove(key)
+
+    def worker_count(self) -> int:
+        """The Worker processes setting; 0 is Automatic."""
+        return max(0, self.settings.value("workers", 0, type=int))
 
     def _compact_target_size(self):
         progress = hasattr(self, "progress_page") and self.pages.currentWidget() is self.progress_page
@@ -2968,20 +2974,6 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         metadata_row.addWidget(self.metadata_button)
         metadata_row.addStretch()
         form.addRow("", metadata_row)
-        self.encoder_workers = QSpinBox()
-        self.encoder_workers.setRange(0, min(16, os.cpu_count() or 1))
-        self.encoder_workers.setSpecialValueText(f"Automatic ({encoding_workers()} workers)")
-        self.encoder_workers.hide()
-        form_hint(form, self.encoder_workers,
-                  "Number of pages encoded at the same time. Automatic uses about half your "
-                  "logical processors, up to six, leaving capacity for other tasks. Using more "
-                  "workers can shorten an export but increases memory use and can slow other "
-                  "programs you are using; fewer workers keep the computer more responsive.")
-        self.encoder_workers.setValue(min(self.encoder_workers.maximum(),
-                                          int(self.settings.value("encoder_workers", 0))))
-        self.encoder_workers.valueChanged.connect(self.refresh_export)
-        self.encoder_workers.valueChanged.connect(
-            lambda value: self.settings.setValue("encoder_workers", value))
         self.output_options_button = QPushButton("Output options…")
         self.output_options_button.clicked.connect(self.show_output_options)
         form.addRow("", self.output_options_button)
@@ -3393,7 +3385,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                                     "A normal image-folder review is saved for this folder. "
                                     "Starting screenshot import will replace it. Continue?") != QMessageBox.Yes:
                 return
-        self.screenshot_workers_count = self.settings.value("screenshot_workers", 0, type=int)
+        self.screenshot_workers_count = self.worker_count()
         clear_session(folder, app_folder)
         shutil.rmtree(self.screenshot_stage_dir, ignore_errors=True)
         self.screenshot_source = folder
@@ -3604,7 +3596,6 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                 if folder.suffix.lower() == ".pdf":
                     options = checkpoint.get("pdf_options", {})
                     pdf_dpi = options.get("dpi", 300)
-                    pdf_workers_count = options.get("workers", 0)
                     pdf_smooth_images = options.get("smooth_images", True)
                     extract_jpegs = bool(options.get("extract_jpegs", False))
             elif choice.clickedButton() is None or choice.buttonRole(choice.clickedButton()) == QMessageBox.RejectRole:
@@ -3616,7 +3607,9 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             clear_session(folder, app_folder)
         self.session_source = folder
         self.active_manual_mode = manual_mode
-        self.pdf_session_options = {"dpi": pdf_dpi or 300, "workers": pdf_workers_count or 0,
+        if pdf_workers_count is None:
+            pdf_workers_count = self.worker_count()
+        self.pdf_session_options = {"dpi": pdf_dpi or 300, "workers": pdf_workers_count,
                                     "smooth_images": pdf_smooth_images is not False, "extract_jpegs": extract_jpegs}
         if folder.is_file() and folder.suffix.lower() == ".pdf" and pdf_dpi is None and not pdf_checked:
             self.progress_label.setText("Checking PDF page images…")
@@ -3628,7 +3621,6 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             return
         if folder.is_file() and folder.suffix.lower() == ".pdf" and pdf_dpi is None:
             dialog = PdfImportDialog(folder, int(self.settings.value("pdf_dpi", 300)),
-                                     int(self.settings.value("pdf_workers", 0)),
                                      (pdf_smooth_images if pdf_smooth_images is not None else
                                       str(self.settings.value("pdf_smooth_images", "true")).lower() != "false"),
                                      self, manual=manual_mode, right_to_left=self.active_right_to_left,
@@ -3637,11 +3629,10 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                 self.pages.setCurrentIndex(0)
                 self._compact_window()
                 return
-            pdf_dpi, pdf_workers_count = dialog.dpi.value(), dialog.workers.value()
+            pdf_dpi = dialog.dpi.value()
             pdf_smooth_images = dialog.smooth_images.isChecked()
             if dialog.dpi_chosen_by_user or dialog.suggested_dpi is None:
                 self.settings.setValue("pdf_dpi", pdf_dpi)
-            self.settings.setValue("pdf_workers", pdf_workers_count)
             self.settings.setValue("pdf_smooth_images", pdf_smooth_images)
             self.pdf_session_options = {"dpi": pdf_dpi, "workers": pdf_workers_count,
                                         "smooth_images": pdf_smooth_images, "extract_jpegs": False}
@@ -3665,16 +3656,18 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                 self.progress_label.setText("Extracting original JPEG pages…" if extract_jpegs else
                                             f"Rendering {folder.name} to PNG pages… this may take several minutes.")
                 self._run_worker(partial(import_pdf, right_to_left=self.active_right_to_left, extract_jpegs=extract_jpegs), (folder, destination, pdf_dpi or 300,
-                                              pdf_workers_count or 0,
+                                              pdf_workers_count,
                                               True if pdf_smooth_images is None else pdf_smooth_images,
                                               manual_mode),
                                  self.scan_done)
                 self.worker.progress.connect(self._pdf_progress)
             else:
-                self._run_worker(partial(import_archive, right_to_left=self.active_right_to_left), (folder, destination, manual_mode), self.scan_done)
+                self._run_worker(partial(import_archive, right_to_left=self.active_right_to_left,
+                                         workers=self.worker_count()),
+                                 (folder, destination, manual_mode), self.scan_done)
         else:
             self._run_worker(partial(scan_manual_folder if manual_mode else scan_folder,
-                                     right_to_left=self.active_right_to_left),
+                                     right_to_left=self.active_right_to_left, workers=self.worker_count()),
                              (folder,), self.scan_done)
 
     def _pdf_images_checked(self, source, report, reason, manual_mode, smooth_images):
@@ -4788,7 +4781,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.opt.archive_format = self._archive_choice() if self.opt.cbz else "cbz"
         self.opt.keep_images = self.keep_images.isChecked()
         self.opt.front_to_back = self.front_to_back.isChecked() if self.plan and self.plan.scan.right_to_left else True
-        self.opt.workers = self.encoder_workers.value()
+        self.opt.workers = self.worker_count()
         values = self.custom_resize_values
         self.opt.resize_mode = values["mode"]
         self.opt.resize_pixels = values["pixels"]
@@ -5039,7 +5032,6 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.keep_images.setEnabled(choice != "none")
         self.keep_images.setChecked(opt.keep_images)
         self.front_to_back.setChecked(opt.front_to_back)
-        self.encoder_workers.setValue(opt.workers)
         with QSignalBlocker(self.include_comicinfo):
             self.include_comicinfo.setChecked(opt.comicinfo_xml is not None)
         self.metadata_button.setEnabled(opt.comicinfo_xml is not None)
@@ -5263,6 +5255,9 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             return
         job = self.queue_jobs[0]
         self.active_queue_job = job
+        job.options.workers = self.worker_count()  # The current setting, even if changed since queueing.
+        if job.pdf_options is not None:
+            job.pdf_options["workers"] = job.options.workers
         self._refresh_queue_status()
         self.progress_bar.setValue(0)
         self.progress_label.setText(

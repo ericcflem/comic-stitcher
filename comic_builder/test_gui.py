@@ -113,25 +113,41 @@ class ThumbnailTest(unittest.TestCase):
             finally:
                 window.close()
 
-    def test_settings_persist_and_workers_are_hidden_on_export(self):
+    def test_one_worker_setting_covers_every_job(self):
         window = ComicWindow()
         try:
             def accept_settings(dialog):
                 from PySide6.QtWidgets import QSpinBox, QCheckBox
                 controls = dialog.findChildren(QSpinBox)
-                self.assertEqual(len(controls), 3)
-                for control, value in zip(controls, (2, 3, 4), strict=True):
-                    control.setValue(value)
+                self.assertEqual([c.objectName() for c in controls], ["workers"])
+                controls[0].setValue(1)
                 dialog.findChildren(QCheckBox)[0].setChecked(False)
                 return QDialog.Accepted
             with patch.object(QDialog, "exec", accept_settings):
                 window.show_settings()
-            self.assertEqual(window.settings.value("pdf_workers", type=int), 2)
-            self.assertEqual(window.settings.value("screenshot_workers", type=int), 3)
-            self.assertEqual(window.encoder_workers.value(), 4)
-            self.assertTrue(window.encoder_workers.isHidden())
+            self.assertEqual(window.settings.value("workers", type=int), 1)
+            self.assertEqual(window.worker_count(), 1)
+            self.assertEqual(window.options_from_screen().workers, 1)
             self.assertTrue(window.settings.value("hide_source_notice", type=bool))
         finally:
+            window.settings.setValue("workers", 0)
+            window.close()
+
+    def test_earlier_worker_settings_become_one(self):
+        window = ComicWindow()
+        try:
+            window.settings.remove("workers")
+            for key, value in (("pdf_workers", 2), ("screenshot_workers", 3), ("encoder_workers", 4)):
+                window.settings.setValue(key, value)
+            window._merge_worker_settings()
+            self.assertEqual(window.worker_count(), 4)  # The encoding count carries over.
+            for key in ("pdf_workers", "screenshot_workers", "encoder_workers"):
+                self.assertFalse(window.settings.contains(key), key)
+            window.settings.setValue("encoder_workers", 2)
+            window._merge_worker_settings()  # Only the first time: the setting is kept after.
+            self.assertEqual(window.worker_count(), 4)
+        finally:
+            window.settings.setValue("workers", 0)
             window.close()
 
     def test_source_notice_dismissal_is_saved(self):
@@ -340,7 +356,7 @@ class ThumbnailTest(unittest.TestCase):
             source = Path(tmp) / 'book.pdf'
             Image.new('RGB', (80, 120), 'red').save(
                 source, 'PDF', save_all=True, append_images=[Image.new('RGB', (100, 140), 'blue')])
-            dialog = PdfImportDialog(source, 200, 0, right_to_left=True)
+            dialog = PdfImportDialog(source, 200, right_to_left=True)
             try:
                 self.assertTrue(dialog.jpeg_reason.isHidden())  # No reason given: no line.
                 deadline = time.monotonic() + 3
@@ -1518,7 +1534,7 @@ class ThumbnailTest(unittest.TestCase):
             window = ComicWindow()
             try:
                 window.show()
-                window.encoder_workers.setValue(1)
+                window.settings.setValue("workers", 1)
                 window.scan_done(scan_manual_folder(self.make_book(root, "book")))
                 window.show_export()
                 window.book_name.setText("Only One")
@@ -1629,7 +1645,7 @@ class ThumbnailTest(unittest.TestCase):
             window = ComicWindow()
             try:
                 window.show()
-                window.encoder_workers.setValue(1)
+                window.settings.setValue("workers", 1)
                 for index in (1, 2):
                     folder = root / f"book-{index}"
                     folder.mkdir()
@@ -1680,7 +1696,7 @@ class ThumbnailTest(unittest.TestCase):
                 window.show_export()
                 window.book_name.setText("Queued Archive")
                 window.keep_queue_pages.setChecked(keep)
-                window.encoder_workers.setValue(1)
+                window.settings.setValue("workers", 1)
                 window._queue_window_action("another")
                 self.assertEqual(staged_path.exists(), keep)
                 if keep:
@@ -2307,7 +2323,7 @@ class ThumbnailTest(unittest.TestCase):
                 with Image.new("RGB", (144, 90), "blue") as second:
                     first.save(source, "PDF", save_all=True,
                                append_images=[second], resolution=72)
-            dialog = PdfImportDialog(source, 200, 0)
+            dialog = PdfImportDialog(source, 200)
             try:
                 dialog.show()
                 self.wait_for(lambda: dialog.current_size is not None and dialog.resolution_checked)
@@ -2543,9 +2559,8 @@ class ThumbnailTest(unittest.TestCase):
                 window.book_name.setText("Revised Comic")
                 self.assertEqual(window.naming.currentIndex(), 1)
                 self.assertEqual(window.naming.itemText(1), "Revised Comic - 000.jpg")
-                window.encoder_workers.setValue(2)
+                window.settings.setValue("workers", 2)
                 self.assertEqual(window.options_from_screen().workers, 2)
-                self.assertEqual(int(window.settings.value("encoder_workers")), 2)
                 window.handling.setCurrentIndex(1)
                 self.assertEqual(window.options_from_screen().size_output, "full")
 
@@ -2586,7 +2601,7 @@ class ThumbnailTest(unittest.TestCase):
                 self.assertEqual(window.options_from_screen().size_output, "both")
                 self.assertEqual(window.options_from_screen().format, "jpeg")
                 self.assertFalse(window.options_from_screen().jpeg_progressive)
-                window.encoder_workers.setValue(0)
+                window.settings.setValue("workers", 0)
                 window.return_preview_from_export()
                 self.assertTrue(window.isMaximized())
             finally:
