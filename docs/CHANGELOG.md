@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Create your comic suggests lossless WebP when it would make the comic much
+  smaller. After the size estimate, the same sample pages are estimated as
+  lossless WebP; if that comes to three quarters of the size or less, a note
+  gives both sizes, with a **Use lossless WebP** button. Clean line art, such as
+  black-and-white strips rendered from a PDF, is often several times smaller
+  this way with no loss at all; scans and full-colour art usually aren't, and
+  then nothing is shown. It applies to CBZ and CB7 when pages are encoded as
+  JPEG or lossy WebP.
 - Windows: uninstalling now asks whether to remove your settings too: your
   preferences, a remembered ComicVine API key, saved reviews, pair review
   reports and logs. They are kept unless you choose Yes, as before.

@@ -918,6 +918,30 @@ def _estimate_sample(source: str, right: str | None, rotation: int, page_rotatio
         image.close()
 
 
+# Offer lossless WebP when its estimate is at most this share of the chosen lossy format's.
+LOSSLESS_HINT_SHARE = 0.75
+
+
+def lossless_alternative(opt: ExportOptions) -> ExportOptions | None:
+    """The same export with the full-size copy's encoded pages as lossless WebP,
+    for comparing sizes; None when there is nothing to compare.
+
+    Clean line art (black-and-white strips, for example) is often several times
+    smaller as lossless WebP than as JPEG or lossy WebP, with no loss at all.
+    Scans and full-colour art usually aren't, which the estimate shows. Only CBZ
+    and CB7 archives qualify (PDF pages are JPEG or PNG), and only when the
+    full-size copy's encoded pages use a lossy format.
+    """
+    if not opt.cbz or opt.archive_format not in ("cbz", "cb7") or opt.size_output not in ("full", "both"):
+        return None
+    field_name = "spread_format" if opt.keep_originals else "format"
+    chosen = getattr(opt, field_name)
+    if chosen == "png" or (chosen == "webp" and opt.webp_lossless):
+        return None
+    return replace(opt, **{field_name: "webp"}, webp_lossless=True, size_output="full",
+                   reduced_custom=False, keep_images=False)
+
+
 def estimate_export_size(plan: BookPlan, opt: ExportOptions, samples: int = ESTIMATE_SAMPLES,
                          cancelled: Callable[[], bool] | None = None, workers: int = 1,
                          progress: Callable[[dict[str, int], int, int], None] | None = None,

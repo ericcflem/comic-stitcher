@@ -1531,6 +1531,33 @@ class ThumbnailTest(unittest.TestCase):
         finally:
             dialog.close()
 
+    def test_lossless_webp_is_suggested_when_far_smaller(self):
+        with tempfile.TemporaryDirectory() as directory:
+            window = ComicWindow()
+            try:
+                window.scan_done(scan_manual_folder(self.make_book(Path(directory), "strips")))
+                window.show_export()
+                window.opt.format, window.opt.webp_lossless = "jpeg", False
+                generation = window.estimate_generation
+                window._size_estimate_ready(generation, {"full": 280_000_000})
+                window._lossless_estimate_ready(generation, 250_000_000)  # Not much smaller: quiet.
+                self.assertTrue(window.lossless_hint_row.isHidden())
+                window._lossless_estimate_ready(generation, 31_000_000)
+                self.assertFalse(window.lossless_hint_row.isHidden())
+                self.assertIn("lossless WebP", window.lossless_hint.text())
+                self.assertIn("no loss of quality", window.lossless_hint.text())
+                window._lossless_estimate_ready(generation - 1, 31_000_000)  # Out of date: ignored.
+                with patch.object(ComicWindow, "_save_output_preferences") as saved:
+                    window.lossless_button.click()
+                saved.assert_called_once()
+                self.assertEqual((window.opt.format, window.opt.webp_lossless), ("webp", True))
+                self.assertTrue(window.lossless_hint_row.isHidden())  # A new estimate starts.
+                self.assertEqual(window.options_from_screen().format, "webp")
+            finally:
+                window.opt.format, window.opt.webp_lossless = "jpeg", False
+                window.queue_jobs.clear()
+                window.close()
+
     def make_book(self, root: Path, name: str, shade=0) -> Path:
         folder = root / name
         folder.mkdir()

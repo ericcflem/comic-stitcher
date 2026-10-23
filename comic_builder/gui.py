@@ -32,7 +32,7 @@ from .backend import (
     BookPlan, BoundaryOverrideRequired, ExportOptions, check_sources, export_book, planned_names,
     safe_book_name, scan_folder, scan_manual_folder, stitched_image, rotated_image,
     encoding_workers, POSSIBLE_MIN_SCORE, copy_encoding_options, ENCODER_FIELDS,
-    estimate_export_size, ESTIMATE_SAMPLES,
+    estimate_export_size, ESTIMATE_SAMPLES, lossless_alternative, LOSSLESS_HINT_SHARE,
 )
 from . import __version__, diagnostics
 from .import_sources import expand_sources
@@ -428,6 +428,7 @@ class SizeEstimateWorker(QThread):
     ready = Signal(int, object)
     provisional = Signal(int, object)  # An early estimate while more samples are encoded.
     failed = Signal(int, str)
+    lossless = Signal(int, object)  # The full-size copy's estimate as lossless WebP, once the estimate is shown.
 
     def __init__(self):
         super().__init__()
@@ -514,8 +515,24 @@ class SizeEstimateWorker(QThread):
                 if result is not None:
                     diagnostics.note("Size estimate shown after %.1f s", time.monotonic() - started)
                     self.ready.emit(generation, result)
+                    self._compare_lossless(generation, plan, opt, workers)
         finally:
             self._end_pool()
+
+    def _compare_lossless(self, generation, plan, opt, workers):
+        """Estimate the same comic as lossless WebP, to suggest it when far smaller."""
+        alternative = lossless_alternative(opt)
+        if alternative is None or self._interrupted():
+            return
+        try:
+            result = estimate_export_size(plan, alternative, cancelled=self._interrupted, workers=workers,
+                                          executor=self._pool_for(min(workers, ESTIMATE_SAMPLES)))
+        except Exception as exc:  # Only a suggestion; say nothing.
+            diagnostics.note("Lossless WebP comparison failed: %s", exc)
+            self._end_pool()
+            return
+        if result is not None:
+            self.lossless.emit(generation, result["full"])
 
 
 class ReviewImageWorker(QThread):
@@ -3052,6 +3069,24 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.size_estimate.setStyleSheet("color:#203c55; padding-left:6px;")
         estimate_row.addWidget(self.size_estimate, 1)
         output_box.addLayout(estimate_row)
+        # Shown when lossless WebP would make the comic far smaller (clean line art).
+        self.lossless_hint_row = QWidget()
+        lossless_row = QHBoxLayout(self.lossless_hint_row)
+        lossless_row.setContentsMargins(0, 0, 0, 0)
+        self.lossless_hint = QLabel("")
+        self.lossless_hint.setWordWrap(True)
+        self.lossless_hint.setStyleSheet("color:#1b5e20; padding-left:6px;")
+        lossless_row.addWidget(self.lossless_hint, 1)
+        self.lossless_button = QPushButton("Use lossless WebP")
+        self.lossless_button.setToolTip(tooltip_text(
+            "Saves the pages Comic Stitcher encodes as lossless WebP: every pixel is kept exactly, "
+            "and clean line art such as black-and-white strips is often several times smaller "
+            "than JPEG. This is the same as choosing WebP with Lossless in Edit options."))
+        self.lossless_button.clicked.connect(self._use_lossless_webp)
+        lossless_row.addWidget(self.lossless_button)
+        self.lossless_hint_row.hide()
+        output_box.addWidget(self.lossless_hint_row)
+        self.estimate_full_size = None
         self.estimate_generation = 0
         self.estimate_png_pages = False
         self.estimate_timer = QTimer(self)
@@ -3063,6 +3098,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.size_worker.provisional.connect(
             lambda generation, sizes: self._size_estimate_ready(generation, sizes, final=False))
         self.size_worker.failed.connect(self._size_estimate_failed)
+        self.size_worker.lossless.connect(self._lossless_estimate_ready)
         self.pages.currentChanged.connect(self._schedule_size_estimate)
         self.pages.currentChanged.connect(self._hold_page_minimum)
         form.setVerticalSpacing(10)
@@ -4864,6 +4900,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             return
         self.estimate_generation += 1  # Any result still on its way is now out of date.
         self.size_estimate.setText("Estimating…")
+        self._show_lossless_hint(None)
         self.estimate_timer.start()
 
     def _cancel_size_estimate(self, text):
@@ -4875,6 +4912,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             else:
                 self.size_worker.release()
             self.size_estimate.setText(text)
+            self._show_lossless_hint(None)
 
     def _start_size_estimate(self):
         if not self._estimate_wanted():
@@ -4902,6 +4940,41 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             text = (f"Full: about {readable_size(sizes['full'])}  ·  "
                     f"Reduced: about {readable_size(sizes['reduced'])}{what}")
         self.size_estimate.setText(text if final else text + " (refining…)")
+        if final:
+            self.estimate_full_size = sizes.get("full")
+
+    def _lossless_estimate_ready(self, generation, lossless_size):
+        if generation != self.estimate_generation or not self.estimate_full_size:
+            return
+        if lossless_size > LOSSLESS_HINT_SHARE * self.estimate_full_size:
+            return
+        both = self.opt.size_output == "both"
+        self._show_lossless_hint(
+            f"{'The full-size copy' if both else 'This comic'} would be about "
+            f"{readable_size(lossless_size)} as lossless WebP, instead of about "
+            f"{readable_size(self.estimate_full_size)}, with no loss of quality.")
+
+    def _show_lossless_hint(self, text):
+        if not hasattr(self, "lossless_hint_row"):
+            return
+        shown = text is not None
+        if shown:
+            self.lossless_hint.setText(text)
+        if shown == self.lossless_hint_row.isHidden():
+            self.lossless_hint_row.setVisible(shown)
+            QTimer.singleShot(0, self._fit_export_settings)
+
+    def _use_lossless_webp(self):
+        """As choosing WebP with Lossless in Edit options, for the pages being encoded."""
+        if self.opt.keep_originals:
+            self.opt.spread_format = "webp"
+        else:
+            self.opt.format = "webp"
+        self.opt.webp_lossless = True
+        if self._archive_choice() != "pdf":
+            self._save_output_preferences()
+        diagnostics.note("Lossless WebP chosen from the size suggestion")
+        self.refresh_export()
 
     def _size_estimate_failed(self, generation, _message):
         if generation == self.estimate_generation:
