@@ -1,8 +1,10 @@
-; Uninstall: offer to remove the user's own data as well, as linux/uninstall.sh
-; --purge does. Kept unless the user chooses Yes; a silent uninstall keeps it.
-; Settings, including a remembered ComicVine key: HKCU\Software\ComicStitcher.
-; Logs, review reports and saved reviews: %LOCALAPPDATA%\ComicStitcher.
 [Code]
+// Included after other [Code] files, so it starts with its section header and
+// uses Pascal comments only.
+// Uninstall: offer to remove the user's own data as well, as linux/uninstall.sh
+// --purge does. Kept unless the user chooses Yes; a silent uninstall keeps it.
+// Settings, including a remembered ComicVine key: HKCU\Software\ComicStitcher.
+// Logs, review reports and saved reviews: %LOCALAPPDATA%\ComicStitcher.
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if (CurUninstallStep = usPostUninstall) and not UninstallSilent then
