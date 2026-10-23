@@ -75,6 +75,7 @@ def save_session(source: Path, app_folder: Path, plan: BookPlan, *,
             "page_order": plan.page_order,
             "manual_rights": {str(a): b for a, b in plan.manual_rights.items()},
             "joined_rotations": {str(a): list(turns) for a, turns in plan.joined_rotations.items()},
+            "join_overlaps": {str(a): [pixels, top] for a, (pixels, top) in plan.join_overlaps.items()},
             "removed_pages": sorted(plan.removed_pages),
             "rotations": {str(left): degrees for left, degrees in plan.rotations.items()},
             "deferred_possible": plan.deferred_possible,
@@ -224,6 +225,13 @@ def restore_plan(scan: Scan, data: dict, *, restore_undo: bool = True) -> BookPl
            for left, degrees in rotations.items()):
         raise ValueError("Saved page rotations are invalid.")
     plan.rotations = rotations
+    overlaps = {int(left): tuple(value) for left, value in data.get("join_overlaps", {}).items()}
+    approved = plan.approved()
+    if any(left not in approved or len(value) != 2 or type(value[0]) is not int or value[1] not in ("left", "right")
+           or not 0 < value[0] < min(scan.pages[left].width, scan.pages[plan.partner(left)].width)
+           for left, value in overlaps.items()):
+        raise ValueError("Saved spread overlaps are invalid.")
+    plan.join_overlaps = overlaps
     plan.deferred_possible = bool(data["deferred_possible"])
     if restore_undo:
         snapshots = data.get("preview_history", [])
@@ -232,12 +240,15 @@ def restore_plan(scan: Scan, data: dict, *, restore_undo: bool = True) -> BookPl
         expected = {"decisions", "manual_pairs", "removed_pages", "rotations", "page_order",
                     "manual_rights", "joined_rotations", "_action", "_focus", "_history_length"}
         for saved in snapshots:
-            if (not isinstance(saved, dict) or set(saved) != expected or
-                    saved["_action"] not in ("page move", "page swap", "rotation", "join", "split", "page removal") or
+            if (not isinstance(saved, dict) or not expected <= set(saved) <= expected | {"join_overlaps"} or
+                    saved["_action"] not in ("page move", "page swap", "rotation", "join", "split", "page removal",
+                                             "spread overlap") or
                     type(saved["_focus"]) is not int or not 0 <= saved["_focus"] < len(scan.pages) or
                     type(saved["_history_length"]) is not int or not 0 <= saved["_history_length"] <= len(history)):
                 raise ValueError("Saved final-review undo history is invalid.")
-            previous = restore_plan(scan, dict(data, **saved, history=data["history"][:saved["_history_length"]]),
+            # Snapshots saved before overlaps existed had none.
+            previous = restore_plan(scan, {**data, "join_overlaps": {}, **saved,
+                                           "history": data["history"][:saved["_history_length"]]},
                                     restore_undo=False)
             plan.preview_history.append(previous.preview_snapshot(saved["_action"], saved["_focus"]))
     return plan

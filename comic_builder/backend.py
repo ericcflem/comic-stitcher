@@ -254,6 +254,10 @@ class BookPlan:
         self.page_order = list(range(len(scan.pages)))
         self.manual_rights: dict[int, int] = {}
         self.joined_rotations: dict[int, tuple[int, int]] = {}
+        # Spreads whose halves repeat a strip of art at the seam (sliced from a page
+        # narrower than two): first page -> (pixels the halves overlap, "left" or
+        # "right" for the half drawn on top, as the pages appear side by side).
+        self.join_overlaps: dict[int, tuple[int, str]] = {}
         self.preview_history: list[dict] = []
         self.deferred_possible = False
         self._measured_neighbors = set(zip(range(len(scan.pages) - 1), range(1, len(scan.pages)), strict=True))
@@ -264,6 +268,7 @@ class BookPlan:
                 "removed_pages": sorted(self.removed_pages), "rotations": self.rotations.copy(),
                 "page_order": self.page_order.copy(), "manual_rights": self.manual_rights.copy(),
                 "joined_rotations": copy.deepcopy(self.joined_rotations),
+                "join_overlaps": copy.deepcopy(self.join_overlaps),
                 "_action": action, "_focus": focus, "_history_length": len(self.history)}
 
     def checkpoint_preview(self, action: str, focus: int) -> None:
@@ -279,6 +284,7 @@ class BookPlan:
         self.removed_pages = set(saved["removed_pages"])
         for name in ("rotations", "manual_rights", "joined_rotations"):
             setattr(self, name, copy.deepcopy(saved[name]))
+        self.join_overlaps = copy.deepcopy(saved.get("join_overlaps", {}))
         self.page_order = saved["page_order"].copy()
         del self.history[saved["_history_length"]:]
         return saved
@@ -468,6 +474,26 @@ class BookPlan:
         self.manual_rights[left] = right
         self.joined_rotations[left] = (self.rotations.pop(left, 0), self.rotations.pop(right, 0))
 
+    def set_overlap(self, left: int, pixels: int, top: str = "right", checkpoint: bool = True) -> None:
+        """Line up a spread whose halves repeat art at the seam: they overlap by
+        `pixels`, with the `top` half ("left" or "right", as displayed) covering the other."""
+        if left not in self.approved():
+            raise ValueError("This is not a stitched spread.")
+        if top not in ("left", "right"):
+            raise ValueError("Choose the left or right page to go on top.")
+        right = self.partner(left)
+        narrowest = min(self.scan.pages[i].width for i in (left, right))
+        if not 0 <= pixels < narrowest:
+            raise ValueError("The overlap must be smaller than the pages.")
+        if (pixels, top) == self.join_overlaps.get(left, (0, "right")):
+            return
+        if checkpoint:
+            self.checkpoint_preview("spread overlap", left)
+        if pixels:
+            self.join_overlaps[left] = (pixels, top)
+        else:
+            self.join_overlaps.pop(left, None)
+
     def split(self, left: int) -> None:
         if left not in self.approved():
             raise ValueError("This is not a stitched spread.")
@@ -475,6 +501,7 @@ class BookPlan:
         right = self.partner(left)
         spread_rotation = self.rotations.pop(left, 0)
         turns = self.joined_rotations.pop(left, (0, 0))
+        self.join_overlaps.pop(left, None)
         self.manual_pairs.discard(left)
         self.manual_rights.pop(left, None)
         for index, degrees in zip((left, right), turns, strict=True):
@@ -613,7 +640,11 @@ def _working_colour(image: Image.Image) -> Image.Image:
     return converted
 
 
-def stitched_image(left: Path, right: Path, rotation: int = 0, page_rotations: tuple[int, int] = (0, 0)) -> Image.Image:
+def stitched_image(left: Path, right: Path, rotation: int = 0, page_rotations: tuple[int, int] = (0, 0),
+                   overlap: tuple[int, str] = (0, "right")) -> Image.Image:
+    """The two pages side by side (left and right as displayed), top-aligned and
+    cut to the shorter height. With an overlap the right page starts that many
+    pixels inside the left one, and the `top` half covers the other there."""
     if rotation not in (0, 90, 180, 270):
         raise ValueError("Spread rotation must be a quarter turn.")
     with Image.open(left) as a, Image.open(right) as b:
@@ -622,11 +653,18 @@ def stitched_image(left: Path, right: Path, rotation: int = 0, page_rotations: t
         a, b = _working_colour(ImageOps.exif_transpose(a)).convert(mode), _working_colour(ImageOps.exif_transpose(b)).convert(mode)
         a, b = rotated_image(a, page_rotations[0]), rotated_image(b, page_rotations[1])
         height = min(a.height, b.height)
-        out = Image.new(mode, (a.width + b.width, height))
+        pixels, top = overlap
+        pixels = max(0, min(pixels, a.width - 1, b.width - 1))
+        out = Image.new(mode, (a.width + b.width - pixels, height))
         if a.info.get("icc_profile") or b.info.get("icc_profile"):
             out.info["icc_profile"] = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
-        out.paste(a.crop((0, 0, a.width, height)), (0, 0))
-        out.paste(b.crop((0, 0, b.width, height)), (a.width, 0))
+        left_part, right_part = a.crop((0, 0, a.width, height)), b.crop((0, 0, b.width, height))
+        if top == "left":
+            out.paste(right_part, (a.width - pixels, 0))
+            out.paste(left_part, (0, 0))
+        else:
+            out.paste(left_part, (0, 0))
+            out.paste(right_part, (a.width - pixels, 0))
         if rotation:
             turned = out.transpose({90: Image.Transpose.ROTATE_270,
                                     180: Image.Transpose.ROTATE_180,
@@ -634,6 +672,51 @@ def stitched_image(left: Path, right: Path, rotation: int = 0, page_rotations: t
             out.close()
             return turned
         return out
+
+
+# Overlap search: at most this share of the narrower page, and never more than OVERLAP_MAX_PIXELS.
+OVERLAP_MAX_SHARE = 1 / 6
+OVERLAP_MAX_PIXELS = 400
+OVERLAP_STRIP = 12  # Columns of the right page compared at each position.
+# A match within this many pixels of the shortest overlap tried is the art simply
+# continuing across a clean seam, not a repeat, so it isn't taken.
+OVERLAP_EDGE = 4
+
+
+def measure_overlap(left: Image.Image, right: Image.Image) -> int | None:
+    """How many pixels of art the halves of a spread repeat at the seam, or None.
+
+    A spread sliced from a page narrower than two pages gives each half a copy of
+    the strip around the middle. A few columns from the start of the right page
+    are compared with the left page at every position near its edge; a repeat
+    is accepted only where they match far better than anywhere else, and only
+    when those columns have detail (flat colour would match anywhere).
+    """
+    height = min(left.height, right.height)
+    step = max(1, height // 1500)  # Every row isn't needed to recognise the art.
+    a = np.asarray(left.convert("L").crop((0, 0, left.width, height)), dtype=np.float32)[::step]
+    b = np.asarray(right.convert("L").crop((0, 0, right.width, height)), dtype=np.float32)[::step]
+    limit = int(min(OVERLAP_MAX_PIXELS, min(left.width, right.width) * OVERLAP_MAX_SHARE))
+    # Skip a thin border on the right page if the first columns don't line up.
+    for skip in (0, 8, 16, 24):
+        template = b[:, skip:skip + OVERLAP_STRIP]
+        if template.shape[1] < OVERLAP_STRIP or template.std() < 12:
+            continue
+        shortest = skip + OVERLAP_STRIP
+        scores = []
+        for pixels in range(shortest, limit + 1):
+            start = a.shape[1] - pixels + skip
+            scores.append((float(np.abs(a[:, start:start + OVERLAP_STRIP] - template).mean()), pixels))
+        if len(scores) < 8:
+            continue
+        ranked = sorted(scores)
+        typical = ranked[len(ranked) // 2][0]
+        match, pixels = ranked[0]
+        runner_up = next((score for score, other in ranked[1:] if abs(other - pixels) > 3), typical)
+        if (pixels > shortest + OVERLAP_EDGE and match <= 6
+                and match <= 0.25 * typical and match <= 0.5 * runner_up):
+            return pixels
+    return None
 
 
 def rotated_image(image: Image.Image, rotation: int) -> Image.Image:
@@ -757,7 +840,8 @@ def _save_image(image: Image.Image, path: Path, fmt: str, opt: ExportOptions) ->
 
 def _encode_entry(source: str, right: str | None, destination: str,
                   fmt: str | None, opt: ExportOptions, reduce: bool = False, rotation: int = 0,
-                  png_destination: str | None = None, page_rotations: tuple[int, int] = (0, 0)) -> None:
+                  png_destination: str | None = None, page_rotations: tuple[int, int] = (0, 0),
+                  overlap: tuple[int, str] = (0, "right")) -> None:
     """Top-level job so Windows spawn and PyInstaller can run it in a process."""
     if right is None:
         with Image.open(source) as src:
@@ -767,7 +851,7 @@ def _encode_entry(source: str, right: str | None, destination: str,
             image.close()
             image = turned
     else:
-        image = stitched_image(Path(source), Path(right), rotation, page_rotations)
+        image = stitched_image(Path(source), Path(right), rotation, page_rotations, overlap)
     try:
         if fmt is not None or png_destination:
             converted = _working_colour(image)
@@ -825,6 +909,10 @@ def _entry_rotations(plan: BookPlan, left: int) -> tuple[int, tuple[int, int]]:
     return plan.rotations.get(left, 0), joined[::-1] if plan.scan.right_to_left else joined
 
 
+def _entry_overlap(plan: BookPlan, left: int) -> tuple[int, str]:
+    return plan.join_overlaps.get(left, (0, "right"))
+
+
 def _oriented_size(page: Page, rotation: int = 0) -> tuple[int, int]:
     """A page's pixel size as exported. The scan recorded it, already turned for
     EXIF orientation, so no file needs opening."""
@@ -841,7 +929,7 @@ def _entry_size(plan: BookPlan, opt: ExportOptions, left: int, right: int | None
         (a_width, a_height), (b_width, b_height) = (
             _oriented_size(plan.scan.pages[visual_left], page_rotations[0]),
             _oriented_size(plan.scan.pages[visual_right], page_rotations[1]))
-        width, height = a_width + b_width, min(a_height, b_height)
+        width, height = a_width + b_width - _entry_overlap(plan, left)[0], min(a_height, b_height)
         if rotation in (90, 270):
             width, height = height, width
     if reduce:
@@ -861,7 +949,8 @@ ARCHIVE_ENTRY_OVERHEAD = 200  # Bytes of archive bookkeeping per stored file, ro
 
 def _estimate_sample(source: str, right: str | None, rotation: int, page_rotations: tuple[int, int],
                      full: tuple[str, ExportOptions] | None, reduced: tuple[str, ExportOptions] | None,
-                     band: tuple[float, float] = (0.0, 1.0)) -> tuple[tuple[int, int] | None, ...]:
+                     band: tuple[float, float] = (0.0, 1.0),
+                     overlap: tuple[int, str] = (0, "right")) -> tuple[tuple[int, int] | None, ...]:
     """(encoded bytes, pixels) of part of one final page at full and/or reduced size.
 
     The page is prepared once, the way _encode_entry prepares it; then a
@@ -878,7 +967,7 @@ def _estimate_sample(source: str, right: str | None, rotation: int, page_rotatio
                 image.close()
             image = turned
     else:
-        image = stitched_image(Path(source), Path(right), rotation, page_rotations)
+        image = stitched_image(Path(source), Path(right), rotation, page_rotations, overlap)
     try:
         full_width, full_height = image.size
         top, height = band
@@ -1017,7 +1106,7 @@ def estimate_export_size(plan: BookPlan, opt: ExportOptions, samples: int = ESTI
                          for variant in ("full", "reduced"))
         top = (len(jobs) * 0.381966) % 1 * (1 - ESTIMATE_BAND)  # Spread band heights evenly.
         jobs.append((index, (str(source), str(partner) if partner else None, rotation, page_rotations,
-                             full, reduced, (top, ESTIMATE_BAND))))
+                             full, reduced, (top, ESTIMATE_BAND), _entry_overlap(plan, left))))
 
     def estimate():
         result = {}
@@ -1182,15 +1271,16 @@ def export_book(plan: BookPlan, opt: ExportOptions,
                 if not opt.cbz:
                     fmt = None  # Only lossless PNG pages are being kept.
                 jobs.append((*_entry_sources(plan, left, right), variant_work / name, fmt,
-                             *_entry_rotations(plan, left)))
-            encode_count = sum(fmt is not None or opt.keep_images for _, _, _, fmt, _, _ in jobs)
+                             *_entry_rotations(plan, left), _entry_overlap(plan, left)))
+            encode_count = sum(fmt is not None or opt.keep_images for _, _, _, fmt, _, _, _ in jobs)
             if worker_count == 1 or encode_count <= 1:
-                for source, right, dest, fmt, rotation, page_rotations in jobs:
+                for source, right, dest, fmt, rotation, page_rotations, overlap in jobs:
                     if fmt is None and not opt.keep_images:
                         shutil.copyfile(source, dest)
                     else:
                         _encode_entry(str(source), str(right) if right else None, str(dest), fmt, encoding_opt, reduce, rotation,
-                                      str(png_work / (dest.stem + ".png")) if opt.keep_images else None, page_rotations)
+                                      str(png_work / (dest.stem + ".png")) if opt.keep_images else None, page_rotations,
+                                      overlap)
                     done()
             else:
                 # Spawn from the GUI worker; cap queued image jobs for large books.
@@ -1198,7 +1288,7 @@ def export_book(plan: BookPlan, opt: ExportOptions,
                                          mp_context=get_context("spawn")) as executor:
                     pending = set()
                     try:
-                        for source, right, dest, fmt, rotation, page_rotations in jobs:
+                        for source, right, dest, fmt, rotation, page_rotations, overlap in jobs:
                             if fmt is None and not opt.keep_images:
                                 shutil.copyfile(source, dest)
                                 done()
@@ -1206,7 +1296,8 @@ def export_book(plan: BookPlan, opt: ExportOptions,
                                 pending.add(executor.submit(_encode_entry, str(source),
                                                             str(right) if right else None,
                                                             str(dest), fmt, encoding_opt, reduce, rotation,
-                                                            str(png_work / (dest.stem + ".png")) if opt.keep_images else None, page_rotations))
+                                                            str(png_work / (dest.stem + ".png")) if opt.keep_images else None, page_rotations,
+                                                            overlap))
                             if len(pending) >= 2 * worker_count:
                                 finished, pending = wait(pending, return_when=FIRST_COMPLETED)
                                 for future in finished:
