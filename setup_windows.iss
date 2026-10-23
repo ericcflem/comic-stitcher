@@ -109,3 +109,4 @@ Root: HKCU; Subkey: "Software\Classes\Directory\shell\ComicStitcher\command"; Va
 
 #include "installer/microsoft_runtime.iss"
 #include "installer/microsoft_terms.iss"
+#include "installer/uninstall_settings.iss"

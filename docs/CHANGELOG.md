@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Windows: uninstalling now asks whether to remove your settings too: your
+  preferences, a remembered ComicVine API key, saved reviews, pair review
+  reports and logs. They are kept unless you choose Yes, as before.
+
 ## 0.9.0
 
 **Batch queue**
