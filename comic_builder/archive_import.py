@@ -112,13 +112,13 @@ RAR_EXTRACTORS = (("unrar", "UnRAR"), ("unar", "unar"), ("bsdtar", "bsdtar"),
 RAR_TOOL_HELP = ("RAR/CBR import needs a RAR extractor, and none was found. Install UnRAR, "
                  "then retry: 'sudo apt install unrar' on Ubuntu or Debian, 'sudo pacman -S unrar' "
                  "on Arch, or 'sudo dnf install unrar' on Fedora (from RPM Fusion). 7-Zip with its "
-                 "RAR support (Ubuntu's '7zip-rar' package) also works. unar, and 7-Zip without its "
-                 "RAR support, can't fully read archives in the newer RAR5 format.")
+                 "RAR support (Ubuntu's '7zip-rar' package) also works. unar, bsdtar, and 7-Zip without "
+                 "its RAR support, can't fully read archives in the newer RAR5 format.")
 
 # Shown when every installed extractor stopped partway through a page.
 RAR5_HELP = ("{tools} couldn't fully read this archive: the pages came out cut short. It is most "
-             "likely in the newer RAR5 format, which unar, and 7-Zip without its RAR support, can't "
-             "fully extract. Install UnRAR ('sudo apt install unrar' on Ubuntu or Debian), or 7-Zip's "
+             "likely in the newer RAR5 format, which unar, bsdtar, and 7-Zip without its RAR support, "
+             "can't fully extract. Install UnRAR ('sudo apt install unrar' on Ubuntu or Debian), or 7-Zip's "
              "RAR support ('sudo apt install 7zip-rar'), then retry.")
 
 
