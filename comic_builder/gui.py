@@ -3081,12 +3081,15 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.lossless_button.setToolTip(tooltip_text(
             "Saves the pages Comic Stitcher encodes as lossless WebP: every pixel is kept exactly, "
             "and clean line art such as black-and-white strips is often several times smaller "
-            "than JPEG. This is the same as choosing WebP with Lossless in Edit options."))
+            "than JPEG. For this comic only: your usual output settings aren't changed, and the "
+            "next comic starts with them again."))
         self.lossless_button.clicked.connect(self._use_lossless_webp)
         lossless_row.addWidget(self.lossless_button)
         self.lossless_hint_row.hide()
         output_box.addWidget(self.lossless_hint_row)
         self.estimate_full_size = None
+        self.lossless_for_this_comic = False  # Lossless WebP from the suggestion: never saved.
+        self.lossless_field = "format"
         self.estimate_generation = 0
         self.estimate_png_pages = False
         self.estimate_timer = QTimer(self)
@@ -3175,6 +3178,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.pages.addWidget(self.progress_page)
 
     def new_comic(self):
+        self._end_lossless_for_this_comic()
         if self.current_job is not None:  # Leaving a comic that was never settled: drop it.
             if self.current_job in self.queue_jobs:
                 self.queue_jobs.remove(self.current_job)
@@ -4748,6 +4752,14 @@ class ComicWindow(OutlinedWindow, QMainWindow):
     def _save_output_preferences(self):
         """Save the usual output options; PDF's own are never saved."""
         opt = self.usual_opt
+        if getattr(self, "lossless_for_this_comic", False):
+            if self._lossless_still_chosen(opt):
+                # Chosen for this comic only: keep the saved format choices.
+                saved = self._saved_formats()
+                opt = replace(opt, **{self.lossless_field: saved[self.lossless_field],
+                                      "webp_lossless": saved["webp_lossless"]})
+            else:
+                self.lossless_for_this_comic = False  # Edit options chose something else.
         self.settings.setValue("reduced_custom", opt.reduced_custom)
         self.settings.setValue("reduced_settings", json.dumps(opt.reduced_settings))
         for key, value in (("jpeg_quality", opt.jpeg_quality),
@@ -4965,16 +4977,37 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             QTimer.singleShot(0, self._fit_export_settings)
 
     def _use_lossless_webp(self):
-        """As choosing WebP with Lossless in Edit options, for the pages being encoded."""
-        if self.opt.keep_originals:
-            self.opt.spread_format = "webp"
-        else:
-            self.opt.format = "webp"
+        """Lossless WebP for the pages this comic encodes; this comic only.
+
+        What suits one book (clean line art) can be a poor choice for the next (a
+        full-colour scan), so the saved output settings keep the usual format and
+        the next comic starts with it again.
+        """
+        self.lossless_field = "spread_format" if self.opt.keep_originals else "format"
+        setattr(self.opt, self.lossless_field, "webp")
         self.opt.webp_lossless = True
-        if self._archive_choice() != "pdf":
-            self._save_output_preferences()
-        diagnostics.note("Lossless WebP chosen from the size suggestion")
+        self.lossless_for_this_comic = True
+        diagnostics.note("Lossless WebP chosen for this comic from the size suggestion")
         self.refresh_export()
+
+    def _saved_formats(self) -> dict:
+        """The format choices saved by Edit options."""
+        image = str(self.settings.value("output_format", "jpeg"))
+        spread = str(self.settings.value("spread_format", "jpeg"))
+        return {"format": image if image in ("jpeg", "webp", "png") else "jpeg",
+                "spread_format": spread if spread in ("png", "jpeg", "webp") else "jpeg",
+                "webp_lossless": self.settings.value("webp_lossless", False, type=bool)}
+
+    def _lossless_still_chosen(self, opt) -> bool:
+        return getattr(opt, self.lossless_field) == "webp" and opt.webp_lossless
+
+    def _end_lossless_for_this_comic(self):
+        """Back to the saved format choices, as the next comic starts."""
+        if self.lossless_for_this_comic:
+            saved = self._saved_formats()
+            setattr(self.usual_opt, self.lossless_field, saved[self.lossless_field])
+            self.usual_opt.webp_lossless = saved["webp_lossless"]
+            self.lossless_for_this_comic = False
 
     def _size_estimate_failed(self, generation, _message):
         if generation == self.estimate_generation:
@@ -5121,6 +5154,11 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             self.pdf_opt, self.pdf_resize_values = replace(opt), resize
         else:
             self.usual_opt, self.usual_resize_values = replace(opt), resize
+            # A queued comic switched to lossless WebP by the suggestion keeps it, for itself only.
+            self.lossless_field = "spread_format" if opt.keep_originals else "format"
+            saved = self._saved_formats()
+            self.lossless_for_this_comic = (self._lossless_still_chosen(opt) and not (
+                saved[self.lossless_field] == "webp" and saved["webp_lossless"]))
         self._use_pdf_options(choice == "pdf")
         self.keep_images.setEnabled(choice != "none")
         self.keep_images.setChecked(opt.keep_images)

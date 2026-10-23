@@ -5,7 +5,8 @@
 - Create your comic suggests lossless WebP when it would make the comic much
   smaller. After the size estimate, the same sample pages are estimated as
   lossless WebP; if that comes to three quarters of the size or less, a note
-  gives both sizes, with a **Use lossless WebP** button. Clean line art, such as
+  gives both sizes, with a **Use lossless WebP** button for that comic only (the
+  usual output settings aren't changed). Clean line art, such as
   black-and-white strips rendered from a PDF, is often several times smaller
   this way with no loss at all; scans and full-colour art usually aren't, and
   then nothing is shown. It applies to CBZ and CB7 when pages are encoded as

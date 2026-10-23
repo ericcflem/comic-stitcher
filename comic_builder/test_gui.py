@@ -1547,12 +1547,23 @@ class ThumbnailTest(unittest.TestCase):
                 self.assertIn("lossless WebP", window.lossless_hint.text())
                 self.assertIn("no loss of quality", window.lossless_hint.text())
                 window._lossless_estimate_ready(generation - 1, 31_000_000)  # Out of date: ignored.
-                with patch.object(ComicWindow, "_save_output_preferences") as saved:
+                usual = {"format": "jpeg", "spread_format": "jpeg", "webp_lossless": False}
+                with patch.object(ComicWindow, "_saved_formats", return_value=usual), \
+                        patch.object(window.settings, "setValue") as saved:
                     window.lossless_button.click()
-                saved.assert_called_once()
-                self.assertEqual((window.opt.format, window.opt.webp_lossless), ("webp", True))
-                self.assertTrue(window.lossless_hint_row.isHidden())  # A new estimate starts.
-                self.assertEqual(window.options_from_screen().format, "webp")
+                    self.assertEqual((window.opt.format, window.opt.webp_lossless), ("webp", True))
+                    self.assertTrue(window.lossless_hint_row.isHidden())  # A new estimate starts.
+                    self.assertEqual(window.options_from_screen().format, "webp")
+                    self.assertEqual(window.current_job.options.format, "webp")  # The queued entry too.
+                    self.assertFalse([c for c in saved.call_args_list if c.args[0] == "output_format"])
+                    # Saving through Edit options keeps the usual format, not this comic's.
+                    window._save_output_preferences()
+                    values = {c.args[0]: c.args[1] for c in saved.call_args_list}
+                    self.assertEqual((values["output_format"], values["webp_lossless"]), ("jpeg", False))
+                    self.assertEqual(window.opt.format, "webp")
+                    window.new_comic()  # The next comic starts with the usual format again.
+                    self.assertEqual((window.usual_opt.format, window.usual_opt.webp_lossless), ("jpeg", False))
+                    self.assertFalse(window.lossless_for_this_comic)
             finally:
                 window.opt.format, window.opt.webp_lossless = "jpeg", False
                 window.queue_jobs.clear()
