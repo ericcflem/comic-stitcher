@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Pair review can be skipped: choose **None — the pages are already complete**
+  for Pair review when importing. The pages are read without looking for
+  spreads, and the import goes straight to the final review, where pages can
+  still be joined, removed or rotated. Converting a CBR to CBZ, with copied pages
+  and optional ComicInfo.xml, takes an import, a look at the pages and an
+  export. The choice resets to Suggested pairs for each comic.
+
 ## 0.9.0
 
 **Batch queue**
