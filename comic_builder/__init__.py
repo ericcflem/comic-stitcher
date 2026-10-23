@@ -1,3 +1,3 @@
 """Comic Stitcher: build comic book archives and rejoin split two-page spreads."""
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"
