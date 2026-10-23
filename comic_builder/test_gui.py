@@ -1604,6 +1604,48 @@ class ThumbnailTest(unittest.TestCase):
                 window.queue_jobs.clear()
                 window.close()
 
+    def test_a_spread_with_repeated_art_is_lined_up_from_seam(self):
+        from PySide6.QtWidgets import QComboBox
+        from .gui import OverlapDialog
+        from .test_spread_overlap import artwork, halves
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory) / "book"
+            folder.mkdir()
+            art = artwork()
+            left, right = halves(art, 30)
+            Image.new("RGB", left.size, "white").save(folder / "001.png")
+            left.save(folder / "002.png")
+            right.save(folder / "003.png")
+            window = ComicWindow()
+            try:
+                window.show()
+                window.skip_pair_review = True
+                window.scan_done(scan_manual_folder(folder))
+                window.plan.join(1, override_boundary=True)
+                window.rebuild_thumbnails()
+                window.preview_index = 1
+                window.show_preview()
+                self.assertTrue(window.preview_seam_button.isEnabled())  # One spread: line it up.
+                seen = {}
+
+                def line_up(dialog):
+                    self.assertIsInstance(dialog, OverlapDialog)
+                    seen["found"] = dialog.pixels.value()  # Measured as the window opens.
+                    self.assertIn("30 px", dialog.status.text())
+                    self.assertEqual(dialog.seam_image().width, 2 * dialog.strip)
+                    dialog.together.click()
+                    dialog.apart.click()
+                    dialog.findChild(QComboBox).setCurrentIndex(1)  # Left page on top.
+                    return QDialog.Accepted
+                with patch.object(QDialog, "exec", line_up):
+                    window.preview_seam_button.click()
+                self.assertEqual(seen["found"], 30)
+                self.assertEqual(window.plan.join_overlaps, {1: (30, "left")})
+                window.undo_preview_removal()
+                self.assertEqual(window.plan.join_overlaps, {})
+            finally:
+                window.close()
+
     def make_book(self, root: Path, name: str, shade=0) -> Path:
         folder = root / name
         folder.mkdir()

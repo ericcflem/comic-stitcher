@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Spreads whose halves overlap: some books slice a spread from a page narrower
+  than two pages, so both halves repeat a strip of art at the seam. In the final
+  review, select the spread and choose **Seam** to line it up: **Find overlap**
+  measures the repeated strip (it runs as the window opens), **Apart** and
+  **Together** move the halves a pixel at a time, and **On top** chooses which
+  page covers the other, to hide a thin border. The joined spread is that much
+  narrower, and the overlap is kept with the spread for export, the size
+  estimate, saved reviews and undo.
 - Create your comic suggests lossless WebP when it would make the comic much
   smaller. After the size estimate, the same sample pages are estimated as
   lossless WebP; if that comes to three quarters of the size or less, a note

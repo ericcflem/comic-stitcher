@@ -33,7 +33,7 @@ from .backend import (
     safe_book_name, scan_folder, scan_manual_folder, stitched_image, rotated_image,
     encoding_workers, POSSIBLE_MIN_SCORE, copy_encoding_options, ENCODER_FIELDS,
     estimate_export_size, ESTIMATE_SAMPLES, lossless_alternative, LOSSLESS_HINT_SHARE,
-    lossless_check, LOSSLESS_CHECK_SKIP_SHARE,
+    lossless_check, LOSSLESS_CHECK_SKIP_SHARE, measure_overlap,
 )
 from . import __version__, diagnostics
 from .import_sources import expand_sources
@@ -282,10 +282,11 @@ def page_pixmap(path: Path, size: tuple[int, int] = (1800, 2200), rotation: int 
         return pixmap_from_pil(im, size)
 
 
-def spread_pixmap(a: Path, b: Path, size: tuple[int, int] = (2400, 1800), rotation: int = 0, right_to_left: bool = False, page_rotations: tuple[int, int] = (0, 0)) -> QPixmap:
+def spread_pixmap(a: Path, b: Path, size: tuple[int, int] = (2400, 1800), rotation: int = 0, right_to_left: bool = False,
+                  page_rotations: tuple[int, int] = (0, 0), overlap: tuple[int, str] = (0, "right")) -> QPixmap:
     if right_to_left:
         a, b = b, a
-    im = stitched_image(a, b, rotation, page_rotations[::-1] if right_to_left else page_rotations)
+    im = stitched_image(a, b, rotation, page_rotations[::-1] if right_to_left else page_rotations, overlap)
     try:
         return pixmap_from_pil(im, size)
     finally:
@@ -315,6 +316,121 @@ class FitImage(QLabel):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self._fit()
+
+
+class OverlapDialog(OutlinedDialog):
+    """Line up a spread whose halves both repeat a strip of art at the seam.
+
+    Shows the seam of the joined spread as it will be saved. The halves move
+    together a pixel at a time; Find overlap measures the repeated strip; the
+    page on top covers the other where they overlap (hiding a thin border).
+    """
+
+    def __init__(self, left: Image.Image, right: Image.Image, overlap: tuple[int, str], parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Line up spread")
+        self.resize(760, 760)
+        self.left, self.right = left, right
+        self.height_ = min(left.height, right.height)
+        self.strip = max(1, min(240, left.width // 3, right.width // 3))
+        layout = QVBoxLayout(self)
+        layout.addWidget(ui_heading("Line up the halves", 20))
+        note = QLabel("If this spread was cut from a page narrower than two pages, both halves repeat a "
+                      "strip of art at the seam. Move them together until the art lines up across the "
+                      "yellow line, or use Find overlap.")
+        note.setWordWrap(True)
+        layout.addWidget(note)
+        self.view = QScrollArea()
+        self.view.setWidgetResizable(False)
+        self.view.setAlignment(Qt.AlignHCenter)
+        self.image = QLabel()
+        self.image.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
+        self.view.setWidget(self.image)
+        layout.addWidget(self.view, 1)
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Overlap"))
+        self.apart = QPushButton("◀ Apart")
+        self.apart.setToolTip(tooltip_text("Move the halves one pixel apart."))
+        self.apart.clicked.connect(lambda: self.pixels.stepBy(-1))
+        row.addWidget(self.apart)
+        self.pixels = QSpinBox()
+        self.pixels.setRange(0, min(left.width, right.width) - 1)
+        self.pixels.setSuffix(" px")
+        self.pixels.setValue(overlap[0])
+        self.pixels.valueChanged.connect(self.render)
+        row.addWidget(self.pixels)
+        self.together = QPushButton("Together ▶")
+        self.together.setToolTip(tooltip_text("Move the halves one pixel closer together."))
+        self.together.clicked.connect(lambda: self.pixels.stepBy(1))
+        row.addWidget(self.together)
+        self.find = QPushButton("Find overlap")
+        self.find.setToolTip(tooltip_text(
+            "Looks for the strip of art both halves repeat, by comparing the start of the right page "
+            "with the end of the left one, and sets the overlap to match."))
+        self.find.clicked.connect(self.find_overlap)
+        row.addWidget(self.find)
+        row.addSpacing(16)
+        row.addWidget(QLabel("On top"))
+        self.top = QComboBox()
+        self.top.addItems(["Right page", "Left page"])
+        self.top.setCurrentIndex(1 if overlap[1] == "left" else 0)
+        self.top.setToolTip(tooltip_text(
+            "Where the halves overlap, this page covers the other. Choose the page whose edge "
+            "is clean, so a thin border on the other one is hidden."))
+        self.top.currentIndexChanged.connect(self.render)
+        row.addWidget(self.top)
+        row.addStretch()
+        layout.addLayout(row)
+        self.status = QLabel("")
+        self.status.setWordWrap(True)
+        layout.addWidget(self.status)
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        ui_primary(buttons.button(QDialogButtonBox.Ok))
+        layout.addWidget(buttons)
+        if overlap[0] == 0:
+            self.find_overlap()
+        self.render()
+
+    def overlap(self) -> tuple[int, str]:
+        return self.pixels.value(), "left" if self.top.currentIndex() == 1 else "right"
+
+    def find_overlap(self):
+        found = measure_overlap(self.left, self.right)
+        if found is None:
+            self.status.setText("No repeated strip of art was found at the seam. If the halves overlap, "
+                                "move them together by hand.")
+        else:
+            self.status.setText(f"Found a strip of {found} px repeated on both halves; the overlap is set to match.")
+            self.pixels.setValue(found)
+
+    def seam_image(self) -> Image.Image:
+        """The joined spread around its visible seam, as stitched_image lays it out."""
+        pixels, top = self.overlap()
+        width, height = self.left.width, self.height_
+        seam = width if top == "left" else width - pixels
+        x0, x1 = seam - self.strip, seam + self.strip
+        canvas = Image.new("RGB", (x1 - x0, height), "white")
+        halves = [(self.left, 0), (self.right, width - pixels)]
+        for image, offset in (halves[::-1] if top == "left" else halves):
+            start, end = max(0, x0 - offset), min(image.width, x1 - offset)
+            if end > start:
+                canvas.paste(image.crop((start, 0, end, height)), (offset + start - x0, 0))
+        return canvas
+
+    def render(self, *_):
+        scroll = self.view.verticalScrollBar().value()
+        pix = pixmap_from_pil(self.seam_image(), (900, 6000))
+        painter = QPainter(pix)
+        painter.setPen(QPen(QColor("#ffe500"), 2))
+        painter.drawLine(pix.width() // 2, 0, pix.width() // 2, pix.height() - 1)
+        painter.end()
+        self.image.setPixmap(pix)
+        self.image.resize(pix.size())
+        self.view.verticalScrollBar().setValue(scroll)
+        self.apart.setEnabled(self.pixels.value() > self.pixels.minimum())
+        self.together.setEnabled(self.pixels.value() < self.pixels.maximum())
 
 
 class JoinedPairView(QWidget):
@@ -814,6 +930,7 @@ class ThumbnailWorker(QThread):
                 generation = self.generation
                 left, right, rotation, *extra = self.entries[index]
                 page_rotations = extra[0] if extra else (0, 0)
+                overlap = extra[1] if len(extra) > 1 else (0, "right")
             try:
                 if right is None:
                     with Image.open(left) as image:
@@ -831,7 +948,7 @@ class ThumbnailWorker(QThread):
                         else:
                             thumbnail = pixels_from_pil(image, (100, 84))
                 else:
-                    image = stitched_image(left, right, rotation, page_rotations)
+                    image = stitched_image(left, right, rotation, page_rotations, overlap)
                     try:
                         thumbnail = pixels_from_pil(image, (100, 84))
                     finally:
@@ -2865,6 +2982,9 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         buttons = [controls.itemAt(i).widget() for i in range(controls.count()) if controls.itemAt(i).widget()]
         for button, (symbol, label) in zip(buttons, specs, strict=True):
             review_control(button, symbol, label)
+        self.preview_seam_button.setToolTip(tooltip_text(
+            "Two selected single pages: inspect the seam they would have as a spread (Space). "
+            "A spread: line up its halves where both repeat a strip of art at the seam."))
         self.swap_button = QPushButton("Swap selected pages")
         self.swap_button.clicked.connect(self.swap_selected)
         review_control(self.swap_button, "⇄", "Swap", "Swap the two selected neighboring pages")
@@ -4062,6 +4182,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             self._close_preview_seam()
             return
         if not self.comparing:
+            self.adjust_spread_overlap()
             return
         entries = self.plan.entries()
         # Only two individual adjacent pages have a prospective join seam.
@@ -4070,6 +4191,40 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         a, b = (self.plan.scan.pages[entries[i][0]].path for i in self.comparing)
         turns = tuple(self.plan.rotations.get(entries[i][0], 0) for i in self.comparing)
         self._show_preview_seam(a, b, turns)
+
+    def adjust_spread_overlap(self):
+        """Line up the current spread's halves where they repeat art at the seam."""
+        if self.plan is None or self.comparing:
+            return
+        left, right = self.plan.entries()[self.preview_index]
+        if right is None:
+            return
+        turns = self.plan.joined_rotations.get(left, (0, 0))
+        first, second = left, right
+        if self.plan.scan.right_to_left:
+            first, second, turns = right, left, turns[::-1]
+        try:
+            halves = []
+            for index, turn in zip((first, second), turns, strict=True):
+                with Image.open(self.plan.scan.pages[index].path) as source:
+                    page = standard_mode(ImageOps.exif_transpose(source)).convert("RGB")
+                halves.append(rotated_image(page, turn))
+        except Exception as exc:
+            QMessageBox.warning(self, "Line up spread", str(exc))
+            return
+        dialog = OverlapDialog(*halves, self.plan.join_overlaps.get(left, (0, "right")), self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        pixels, top = dialog.overlap()
+        try:
+            self.plan.set_overlap(left, pixels, top)
+        except ValueError as exc:
+            QMessageBox.warning(self, "Line up spread", str(exc))
+            return
+        diagnostics.note("Spread overlap set: page %d, %d px, %s on top", left, pixels, top)
+        self._save_review_report()
+        self.rebuild_thumbnails()
+        self.show_preview()
 
     def _show_preview_seam(self, a, b, turns=(0, 0)):
         try:
@@ -4221,11 +4376,13 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         entries = self.plan.entries()
         self.thumb_keys = [(self.plan.scan.pages[a].path,
                             self.plan.scan.pages[b].path if b is not None else None,
-                            self.plan.rotations.get(a, 0), self.plan.joined_rotations.get(a, (0, 0)))
+                            self.plan.rotations.get(a, 0), self.plan.joined_rotations.get(a, (0, 0)),
+                            self.plan.join_overlaps.get(a, (0, "right")))
                            for a, b in entries]
         if self.plan.scan.right_to_left:
-            self.thumb_keys = [(right, left, rotation, parts[::-1]) if right is not None else (left, right, rotation, parts)
-                               for left, right, rotation, parts in self.thumb_keys]
+            self.thumb_keys = [(right, left, rotation, parts[::-1], overlap) if right is not None
+                               else (left, right, rotation, parts, overlap)
+                               for left, right, rotation, parts, overlap in self.thumb_keys]
         self.thumb_row.setDirection(QHBoxLayout.RightToLeft if self.plan.scan.right_to_left else QHBoxLayout.LeftToRight)
         self.thumb_generation = self.thumb_worker.reset(self.thumb_keys.copy())
         while self.thumb_row.count():
@@ -4483,7 +4640,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                                                     self.plan.scan.pages[first[1]].path,
                                                     rotation=self.plan.rotations.get(first[0], 0),
                                                     right_to_left=self.plan.scan.right_to_left,
-                                                               page_rotations=self.plan.joined_rotations.get(first[0], (0, 0))))
+                                                               page_rotations=self.plan.joined_rotations.get(first[0], (0, 0)),
+                                                               overlap=self.plan.join_overlaps.get(first[0], (0, "right"))))
                     self.compare_image.show()
                     self.compare_image.show_pixmap(page_pixmap(self.plan.scan.pages[second[0]].path,
                                                                rotation=self.plan.rotations.get(second[0], 0))
@@ -4492,7 +4650,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                                                        self.plan.scan.pages[second[1]].path,
                                                        rotation=self.plan.rotations.get(second[0], 0),
                                                        right_to_left=self.plan.scan.right_to_left,
-                                                               page_rotations=self.plan.joined_rotations.get(second[0], (0, 0))))
+                                                               page_rotations=self.plan.joined_rotations.get(second[0], (0, 0)),
+                                                               overlap=self.plan.join_overlaps.get(second[0], (0, "right"))))
             else:
                 self.preview_pair.hide()
                 self.main_image.show()
@@ -4503,7 +4662,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                                                                self.plan.scan.pages[b].path,
                                                                rotation=self.plan.rotations.get(a, 0),
                                                                right_to_left=self.plan.scan.right_to_left,
-                                                               page_rotations=self.plan.joined_rotations.get(a, (0, 0))))
+                                                               page_rotations=self.plan.joined_rotations.get(a, (0, 0)),
+                                                               overlap=self.plan.join_overlaps.get(a, (0, "right"))))
         except Exception as exc:
             QMessageBox.critical(self, "Preview", str(exc))
         height_warning = ""
@@ -4535,8 +4695,9 @@ class ComicWindow(OutlinedWindow, QMainWindow):
              entries[self.comparing[0]][1] is None and entries[self.comparing[1]][1] is None and
              self.comparing[1] == self.comparing[0] + 1))
         self.swap_button.setEnabled(self.comparing is not None)
+        # Two single pages: inspect their prospective seam. One spread: line up its halves.
         self.preview_seam_button.setEnabled(bool(self.comparing and
-            all(entries[i][1] is None for i in self.comparing)))
+            all(entries[i][1] is None for i in self.comparing)) or (b is not None and self.comparing is None))
         self.split_button.setEnabled(b is not None and self.comparing is None)
         self.remove_preview_button.setEnabled(b is None and self.comparing is None)
         self.undo_remove_button.setEnabled(bool(self.plan.preview_history))

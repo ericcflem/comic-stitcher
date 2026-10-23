@@ -1,0 +1,151 @@
+"""Spreads sliced from a page narrower than two pages: both halves repeat a strip
+of art at the seam. Measuring that strip, and joining the halves over it."""
+import io
+import tempfile
+import unittest
+from pathlib import Path
+
+import numpy as np
+from PIL import Image, ImageDraw, ImageFilter
+
+from .backend import (BookPlan, ExportOptions, _entry_size, export_book, measure_overlap,
+                      scan_folder, stitched_image)
+from .session import read_session, restore_plan, save_session
+
+
+def artwork(width=1000, height=700, seed=3) -> Image.Image:
+    """Flat-coloured shapes with dark outlines, like digitally coloured comic art."""
+    rng = np.random.default_rng(seed)
+    image = Image.new("RGB", (width, height), tuple(int(v) for v in rng.integers(60, 200, 3)))
+    draw = ImageDraw.Draw(image)
+    for _ in range(90):
+        x, y = int(rng.integers(-100, width)), int(rng.integers(-100, height))
+        w, h = int(rng.integers(30, 260)), int(rng.integers(30, 260))
+        colour = tuple(int(v) for v in rng.integers(0, 255, 3))
+        if rng.random() < 0.5:
+            draw.ellipse((x, y, x + w, y + h), fill=colour, outline=(20, 20, 20), width=3)
+        else:
+            draw.polygon([(x, y), (x + w, y + int(rng.integers(0, h))), (x + int(rng.integers(0, w)), y + h)],
+                         fill=colour, outline=(20, 20, 20), width=3)
+    return image.filter(ImageFilter.SMOOTH)
+
+
+def halves(image: Image.Image, overlap: int) -> tuple[Image.Image, Image.Image]:
+    """Cut as the publishers' tools do: half a page's width from each edge."""
+    left_width = (image.width + overlap) // 2
+    right_width = image.width + overlap - left_width
+    return (image.crop((0, 0, left_width, image.height)),
+            image.crop((image.width - right_width, 0, image.width, image.height)))
+
+
+def jpeg(image: Image.Image) -> Image.Image:
+    buffer = io.BytesIO()
+    image.save(buffer, "JPEG", quality=85)
+    buffer.seek(0)
+    return Image.open(buffer).convert("RGB")
+
+
+class MeasureTests(unittest.TestCase):
+    def test_finds_the_repeated_strip(self):
+        for overlap in (20, 30, 47, 80):  # Up to a sixth of the page width is searched.
+            left, right = halves(artwork(), overlap)
+            self.assertEqual(measure_overlap(left, right), overlap)
+        # A few pixels look like art carrying on across a clean seam; those are left to nudging.
+        self.assertIsNone(measure_overlap(*halves(artwork(), 8)))
+
+    def test_survives_each_half_being_compressed_separately(self):
+        left, right = halves(artwork(seed=5), 36)
+        self.assertEqual(measure_overlap(jpeg(left), jpeg(right)), 36)
+
+    def test_looks_past_a_thin_white_border(self):
+        left, right = halves(artwork(seed=7), 30)
+        bordered = np.asarray(right).copy()
+        bordered[:, :4] = 255
+        self.assertEqual(measure_overlap(left, Image.fromarray(bordered)), 30)
+
+    def test_clean_spreads_and_plain_edges_are_left_alone(self):
+        art = artwork(seed=9)
+        left, right = art.crop((0, 0, 500, 700)), art.crop((500, 0, 1000, 700))
+        self.assertIsNone(measure_overlap(left, right))
+        plain = Image.new("RGB", (500, 700), (240, 240, 235))
+        self.assertIsNone(measure_overlap(plain, plain.copy()))
+        self.assertIsNone(measure_overlap(artwork(seed=1).crop((0, 0, 500, 700)),
+                                          artwork(seed=2).crop((0, 0, 500, 700))))
+
+
+class JoinTests(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.folder = Path(self._tmp.name) / "pages"
+        self.folder.mkdir()
+        self.art = artwork()
+        left, right = halves(self.art, 30)
+        Image.new("RGB", (515, 700), "white").save(self.folder / "001.png")  # Each half is 515 px wide.
+        left.save(self.folder / "002.png")
+        right.save(self.folder / "003.png")
+        self.plan = BookPlan(scan_folder(self.folder, manual=True))
+        self.plan.join(1, override_boundary=True)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_overlapping_halves_rebuild_the_original_spread(self):
+        self.plan.set_overlap(1, 30, "right")
+        spread = stitched_image(self.folder / "002.png", self.folder / "003.png", overlap=(30, "right"))
+        self.assertEqual(spread.size, self.art.size)
+        self.assertTrue(np.array_equal(np.asarray(spread), np.asarray(self.art)))
+        self.assertEqual(_entry_size(self.plan, ExportOptions("Book"), 1, 2, False), self.art.size)
+
+    def test_the_page_on_top_covers_the_other(self):
+        left = np.asarray(Image.open(self.folder / "002.png").convert("RGB")).copy()
+        left[:, -30:] = (255, 0, 0)  # A border on the left page's inner edge.
+        Image.fromarray(left).save(self.folder / "002.png")
+        spread = np.asarray(stitched_image(self.folder / "002.png", self.folder / "003.png", overlap=(30, "right")))
+        self.assertFalse((spread[:, 485:515] == (255, 0, 0)).all(axis=2).any())  # Covered.
+        spread = np.asarray(stitched_image(self.folder / "002.png", self.folder / "003.png", overlap=(30, "left")))
+        self.assertTrue((spread[:, 485:515] == (255, 0, 0)).all())
+
+    def test_export_uses_the_overlap(self):
+        self.plan.set_overlap(1, 30, "right")
+        with tempfile.TemporaryDirectory() as output:
+            self.plan.scan.output_folder = Path(output)
+            archive = export_book(self.plan, ExportOptions("Book", format="png", workers=1))
+            import zipfile
+            with zipfile.ZipFile(archive) as book:
+                names = sorted(name for name in book.namelist() if name.endswith(".png"))
+                with Image.open(io.BytesIO(book.read(names[1]))) as page:
+                    self.assertEqual(page.size, self.art.size)
+
+    def test_checked_undone_and_cleared_with_the_spread(self):
+        with self.assertRaises(ValueError):
+            self.plan.set_overlap(0, 10)  # Not a spread.
+        with self.assertRaises(ValueError):
+            self.plan.set_overlap(1, 515)  # As wide as a page.
+        self.plan.set_overlap(1, 30, "left")
+        self.assertEqual(self.plan.join_overlaps, {1: (30, "left")})
+        self.plan.undo_preview()
+        self.assertEqual(self.plan.join_overlaps, {})
+        self.plan.set_overlap(1, 30)
+        self.plan.split(1)
+        self.assertEqual(self.plan.join_overlaps, {})
+
+    def test_saved_and_restored_with_the_review(self):
+        self.plan.set_overlap(1, 30, "left")
+        with tempfile.TemporaryDirectory() as app:
+            save_session(self.folder, Path(app), self.plan, possible_started=False, stage="preview",
+                         preview_index=1)
+            data = read_session(self.folder, Path(app))
+        restored = restore_plan(self.plan.scan, data)
+        self.assertEqual(restored.join_overlaps, {1: (30, "left")})
+        restored.undo_preview()
+        self.assertEqual(restored.join_overlaps, {})
+        # Reviews saved before overlaps existed still open.
+        for key in ("join_overlaps",):
+            data.pop(key)
+        for snapshot in data["preview_history"]:
+            snapshot.pop("join_overlaps", None)
+        self.assertEqual(restore_plan(self.plan.scan, data).join_overlaps, {})
+
+
+if __name__ == "__main__":
+    unittest.main()
