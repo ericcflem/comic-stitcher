@@ -42,7 +42,7 @@ It imports PDFs, image folders, compressed archives, existing comic book files a
 You can delete the downloaded folder afterwards. To update, download the new version and run its `linux/install.sh` again. If a system upgrade moves to a new version of Python, Comic Stitcher offers to repair itself the next time it starts. To uninstall, run `~/.local/share/comic-stitcher/uninstall.sh`. Add `--purge` to also remove your settings, logs and a remembered ComicVine key.
 
 Notes:
-- **RAR/CBR import** uses whichever RAR extractor is installed (UnRAR, unar, 7-Zip or bsdtar). On Ubuntu or Debian, `sudo apt install unar` adds one.
+- **RAR/CBR import** uses an installed RAR extractor: UnRAR first, then unar, bsdtar or 7-Zip. `linux/install.sh` offers to install UnRAR (`sudo apt install unrar` on Ubuntu or Debian). Use UnRAR, or 7-Zip with its RAR support (`sudo apt install 7zip-rar`), for comics in the newer RAR5 format: unar, bsdtar, and 7-Zip without its RAR support, can't read them fully.
 - **Sharp color conversion for WebP** uses libwebp's `cwebp` tool. `linux/install.sh` offers to install it; on Ubuntu or Debian it is `sudo apt install webp`. Without it the option is greyed out.
 - **A remembered ComicVine key** is kept in the desktop keyring, such as GNOME Keyring or KDE Wallet.
 - **On GNOME's Wayland desktop,** Comic Stitcher runs through XWayland, so GNOME draws its window frame and shadow. To use native Wayland instead, set `COMIC_STITCHER_NATIVE_WAYLAND=1`. You might want this if text looks blurry with fractional display scaling.

@@ -1499,6 +1499,38 @@ class ThumbnailTest(unittest.TestCase):
             box.close()
             yes_no.close()
 
+    def test_no_pair_review_goes_straight_to_the_final_review(self):
+        from .gui import NO_PAIR_REVIEW
+        with tempfile.TemporaryDirectory() as directory:
+            folder = self.make_book(Path(directory), "complete")
+            Image.new("RGB", (60, 80), "white").save(folder / "002.png")
+            window = ComicWindow()
+            try:
+                window.show()
+                window.review_mode.setCurrentIndex(NO_PAIR_REVIEW)
+                with patch("comic_builder.backend.classify_page",
+                           side_effect=AssertionError("no pair review ran the detector")):
+                    window.start_scan(folder)
+                    self.wait_for(lambda: window.plan is not None)
+                    self.wait_for(lambda: not window.worker.isRunning())
+                self.assertIs(window.pages.currentWidget(), window.preview)
+                self.assertIsNone(window.plan.current())
+                self.assertEqual(len(window.plan.entries()), 3)  # Nothing joined.
+                self.assertFalse(window.plan.approved())
+                window.new_comic()
+                self.assertEqual(window.review_mode.currentIndex(), 0)  # Not kept for the next comic.
+                self.assertFalse(window.skip_pair_review)
+            finally:
+                window.close()
+
+    def test_import_dialog_offers_no_pair_review(self):
+        from .gui import NO_PAIR_REVIEW
+        dialog = ImportChoiceDialog(Path("book.cbr"), folder=False)
+        try:
+            self.assertEqual(dialog.review_mode.itemText(NO_PAIR_REVIEW), "None — the pages are already complete")
+        finally:
+            dialog.close()
+
     def make_book(self, root: Path, name: str, shade=0) -> Path:
         folder = root / name
         folder.mkdir()

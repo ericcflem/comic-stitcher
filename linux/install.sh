@@ -111,7 +111,7 @@ package_manager() {
     done
 }
 
-# package_name MANAGER (venv|nautilus-python|cwebp)
+# package_name MANAGER (venv|nautilus-python|cwebp|unrar)
 package_name() {
     case "$1:$2" in
         apt-get:venv)            printf 'python3-venv' ;;
@@ -119,6 +119,7 @@ package_name() {
         dnf:cwebp)               printf 'libwebp-tools' ;;
         pacman:cwebp)            printf 'libwebp' ;;
         zypper:cwebp)            printf 'libwebp-tools' ;;
+        apt-get:unrar|dnf:unrar|pacman:unrar|zypper:unrar) printf 'unrar' ;;
         apt-get:nautilus-python) printf 'python3-nautilus' ;;
         dnf:nautilus-python)     printf 'nautilus-python' ;;
         pacman:nautilus-python)  printf 'python-nautilus' ;;
@@ -170,7 +171,7 @@ check_system() {
         || die "Comic Stitcher needs Python 3.10 or newer; this system has $("$PYTHON" -V 2>&1)."
     say "Found $("$PYTHON" -V 2>&1)."
 
-    local manager needed=() reasons=() name
+    local manager needed=() reasons=() name unrar_package=""
     manager=$(package_manager)
 
     if ! venv_works; then
@@ -192,15 +193,31 @@ check_system() {
         fi
     fi
 
-    [ "${#needed[@]}" -gt 0 ] || { say "Everything needed is already installed."; return; }
+    # UnRAR reads every RAR archive, including the newer RAR5 format, which unar
+    # and 7-Zip without its RAR support cut short. Some systems keep it in an
+    # extra software source (Fedora: RPM Fusion), so it is installed on its own.
+    if ! command -v unrar >/dev/null 2>&1; then
+        unrar_package=$(package_name "$manager" unrar)
+        if [ -n "$unrar_package" ]; then
+            reasons+=("$unrar_package: opens CBR/RAR comics, including the newer RAR5 format (recommended)")
+        fi
+    fi
+
+    [ "${#reasons[@]}" -gt 0 ] || { say "Everything needed is already installed."; return; }
 
     say "These system packages are missing:"
     printf '  - %s\n' "${reasons[@]}"
     if ask "Install them now? This asks for your password." Y; then
-        install_packages "$manager" "${needed[@]}" || warn "installing system packages did not finish."
+        if [ "${#needed[@]}" -gt 0 ]; then
+            install_packages "$manager" "${needed[@]}" || warn "installing system packages did not finish."
+        fi
+        if [ -n "$unrar_package" ]; then
+            install_packages "$manager" "$unrar_package" \
+                || warn "UnRAR isn't in this system's software sources. For RAR5 comics, enable the source that has it (Fedora: RPM Fusion; Debian: non-free), or install 7-Zip with its RAR support."
+        fi
     else
         say "Skipped. You can install them later with:"
-        say "  $(install_command "$manager" "${needed[@]}")"
+        say "  $(install_command "$manager" "${needed[@]}" ${unrar_package:+"$unrar_package"})"
     fi
     venv_works || die "Python still cannot create private environments. Install $(package_name "$manager" venv) and run this again."
 }

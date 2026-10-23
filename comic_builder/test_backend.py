@@ -418,28 +418,99 @@ class BookFlowTest(unittest.TestCase):
 
     def test_rar_extractor_choice_per_platform(self):
         from comic_builder import archive_import
-        with patch("comic_builder.archive_import._unrar_tool", return_value="C:/App/unrar.exe"), \
-             patch("comic_builder.archive_import.rarfile.tool_setup") as setup:
-            archive_import._setup_rar_tools(windows=True)
+        with patch("comic_builder.archive_import._unrar_tool", return_value="C:/App/unrar.exe"):
+            choices = archive_import._rar_extractors(windows=True)
             self.assertEqual(archive_import.rarfile.UNRAR_TOOL, "C:/App/unrar.exe")
-            self.assertEqual(setup.call_args.kwargs, dict(unrar=True, unar=False, bsdtar=False,
-                                                          sevenzip=False, sevenzip2=False, force=True))
-        with patch("comic_builder.archive_import._unrar_tool") as windows_lookup, \
-             patch("comic_builder.archive_import.rarfile.tool_setup") as setup:
-            archive_import._setup_rar_tools(windows=False)
+        self.assertEqual(choices, [("UnRAR", dict(unrar=True, unar=False, bsdtar=False,
+                                                  sevenzip=False, sevenzip2=False))])
+        with patch("comic_builder.archive_import._unrar_tool") as windows_lookup:
+            choices = archive_import._rar_extractors(windows=False)
             windows_lookup.assert_not_called()
-            self.assertEqual(setup.call_args.kwargs, dict(unrar=True, unar=True, bsdtar=True,
-                                                          sevenzip=True, sevenzip2=True, force=True))
+        # Elsewhere each installed extractor is tried on its own, UnRAR first.
+        self.assertEqual([label for label, _ in choices],
+                         ["UnRAR", "unar", "bsdtar", "7-Zip (7z)", "7-Zip (7zz)"])
+        for _, backends in choices:
+            self.assertEqual(sum(backends.values()), 1)
 
     def test_missing_rar_extractor_names_packages_outside_windows(self):
         from comic_builder import archive_import
-        with patch("comic_builder.archive_import.rarfile.tool_setup",
-                   side_effect=archive_import.rarfile.RarCannotExec("none")):
-            with self.assertRaisesRegex(ValueError, "sudo apt install unar"):
-                archive_import._setup_rar_tools(windows=False)
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch("comic_builder.archive_import.rarfile.tool_setup",
+                      side_effect=archive_import.rarfile.RarCannotExec("none")):
+            with self.assertRaisesRegex(ValueError, "sudo apt install unrar"):
+                archive_import._import_rar(Path(tmp) / "book.cbr", Path(tmp), None, windows=False)
             with self.assertRaisesRegex(ValueError, "UnRAR could not start"):
                 with patch("comic_builder.archive_import._unrar_tool", return_value="unrar.exe"):
-                    archive_import._setup_rar_tools(windows=True)
+                    archive_import._import_rar(Path(tmp) / "book.cbr", Path(tmp), None, windows=True)
+
+    def _rar_by_extractor(self, behaviour, pages):
+        """Patches rarfile so each extractor behaves as given: 'missing', 'short' or 'whole'."""
+        from comic_builder import archive_import
+        current = {}
+
+        def setup(**backends):
+            backends.pop("force")
+            name = next(key for key, used in backends.items() if used)
+            if behaviour.get(name, "missing") == "missing":
+                raise archive_import.rarfile.RarCannotExec(name)
+            current["name"] = name
+
+        class Member:
+            def __init__(self, name, data):
+                self.filename, self.data, self.file_size = name, data, len(data)
+            def is_dir(self):
+                return False
+            def is_symlink(self):
+                return False
+            def needs_password(self):
+                return False
+
+        class Archive:
+            def __init__(self, *_):
+                self.members = [Member(f"{i:02d}.png", data) for i, data in enumerate(pages, 1)]
+            def __enter__(self):
+                return self
+            def __exit__(self, *_):
+                pass
+            def volumelist(self):
+                return ["book.cbr"]
+            def infolist(self):
+                return self.members
+            def open(self, name):
+                data = next(m.data for m in self.members if m.filename == name)
+                if behaviour[current["name"]] == "short":
+                    return io.BytesIO(data[:len(data) // 2])  # As unar does with RAR5.
+                return io.BytesIO(data)
+
+        return (patch("comic_builder.archive_import.rarfile.tool_setup", side_effect=setup),
+                patch("comic_builder.archive_import.rarfile.RarFile", Archive))
+
+    def test_rar_import_moves_on_when_an_extractor_cuts_pages_short(self):
+        from comic_builder import archive_import
+        pages = []
+        for colour in ("red", "blue"):
+            buffer = io.BytesIO()
+            Image.new("RGB", (60, 80), colour).save(buffer, "PNG")
+            pages.append(buffer.getvalue())
+        with tempfile.TemporaryDirectory() as tmp:
+            destination = Path(tmp) / "pages"
+            destination.mkdir()
+            setup, archive = self._rar_by_extractor({"unar": "short", "sevenzip": "whole"}, pages)
+            with setup, archive:
+                found = archive_import._import_rar(Path(tmp) / "book.cbr", destination, None, windows=False)
+            self.assertEqual(len(found), 2)
+            self.assertEqual(sorted(p.read_bytes() for p in destination.iterdir()), sorted(pages))
+
+            for item in destination.iterdir():
+                item.unlink()
+            setup, archive = self._rar_by_extractor({"unar": "short", "sevenzip": "short"}, pages)
+            with setup, archive, self.assertRaises(ValueError) as caught:
+                archive_import._import_rar(Path(tmp) / "book.cbr", destination, None, windows=False)
+            message = str(caught.exception)
+            self.assertIn("unar and 7-Zip (7z) couldn't fully read this archive", message)
+            self.assertIn("sudo apt install unrar", message)
+            self.assertIn("7zip-rar", message)
+            self.assertFalse(any(destination.iterdir()))  # Nothing half-extracted is left.
 
     def test_cb7_both_sizes_preserves_order_and_source_pages(self):
         with tempfile.TemporaryDirectory() as tmp:

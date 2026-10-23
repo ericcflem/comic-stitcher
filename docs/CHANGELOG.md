@@ -5,6 +5,21 @@
 - Windows: uninstalling now asks whether to remove your settings too: your
   preferences, a remembered ComicVine API key, saved reviews, pair review
   reports and logs. They are kept unless you choose Yes, as before.
+- Linux: CBR/RAR comics in the newer RAR5 format. unar, bsdtar, and 7-Zip
+  without its RAR support, can't read them fully, and the import failed with
+  "Failed the read enough data". Comic Stitcher now tries each installed
+  extractor in turn (UnRAR, unar, bsdtar, 7-Zip). If none can read the archive, or none is
+  installed, the message recommends UnRAR or 7-Zip's RAR support (`7zip-rar`)
+  instead of unar. `linux/install.sh` offers to install UnRAR.
+- Pair review can be skipped: choose **None — the pages are already complete**
+  for Pair review when importing. The pages are read without looking for
+  spreads, and the import goes straight to the final review, where pages can
+  still be joined, removed or rotated. Converting a CBR to CBZ, with copied pages
+  and optional ComicInfo.xml, takes an import, a look at the pages and an
+  export. The choice resets to Suggested pairs for each comic.
+- The import dialog's **Right-to-left page order** checkbox is now labelled
+  **Back-to-front page order (manga)**, which says what it expects: the front
+  cover is the last page of the source. It works as before.
 
 ## 0.9.0
 

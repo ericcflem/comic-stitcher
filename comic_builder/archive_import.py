@@ -104,53 +104,67 @@ def _unrar_tool() -> str:
                      "ComicStitcher.exe (or launch.py), or install WinRAR/UnRAR, then retry.")
 
 
+# The extractors rarfile can use, in the order they are tried outside Windows.
+RAR_EXTRACTORS = (("unrar", "UnRAR"), ("unar", "unar"), ("bsdtar", "bsdtar"),
+                  ("sevenzip", "7-Zip (7z)"), ("sevenzip2", "7-Zip (7zz)"))
+
 # Shown on Linux and other non-Windows systems when no RAR extractor is installed.
-RAR_TOOL_HELP = ("RAR/CBR import needs a RAR extractor, and none was found. Install one, "
-                 "then retry: for example 'sudo apt install unar' on Ubuntu or Debian, "
-                 "'sudo dnf install unar' on Fedora, or 'sudo pacman -S unarchiver' on Arch. "
-                 "UnRAR, 7-Zip and bsdtar also work.")
+RAR_TOOL_HELP = ("RAR/CBR import needs a RAR extractor, and none was found. Install UnRAR, "
+                 "then retry: 'sudo apt install unrar' on Ubuntu or Debian, 'sudo pacman -S unrar' "
+                 "on Arch, or 'sudo dnf install unrar' on Fedora (from RPM Fusion). 7-Zip with its "
+                 "RAR support (Ubuntu's '7zip-rar' package) also works. unar, bsdtar, and 7-Zip without "
+                 "its RAR support, can't fully read archives in the newer RAR5 format.")
+
+# Shown when every installed extractor stopped partway through a page.
+RAR5_HELP = ("{tools} couldn't fully read this archive: the pages came out cut short. It is most "
+             "likely in the newer RAR5 format, which unar, bsdtar, and 7-Zip without its RAR support, "
+             "can't fully extract. Install UnRAR ('sudo apt install unrar' on Ubuntu or Debian), or 7-Zip's "
+             "RAR support ('sudo apt install 7zip-rar'), then retry.")
 
 
-def _setup_rar_tools(windows: bool | None = None) -> None:
-    """Choose the program that extracts RAR archives.
+class _ExtractorFailed(Exception):
+    """The extractor started but didn't deliver a page whole; another may manage."""
+
+
+def _rar_extractors(windows: bool | None = None) -> list[tuple[str, dict]]:
+    """The extractors to try, in order, as rarfile.tool_setup arguments.
 
     Windows uses the official UnRAR shipped beside Comic Stitcher (or WinRAR's).
-    Elsewhere nothing is bundled: rarfile tries the installed extractors in its
-    own order (UnRAR, unar, 7-Zip, bsdtar) and uses the first that works.
+    Elsewhere nothing is bundled: each installed extractor is tried in turn
+    (UnRAR, unar, bsdtar, 7-Zip), since some can't fully read RAR5 archives.
     """
     if windows is None:
         windows = os.name == "nt"
     if windows:
         rarfile.UNRAR_TOOL = _unrar_tool()
-        backends = dict(unrar=True, unar=False, bsdtar=False, sevenzip=False, sevenzip2=False)
-        failure = "UnRAR could not start. Install an up-to-date UnRAR executable and retry."
-    else:
-        backends = dict(unrar=True, unar=True, bsdtar=True, sevenzip=True, sevenzip2=True)
-        failure = RAR_TOOL_HELP
-    try:
-        rarfile.tool_setup(**backends, force=True)
-    except rarfile.RarCannotExec as exc:
-        raise ValueError(failure) from exc
+        return [("UnRAR", dict(unrar=True, unar=False, bsdtar=False, sevenzip=False, sevenzip2=False))]
+    return [(label, {name: name == key for name, _ in RAR_EXTRACTORS}) for key, label in RAR_EXTRACTORS]
 
 
-def _import_rar(source: Path, destination: Path, progress, total_steps: int = 3) -> list[tuple[str, int]]:
-    _setup_rar_tools()
+def _extract_rar(source: Path, destination: Path, progress, total_steps: int) -> list[tuple[str, int]]:
     try:
-        with rarfile.RarFile(source) as archive:
+        archive = rarfile.RarFile(source)
+    except rarfile.Error as exc:
+        raise ValueError(f"Cannot read or extract this RAR/CBR archive: {exc}") from exc
+    with archive:
+        try:
             if len(archive.volumelist()) > 1:
                 raise ValueError("Multi-part RAR archives are not supported. Combine the volumes first.")
             members = archive.infolist()
-            for info in members:
-                if Path(info.filename).suffix.lower() in IMAGE_EXTS and (info.is_dir() or info.is_symlink()):
-                    raise ValueError(f"Archive contains a non-file image: {info.filename!r}")
-            pages = _check_entries([(info.filename, info.file_size) for info in members if not info.is_dir()])
-            metadata = _metadata_entry([(info.filename, info.file_size) for info in members if not info.is_dir()])
-            if metadata and any(info.is_symlink() for info in members if info.filename == metadata):
-                raise ValueError("ComicInfo.xml cannot be a symlink.")
+        except rarfile.Error as exc:
+            raise ValueError(f"Cannot read or extract this RAR/CBR archive: {exc}") from exc
+        for info in members:
+            if Path(info.filename).suffix.lower() in IMAGE_EXTS and (info.is_dir() or info.is_symlink()):
+                raise ValueError(f"Archive contains a non-file image: {info.filename!r}")
+        pages = _check_entries([(info.filename, info.file_size) for info in members if not info.is_dir()])
+        metadata = _metadata_entry([(info.filename, info.file_size) for info in members if not info.is_dir()])
+        if metadata and any(info.is_symlink() for info in members if info.filename == metadata):
+            raise ValueError("ComicInfo.xml cannot be a symlink.")
+        image_names = {name for name, _ in pages}
+        if any(info.needs_password() for info in members if info.filename in image_names):
+            raise ValueError("Password-protected archives are not supported.")
+        try:
             _copy_metadata(archive, metadata, destination)
-            image_names = {name for name, _ in pages}
-            if any(info.needs_password() for info in members if info.filename in image_names):
-                raise ValueError("Password-protected archives are not supported.")
             for index, (name, declared_size) in enumerate(pages, 1):
                 target = destination / f"{index:06d}{Path(name).suffix.lower()}"
                 with archive.open(name) as input_file, target.open("wb") as output_file:
@@ -161,12 +175,46 @@ def _import_rar(source: Path, destination: Path, progress, total_steps: int = 3)
                             raise ValueError(f"Archive image exceeds its declared size: {name!r}")
                         output_file.write(block)
                 if copied != declared_size:
-                    raise ValueError(f"Archive image size does not match its entry: {name!r}")
+                    raise _ExtractorFailed(f"Archive image size does not match its entry: {name!r}")
                 if progress:
                     progress(index, len(pages) * total_steps)
-            return pages
-    except rarfile.Error as exc:
-        raise ValueError(f"Cannot read or extract this RAR/CBR archive: {exc}") from exc
+        except rarfile.RarCannotExec:
+            raise
+        except rarfile.Error as exc:
+            raise _ExtractorFailed(str(exc)) from exc
+        return pages
+
+
+def _clear(folder: Path) -> None:
+    for item in folder.iterdir():
+        if item.is_dir() and not item.is_symlink():
+            shutil.rmtree(item)
+        else:
+            item.unlink()
+
+
+def _import_rar(source: Path, destination: Path, progress, total_steps: int = 3,
+                windows: bool | None = None) -> list[tuple[str, int]]:
+    if windows is None:
+        windows = os.name == "nt"
+    failed: list[str] = []
+    problem = None
+    for label, backends in _rar_extractors(windows):
+        try:
+            rarfile.tool_setup(**backends, force=True)
+            return _extract_rar(source, destination, progress, total_steps)
+        except rarfile.RarCannotExec:
+            continue  # Not installed, or it wouldn't start.
+        except _ExtractorFailed as exc:
+            failed.append(label)
+            problem = exc
+            _clear(destination)  # Start the next extractor afresh.
+    if not failed:
+        raise ValueError("UnRAR could not start. Install an up-to-date UnRAR executable and retry."
+                         if windows else RAR_TOOL_HELP)
+    if windows:
+        raise ValueError(f"Cannot read or extract this RAR/CBR archive: {problem}")
+    raise ValueError(RAR5_HELP.format(tools=" and ".join(failed)))
 
 
 def import_archive(source: Path, destination: Path, manual: bool = False, progress=None, *, right_to_left=False,
