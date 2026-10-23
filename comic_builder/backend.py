@@ -942,6 +942,34 @@ def lossless_alternative(opt: ExportOptions) -> ExportOptions | None:
                    reduced_custom=False, keep_images=False)
 
 
+# The early check, run in the background during review: a few pages, fast lossless effort.
+LOSSLESS_CHECK_SAMPLES = 6
+LOSSLESS_CHECK_METHOD = 1
+# At the fast effort lossless only gets smaller at the chosen one, so a check
+# that finds it no smaller than the lossy format rules the suggestion out.
+LOSSLESS_CHECK_SKIP_SHARE = 1.0
+
+
+def lossless_check(plan: BookPlan, opt: ExportOptions,
+                   cancelled: Callable[[], bool] | None = None) -> float | None:
+    """Lossless WebP's estimated size as a share of the chosen lossy format's,
+    from a few sample pages at full size; None when there's nothing to compare
+    or when cancelled. Quick enough to run, on one process, while pages are reviewed.
+    """
+    alternative = lossless_alternative(opt)
+    if alternative is None:
+        return None
+    alternative = replace(alternative, webp_method=min(alternative.webp_method, LOSSLESS_CHECK_METHOD))
+    chosen = replace(opt, size_output="full", reduced_custom=False, keep_images=False)
+    lossy = estimate_export_size(plan, chosen, samples=LOSSLESS_CHECK_SAMPLES, cancelled=cancelled)
+    if lossy is None:
+        return None
+    lossless = estimate_export_size(plan, alternative, samples=LOSSLESS_CHECK_SAMPLES, cancelled=cancelled)
+    if lossless is None:
+        return None
+    return lossless["full"] / max(1, lossy["full"])
+
+
 def estimate_export_size(plan: BookPlan, opt: ExportOptions, samples: int = ESTIMATE_SAMPLES,
                          cancelled: Callable[[], bool] | None = None, workers: int = 1,
                          progress: Callable[[dict[str, int], int, int], None] | None = None,

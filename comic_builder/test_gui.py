@@ -1569,6 +1569,41 @@ class ThumbnailTest(unittest.TestCase):
                 window.queue_jobs.clear()
                 window.close()
 
+    def test_quick_check_runs_during_review_and_shows_the_note_early(self):
+        with tempfile.TemporaryDirectory() as directory:
+            window = ComicWindow()
+            try:
+                window.opt.format, window.opt.spread_format, window.opt.webp_lossless = "jpeg", "jpeg", False
+                window.scan_done(scan_manual_folder(self.make_book(Path(directory), "strips")))
+                self.wait_for(lambda: window.lossless_checked[0] is window.plan)  # Started by the import.
+                self.wait_for(lambda: not window.lossless_checks)
+                # A book the check favours: the note is there as the screen opens.
+                window.lossless_checked = (window.plan, 0.2)
+                requests = []
+                with patch.object(window.size_worker, "request",
+                                  side_effect=lambda *args, **kw: requests.append(kw)):
+                    window.show_export()
+                    self.assertFalse(window.lossless_hint_row.isHidden())
+                    self.assertIn("would likely make this comic much smaller", window.lossless_hint.text())
+                    window._start_size_estimate()
+                    self.assertTrue(requests[-1]["compare_lossless"])
+                    # The full estimate disagrees: the note goes.
+                    generation = window.estimate_generation
+                    window._size_estimate_ready(generation, {"full": 100_000_000})
+                    window._lossless_estimate_ready(generation, 90_000_000)
+                    self.assertTrue(window.lossless_hint_row.isHidden())
+                    # A book the check rules out: no note, and no full comparison.
+                    window.lossless_checked = (window.plan, 1.6)
+                    window._schedule_size_estimate()
+                    self.assertTrue(window.lossless_hint_row.isHidden())
+                    window._start_size_estimate()
+                    self.assertFalse(requests[-1]["compare_lossless"])
+                window.new_comic()
+                self.assertEqual(window.lossless_checked, (None, None))
+            finally:
+                window.queue_jobs.clear()
+                window.close()
+
     def make_book(self, root: Path, name: str, shade=0) -> Path:
         folder = root / name
         folder.mkdir()

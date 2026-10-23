@@ -9,7 +9,10 @@
   usual output settings aren't changed). Clean line art, such as
   black-and-white strips rendered from a PDF, is often several times smaller
   this way with no loss at all; scans and full-colour art usually aren't, and
-  then nothing is shown. It applies to CBZ and CB7 when pages are encoded as
+  then nothing is shown. A quick check of a few pages runs in the background
+  while the comic is reviewed, so the note is usually there as soon as Create
+  your comic opens (the sizes follow once estimated), and books it rules out
+  skip the lossless estimate altogether. It applies to CBZ and CB7 when pages are encoded as
   JPEG or lossy WebP.
 - Windows: uninstalling now asks whether to remove your settings too: your
   preferences, a remembered ComicVine API key, saved reviews, pair review

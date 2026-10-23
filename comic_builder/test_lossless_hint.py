@@ -6,8 +6,8 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw
 
-from .backend import (BookPlan, ExportOptions, LOSSLESS_HINT_SHARE, estimate_export_size,
-                      lossless_alternative, scan_folder)
+from .backend import (BookPlan, ExportOptions, LOSSLESS_CHECK_SKIP_SHARE, LOSSLESS_HINT_SHARE,
+                      estimate_export_size, lossless_alternative, lossless_check, scan_folder)
 
 
 def line_art(path: Path, seed: int):
@@ -73,6 +73,29 @@ class EstimateTests(unittest.TestCase):
         jpeg, lossless = self.estimates(scan)
         self.assertGreater(lossless, LOSSLESS_HINT_SHARE * jpeg, (jpeg, lossless))
 
+
+class QuickCheckTests(unittest.TestCase):
+    def share(self, make):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            for page in range(8):
+                make(folder / f"{page:02d}.png", page)
+            plan = BookPlan(scan_folder(folder, manual=True))
+            return lossless_check(plan, ExportOptions("Book", format="jpeg", jpeg_quality=90))
+
+    def test_line_art_passes_the_quick_check(self):
+        self.assertLess(self.share(line_art), LOSSLESS_HINT_SHARE)
+
+    def test_scans_are_ruled_out_early(self):
+        self.assertGreater(self.share(scan), LOSSLESS_CHECK_SKIP_SHARE)
+
+    def test_nothing_to_check_when_already_lossless_or_cancelled(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            line_art(folder / "01.png", 1)
+            plan = BookPlan(scan_folder(folder, manual=True))
+            self.assertIsNone(lossless_check(plan, ExportOptions("Book", format="png")))
+            self.assertIsNone(lossless_check(plan, ExportOptions("Book"), cancelled=lambda: True))
 
 if __name__ == "__main__":
     unittest.main()
