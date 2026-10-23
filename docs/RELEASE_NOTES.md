@@ -1,4 +1,4 @@
-# Comic Stitcher 0.8.0
+# Comic Stitcher 0.9.0
 
 Comic Stitcher prepares comic archives. Import PDFs, comic archives, image folders
 or centered screenshots; review suggested page pairs; join split spreads; and
@@ -6,29 +6,31 @@ check the finished comic before exporting. Original input files are preserved.
 
 ## What's new
 
-- **Export to PDF.** Choose PDF as the archive format and pick JPEG or PNG for
-  its pages. JPEG pages go in exactly as encoded. PDF is kept until Comic
-  Stitcher closes, then your usual archive format returns.
-- **Better spread suggestions.** A new seam test follows line art that crosses
-  the seam at an angle and ignores the slicing debris often left at a split
-  page's edge. In testing, every real spread was suggested and false
-  suggestions fell by about two thirds. Plain borders in any colour, and thin
-  white frames, are now recognised as page edges.
-- **Sharp color conversion for WebP.** An option that keeps edges between
-  strong colors clean in lossy WebP, at about twice the encoding time.
-- **PDF import.** Original JPEGs can be extracted from more PDFs, including
-  TCPDF-made books such as Humanoids'. When they can't be, the Import PDF window
-  says why. The suggested rendering resolution follows the page artwork, so it
-  no longer enlarges most of the book.
-- **Linux.** The busy cursor stops as soon as the window appears.
+- **A simpler batch queue.** A comic joins the queue as soon as its Create your
+  comic screen opens, and changes made there update it. Drag comics to change
+  the export order, double-click one to change its settings, and view the queue
+  from the Create your comic screen at any time. A single comic still exports
+  straight away.
+- **Faster spread suggestions.** Large books are scanned on several processor
+  cores at once, several times faster, with identical suggestions.
+- **More pages that just work.** 16-bit greyscale scans no longer turn white,
+  CMYK pages convert with their own colour profile and can be saved as PNG, and
+  pages whose names differ only in capitalisation (`001.jpg` and `001.JPG`) are
+  kept in order instead of refused.
+- **WebP for every page.** Large, finely detailed pages no longer stop a WebP
+  export at the fastest compression efforts.
+- **One worker setting.** A single Worker processes count in Settings now covers
+  scanning, PDF rendering, screenshots and encoding.
+- **Tidier windows.** Buttons and drop-down lists have consistent heights, and
+  dialog buttons are in the Windows order on Linux too.
 
 The full list is in [CHANGELOG.md](CHANGELOG.md).
 
 The Windows x64 installer includes the required application dependencies; a
 separate Python installation is not needed. Setup offers the Microsoft Visual C++
 x64 prerequisite if required, under Microsoft's component terms. The installer's
-Python libraries are unchanged from 0.6.38; it now also includes Google's cwebp
-encoder (libwebp 1.6.0) for WebP's sharp color conversion.
+Python libraries are unchanged from 0.6.38, and it includes Google's cwebp
+encoder (libwebp 1.6.0, unchanged from 0.8.0) for WebP's sharp color conversion.
 
 ## Limitations
 

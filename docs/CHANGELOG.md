@@ -1,19 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.9.0
 
-- Settings: one **Worker processes** count replaces the three separate ones
-  (PDF rendering, screenshot, encoding). It covers scanning, PDF rendering,
-  screenshot measuring and cropping, and encoding. Automatic is unchanged: about
-  half the processor's threads, up to six, and up to four for PDF rendering. An
-  existing encoding count carries over.
-- Dialog buttons are in the same order on Linux as on Windows. Linux desktops
-  reordered them, putting Cancel in the middle of some dialogs.
-- Buttons and drop-down lists are consistent heights. Plain buttons are all the
-  standard height (those in the queue and import windows, and the Yes and No of
-  warnings opened from the queue, were as tall as the blue ones); blue buttons
-  share one slightly taller height; drop-down lists are one height everywhere.
-- Batch queue: a comic joins the queue as soon as its Create your comic screen
+**Batch queue**
+
+- A comic joins the queue as soon as its Create your comic screen
   opens, with the settings shown; changing them updates its queue entry. The
   separate Review final output and Ready to queue steps are gone. The blue
   button reads **Review next comic** while dropped comics are waiting and
@@ -21,13 +12,16 @@
   be exported again. **View queue (N)** is on that screen whenever comics are
   queued, with **Add another comic**, and double-clicking a queued comic opens
   its settings to change them.
-- Spread suggestions: scanning large books now spreads the pages across worker
+- Drag a comic up or down to change the order comics are exported
+  in, or select it and press Ctrl with Up, Down, Home or End.
+
+**Import and spread suggestions**
+
+- Scanning large books for spread suggestions now spreads the pages across worker
   processes, as export does (half the processor's threads, up to six), so it
   finishes several times faster on multi-core computers. Small books, under
   about 40 MB of pages, still scan in one process, which is quicker for them.
   The suggestions are identical either way.
-- Batch queue: drag a comic up or down to change the order comics are exported
-  in, or select it and press Ctrl with Up, Down, Home or End.
 - Pages whose names differ only in capitalisation (`comic - 001.jpg` and
   `comic - 001.JPG`), which Linux and comic archives allow, are no longer
   refused. They are kept in the order Linux file managers and comic readers
@@ -42,16 +36,33 @@
   to 8 bits instead of clipped. Before, anything lighter than nearly black came
   out white in JPEG, WebP, PDF and reduced copies, in previews, and to the spread
   scanner. Full-size PNG copies of them are now 8-bit like every other page.
+
+**Export**
+
 - CMYK pages can be saved as PNG; before, the export stopped with "cannot write
   mode CMYK as PNG". CMYK pages with an embedded colour profile are converted to
   RGB with that profile, so their colours match how they were meant to print;
   without one, the previous conversion is used.
-- WebP export: large, finely detailed pages (halftone scans, for example) no
+- WebP: large, finely detailed pages (halftone scans, for example) no
   longer stop the export with "PARTITION0_OVERFLOW" at the fastest compression
   efforts (0-2). libwebp keeps the first part of a lossy WebP under 512 KB, and
   only measures it as it goes from effort 3. Such a page is now encoded again at
   effort 3, then, if needed, with libwebp's limits relaxed. A page that still
   can't fit gets a message suggesting JPEG, PNG or lossless WebP.
+
+**Settings and appearance**
+
+- One **Worker processes** setting in Settings replaces the three separate counts
+  (PDF rendering, screenshot, encoding). It covers scanning, PDF rendering,
+  screenshot measuring and cropping, and encoding. Automatic is unchanged: about
+  half the processor's threads, up to six, and up to four for PDF rendering. An
+  existing encoding count carries over.
+- Dialog buttons are in the same order on Linux as on Windows. Linux desktops
+  reordered them, putting Cancel in the middle of some dialogs.
+- Buttons and drop-down lists are consistent heights. Plain buttons are all the
+  standard height (those in the queue and import windows, and the Yes and No of
+  warnings opened from the queue, were as tall as the blue ones); blue buttons
+  share one slightly taller height; drop-down lists are one height everywhere.
 
 ## 0.8.0
 

@@ -1,5 +1,5 @@
 ; Compile with build_installer_windows.bat on Windows after supplying official UnRAR.
-#define ComicStitcherVersion "0.8.0"
+#define ComicStitcherVersion "0.9.0"
 #if !FileExists("vendor/microsoft/runtime-verified.iss")
   #error Run prepare_microsoft_runtime_windows.ps1 before compiling.
 #endif
