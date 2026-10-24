@@ -175,9 +175,11 @@ def _pair_job(scored: bool, *job) -> Candidate | None:
 
 
 def _same_size(a, b) -> bool:
-    """Pages a sliced spread could have been cut into: as is_candidate_pair's size test."""
-    return (abs(a.width - b.width) <= max(2, round(min(a.width, b.width) * .005)) and
-            abs(a.height - b.height) <= max(2, round(min(a.height, b.height) * .002)))
+    """Pages a sliced spread could have been cut into: the same height (as
+    is_candidate_pair measures it), and widths no more than half again apart,
+    since a slice with an overlap, or a cropped one, needn't be exactly half."""
+    return (abs(a.height - b.height) <= max(2, round(min(a.height, b.height) * .002)) and
+            max(a.width, b.width) <= 1.5 * min(a.width, b.width))
 
 
 def offered(candidate: Candidate) -> bool:

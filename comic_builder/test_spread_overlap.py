@@ -205,6 +205,18 @@ class SuggestionTests(unittest.TestCase):
                 self.assertEqual(found, [(1, 2, 40)])
                 self.assertTrue(offered(next(c for c in scan.candidates if c.metrics.get("overlap"))))
 
+    def test_found_between_halves_of_different_widths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            art = artwork(seed=17)
+            left, right = art.crop((0, 0, 560, 700)), art.crop((520, 0, 1000, 700))  # 40 px repeated.
+            pages = [artwork(seed=40).crop((0, 0, 560, 700)), left, right, artwork(seed=41).crop((0, 0, 480, 700))]
+            for number, page in enumerate(pages, 1):
+                page.save(folder / f"{number:03d}.jpg", quality=80)
+            scan = scan_folder(folder)
+            self.assertEqual([(c.left, c.right, c.metrics.get("overlap")) for c in scan.candidates
+                              if c.metrics.get("overlap")], [(1, 2, 40)])
+
     def test_found_in_back_to_front_books_too(self):
         with tempfile.TemporaryDirectory() as directory:
             scan = self.book(Path(directory), right_to_left=True)
