@@ -2188,7 +2188,8 @@ class ScreenshotCropDialog(OutlinedWindow, QDialog):
         family = self.family_selection.get(index)
         if isinstance(family, int):
             known = self.sizes.get(self.canvases[index], {})
-            if known.get("single") == family and "double" in known:
+            if (len(self.canvas_families.get(self.canvases[index], ())) == 1 and
+                    known.get("single") == family and "double" in known):
                 return dict(known)  # Keep a measured double's odd pixel (397 = 2 × 198 + 1).
             return {"single": family, "double": family * 2}
         choice = self.choices[index]
