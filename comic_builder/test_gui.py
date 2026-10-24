@@ -36,6 +36,7 @@ class ThumbnailTest(unittest.TestCase):
         ui_app_style(cls.app)
 
     def setUp(self):
+        self.real_crop_summary = ComicWindow.screenshot_crop_summary
         summary_patch = patch.object(ComicWindow, "screenshot_crop_summary", return_value=False)
         summary_patch.start()
         self.addCleanup(summary_patch.stop)
@@ -234,6 +235,34 @@ class ThumbnailTest(unittest.TestCase):
                 choices = stage.call_args.args[0]
                 self.assertEqual([choice.box for choice in choices], [item.box for item in proposals])
                 self.assertEqual([choice.kind for choice in choices], ["single", "double"])
+        finally:
+            window.close()
+
+    def test_summary_names_screenshots_of_a_wider_or_smaller_page_size(self):
+        from .screenshot_geometry import CropProposal
+        from dataclasses import replace
+        summary = self.real_crop_summary  # setUp stubs the summary out.
+        window = ComicWindow()
+        try:
+            canvas = (4200, 3056)
+            stray = [CropProposal(Path(f"{i}.png"), canvas, "single", (1106, 0, 3094, 3056), None, "measured")
+                     for i in range(4)]
+            stray[2] = CropProposal(Path("2.png"), canvas, "single", (1093, 0, 3107, 3056), None,
+                                    "measured", wider_than=1988)
+            mixed = [CropProposal(Path(f"{i}.png"), canvas, "single", (1106, 0, 3094, 3056), None, "measured",
+                                  family_widths=(1988, 2014), family_width=1988) for i in range(5)]
+            for i in (1, 3):
+                mixed[i] = replace(mixed[i], box=(1093, 0, 3107, 3056), family_width=2014)
+            mixed[3] = replace(mixed[3], source="suggested", by_position=True)
+            for proposals, expected in ((stray, "Screenshot 3 measured wider (2014 × 3056 per page) than the book's pages (1988 × 3056)"),
+                                        (mixed, "single widths 1988 (3 screenshots), 2014 (2 screenshots: 2, 4) pixels")):
+                shown = []
+                with patch.object(QMessageBox, "exec", lambda box: shown.append((box.text(), box.informativeText()))):
+                    summary(window, proposals, [])
+                self.assertEqual(shown[0][0], "These pages may have been reduced during capture")
+                self.assertIn(expected, shown[0][1])
+            self.assertIn("Screenshot 4 has black borders hiding the page edges; given 2014 because the pages "
+                          "before and after are.", shown[0][1])  # The two-size book, shown last.
         finally:
             window.close()
 

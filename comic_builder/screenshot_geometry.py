@@ -32,6 +32,13 @@ class CropProposal:
 
     family_widths: tuple[int, ...] = ()
     family_width: int | None = None
+    # A single screenshot wider than the book's page size: its own crop, and a
+    # sign it may have been scaled down to fit (retake it at full height).
+    wider_than: int | None = None
+    # Its edges are hidden; its page size was taken from the clearly measured
+    # pages before and after it, which agree (sizes come in runs: an issue, a
+    # backup story).
+    by_position: bool = False
 
     @property
     def page_width(self) -> int | None:
@@ -198,6 +205,8 @@ def propose_crops(paths: Iterable[Path], single_size: tuple[int, int] | None = N
     # (narrower, or wider in some DC books), so they don't calibrate the page
     # sizes. A cover whose edges are clear is cropped at its own size.
     covers = _cover_indexes(observations)
+    wider = _lone_wider(observations, covers)
+    covers |= set(wider)
     pages = [o for index, o in enumerate(observations) if index not in covers]
 
     # Cluster clear, centered boundaries by their equivalent single width.
@@ -225,12 +234,18 @@ def propose_crops(paths: Iterable[Path], single_size: tuple[int, int] | None = N
                                  [obs for _, obs in cluster]) for cluster in recurring]
     if not families:
         proposals = _propose_observations(observations, single_size, pages)
-        return [_cover_proposal(o) or p if index in covers else p
+        return [_apart(o, wider.get(index)) or p if index in covers else p
                 for index, (o, p) in enumerate(zip(observations, proposals, strict=True))]
+    # Which family each clearly measured screenshot belongs to, by position.
+    family_at = {}
+    for canvas, entries in families.items():
+        for width, anchors in entries:
+            for anchor in anchors:
+                family_at[next(i for i, o in enumerate(observations) if o is anchor)] = (canvas, width)
     result = []
     for index, observation in enumerate(observations):
         path, canvas, edges, kind, sparse, hard, error = observation
-        if index in covers and (cover := _cover_proposal(observation)) is not None:
+        if index in covers and (cover := _apart(observation, wider.get(index))) is not None:
             result.append(cover)
             continue
         if canvas not in families:
@@ -253,6 +268,19 @@ def propose_crops(paths: Iterable[Path], single_size: tuple[int, int] | None = N
                              if p.path == path)
             candidates.append(replace(candidate, family_widths=widths, family_width=width))
         measured = [p for p in candidates if p.source == "measured"]
+        neighbours = _neighbour_family(family_at, index, canvas)
+        if not measured and neighbours is not None and edges is not None:
+            by_position = next(p for p in candidates if p.family_width == neighbours)
+            if by_position.box is None:
+                # A black-bordered single: everything visible fits that page size.
+                box = family_box(canvas, "single", neighbours)
+                if box is not None and _contains(box[0], box[2], *edges):
+                    by_position = replace(by_position, kind="single", box=box,
+                                          measured_box=(edges[0], 0, edges[1], canvas[1]),
+                                          source="suggested", review_reason=None)
+            if by_position.box is not None:
+                result.append(replace(by_position, by_position=True))
+                continue
         if measured:
             # A clearly exposed boundary wins over containment in another
             # family's larger rectangle. Resolve rounding overlap by distance.
@@ -321,6 +349,51 @@ def _cover_indexes(observations) -> set[int]:
         if width > nearest or width >= nearest * (1 - COVER_NARROWER_MAX):
             apart.add(index)
     return apart
+
+
+def _neighbour_family(family_at, index, canvas):
+    """The family of the nearest clearly measured screenshots before and after
+    this one, when both exist and agree."""
+    before = [family for i, family in family_at.items() if i < index and family[0] == canvas]
+    after = [family for i, family in family_at.items() if i > index and family[0] == canvas]
+    if not before or not after:
+        return None
+    previous = max((i for i, f in family_at.items() if i < index and f[0] == canvas))
+    following = min((i for i, f in family_at.items() if i > index and f[0] == canvas))
+    if family_at[previous] != family_at[following]:
+        return None
+    return family_at[previous][1]
+
+
+def _lone_wider(observations, skip) -> dict[int, int]:
+    """Screenshots that are the only one at their clear width, wider than the
+    book's one recurring page size: {index: that page size}. A Marvel page of
+    2063 x 3131 scaled into a 3056-high screenshot measures 2014 against the
+    book's 1988. Left in, it would set the size for every page."""
+    by_canvas = {}
+    for index, observation in enumerate(observations):
+        if index not in skip and (width := _clear_width(observation)) is not None:
+            by_canvas.setdefault(observation[1], []).append((width, index))
+    found = {}
+    for samples in by_canvas.values():
+        clusters = []
+        for width, index in sorted(samples):
+            if not clusters or width - clusters[-1][0][0] > max(3, round(width * .002)):
+                clusters.append([])
+            clusters[-1].append((width, index))
+        recurring = [cluster for cluster in clusters if len(cluster) >= 2]
+        if len(recurring) != 1:
+            continue
+        size = max(width for width, _ in recurring[0])
+        for cluster in clusters:
+            if len(cluster) == 1 and cluster[0][0] > size:
+                found[cluster[0][1]] = round(size)
+    return found
+
+
+def _apart(observation, wider_than=None) -> CropProposal | None:
+    proposal = _cover_proposal(observation)
+    return proposal if proposal is None or wider_than is None else replace(proposal, wider_than=wider_than)
 
 
 def _cover_proposal(observation) -> CropProposal | None:

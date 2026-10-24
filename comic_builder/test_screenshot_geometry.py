@@ -102,6 +102,62 @@ class ScreenshotGeometryTest(unittest.TestCase):
             self.assertFalse(any(p.family_widths for p in proposals))
             self.assertEqual({(p.kind, p.box) for p in proposals[6:]}, {("double", (50, 0, 1350, 1000))})
 
+    def test_one_wider_page_is_flagged_and_doesnt_set_the_page_size(self):
+        # 2063 x 3131 Marvel pages fitted to a 3056 screenshot measure 2014 against
+        # 1988 (here 658 against 650). One such page used to set every page's crop.
+        def book(directory, widths):
+            paths = []
+            for index, width in enumerate(widths):
+                image = Image.new("RGB", (1400, 1000), "black")
+                left = (1400 - width) // 2
+                image.paste("white", (left, 0, left + width, 1000))
+                ImageDraw.Draw(image).rectangle((left + 30, 40, left + width - 30, 960), fill=(180, 60, 60))
+                paths.append(Path(directory) / f"{index:03d}.png")
+                image.save(paths[-1])
+            return propose_crops(paths)
+        for stray in (658, 1316):
+            with self.subTest(stray=stray), tempfile.TemporaryDirectory() as directory:
+                proposals = book(directory, [650, 1300] * 3 + [stray] + [650, 1300] * 3)
+                self.assertEqual([p.page_width for p in proposals], [650, 1300] * 3 + [stray] + [650, 1300] * 3)
+                self.assertEqual([p.wider_than for p in proposals], [None] * 6 + [650] + [None] * 6)
+                self.assertEqual(proposals[6].source, "measured")
+        with tempfile.TemporaryDirectory() as directory:
+            # Two or more make a page size of their own, with the "reduced" warning.
+            proposals = book(directory, [650] * 5 + [658, 658] + [650] * 5)
+            self.assertEqual(proposals[0].family_widths, (650, 658))
+            self.assertFalse(any(p.wider_than for p in proposals))
+
+    def test_black_bordered_pages_take_the_page_size_of_the_pages_around_them(self):
+        # Eric's test: a run of 2014-wide pages (658 here) beside 1988 (650). Black-
+        # bordered spreads in that run fit inside 1988 doubles too, and used to get them.
+        def shot(directory, name, width, black=False):
+            image = Image.new("RGB", (1400, 1000), "black")
+            left = (1400 - width) // 2
+            draw = ImageDraw.Draw(image)
+            if black:  # Ragged panels inside a black border.
+                for row, (top, inset) in enumerate(((60, 70), (330, 95), (610, 80))):
+                    draw.rectangle((left + inset + 7 * row, top, left + width - inset - 11 * row, top + 240),
+                                   fill=(200, 90 + 40 * row, 40))
+            else:
+                image.paste("white", (left, 0, left + width, 1000))
+                draw.rectangle((left + 30, 40, left + width - 30, 960), fill=(180, 60, 60))
+            path = Path(directory) / f"{name:03d}.png"
+            image.save(path)
+            return path
+        with tempfile.TemporaryDirectory() as directory:
+            plan = ([(650, False), (1300, False)] * 3 + [(1300, True)] +          # 0-6: 1988 run
+                    [(1316, False)] * 3 + [(1316, True), (658, True), (1316, True)] +  # 7-12: 2014 run
+                    [(1316, False)] * 2 + [(650, False)] * 3)                   # 13-17
+            paths = [shot(directory, i, width, black) for i, (width, black) in enumerate(plan)]
+            proposals = propose_crops(paths)
+            self.assertEqual(proposals[0].family_widths, (650, 658))
+            self.assertEqual([(p.kind, p.page_width, p.by_position) for p in proposals[10:13]],
+                             [("double", 1316, True), ("single", 658, True), ("double", 1316, True)])
+            # Page 6 is where the runs meet: its neighbours disagree, so the
+            # smallest size holding its artwork, as before.
+            self.assertEqual((proposals[6].page_width, proposals[6].by_position), (1300, False))
+            self.assertFalse(any(p.by_position for i, p in enumerate(proposals) if i not in (10, 11, 12)))
+
     def test_hidden_edge_single_with_two_page_sizes_still_goes_to_review(self):
         # Two real page sizes (Marvel 1988 and 2063, say): which one a black page
         # belongs to can't be told from its artwork, so it's left for review.
