@@ -2187,6 +2187,9 @@ class ScreenshotCropDialog(OutlinedWindow, QDialog):
     def _dimensions(self, index):
         family = self.family_selection.get(index)
         if isinstance(family, int):
+            known = self.sizes.get(self.canvases[index], {})
+            if known.get("single") == family and "double" in known:
+                return dict(known)  # Keep a measured double's odd pixel (397 = 2 × 198 + 1).
             return {"single": family, "double": family * 2}
         choice = self.choices[index]
         if family == "own" and choice is not None and choice.kind in ("single", "double"):
