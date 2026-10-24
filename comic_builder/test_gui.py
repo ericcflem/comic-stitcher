@@ -522,6 +522,10 @@ class ThumbnailTest(unittest.TestCase):
             QTest.keyClick(dialog, Qt.Key_Return)
             image = dialog.image.pixmap().toImage()
             self.assertNotEqual(image.pixelColor(image.width() // 2, 20).name(), "#ffe500")
+            QTest.keyClick(dialog, Qt.Key_I)  # In: one pixel together.
+            QTest.keyClick(dialog, Qt.Key_I)
+            QTest.keyClick(dialog, Qt.Key_O)  # Out: one pixel apart.
+            self.assertEqual(dialog.overlap(), (1, "left"))
             QTest.keyClick(dialog, Qt.Key_Space)
             self.assertEqual(dialog.result(), QDialog.Accepted)
         finally:

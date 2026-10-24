@@ -404,7 +404,7 @@ class OverlapDialog(OutlinedDialog):
         row.addWidget(QLabel("Overlap"))
         self.apart = QPushButton("Apart")
         self.apart.setIcon(interface_icon("split"))
-        self.apart.setToolTip(tooltip_text("Move the halves one pixel apart."))
+        self.apart.setToolTip(tooltip_text("Move the halves one pixel apart (O, for out)."))
         self.apart.clicked.connect(lambda: self.pixels.stepBy(-1))
         row.addWidget(self.apart)
         self.pixels = QSpinBox()
@@ -415,7 +415,7 @@ class OverlapDialog(OutlinedDialog):
         row.addWidget(self.pixels)
         self.together = QPushButton("Together")
         self.together.setIcon(interface_icon("merge"))
-        self.together.setToolTip(tooltip_text("Move the halves one pixel closer together."))
+        self.together.setToolTip(tooltip_text("Move the halves one pixel closer together (I, for in)."))
         self.together.clicked.connect(lambda: self.pixels.stepBy(1))
         row.addWidget(self.together)
         self.find = QPushButton("Find overlap")
@@ -448,7 +448,7 @@ class OverlapDialog(OutlinedDialog):
         self.status = QLabel("")
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
-        keys = QLabel("Keys: ← → page on top · Enter seam line · Space done · Esc cancel")
+        keys = QLabel("Keys: I together · O apart · ← → page on top · Enter seam line · Space done · Esc cancel")
         keys.setStyleSheet("color:#5f6b76;")
         layout.addWidget(keys)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -464,6 +464,8 @@ class OverlapDialog(OutlinedDialog):
         for key, action in ((Qt.Key_Left, lambda: self.set_top("left")),
                             (Qt.Key_Right, lambda: self.set_top("right")),
                             (Qt.Key_Return, self.toggle_line), (Qt.Key_Enter, self.toggle_line),
+                            (Qt.Key_I, lambda: self.pixels.stepBy(1)),  # In: together.
+                            (Qt.Key_O, lambda: self.pixels.stepBy(-1)),  # Out: apart.
                             (Qt.Key_Space, self.accept)):
             shortcut = QShortcut(QKeySequence(key), self)
             shortcut.setContext(Qt.WindowShortcut)
