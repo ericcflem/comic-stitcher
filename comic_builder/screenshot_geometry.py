@@ -178,10 +178,16 @@ def propose_crops(paths: Iterable[Path], single_size: tuple[int, int] | None = N
                 if progress:
                     progress(completed, len(paths))
 
+    # The front and back covers are often a different width from the pages
+    # (narrower, or wider in some DC books), so they don't calibrate the page
+    # sizes. A cover whose edges are clear is cropped at its own size.
+    covers = _cover_indexes(observations)
+    pages = [o for index, o in enumerate(observations) if index not in covers]
+
     # Cluster clear, centered boundaries by their equivalent single width.
     # Two examples establish a recurring family; tiny rounding changes stay together.
     groups = {}
-    for observation in observations:
+    for observation in pages:
         _path, canvas, edges, kind, sparse, hard, _error = observation
         if edges is None or kind not in ("single", "double") or sparse or not hard:
             continue
@@ -202,13 +208,20 @@ def propose_crops(paths: Iterable[Path], single_size: tuple[int, int] | None = N
             families[canvas] = [(round(max(w for w, _ in cluster)),
                                  [obs for _, obs in cluster]) for cluster in recurring]
     if not families:
-        return _propose_observations(observations, single_size)
+        proposals = _propose_observations(observations, single_size, pages)
+        return [_cover_proposal(o) or p if index in covers else p
+                for index, (o, p) in enumerate(zip(observations, proposals, strict=True))]
     result = []
-    for observation in observations:
+    for index, observation in enumerate(observations):
         path, canvas, edges, kind, sparse, hard, error = observation
+        if index in covers and (cover := _cover_proposal(observation)) is not None:
+            result.append(cover)
+            continue
         if canvas not in families:
             same_canvas = [o for o in observations if o[1] == canvas]
-            result.append(next(p for p in _propose_observations(same_canvas, single_size) if p.path == path))
+            calibration = [o for o in pages if o[1] == canvas]
+            result.append(next(p for p in _propose_observations(same_canvas, single_size, calibration)
+                               if p.path == path))
             continue
         entries = families[canvas]
         widths = tuple(width for width, _ in entries)
@@ -249,6 +262,61 @@ def propose_crops(paths: Iterable[Path], single_size: tuple[int, int] | None = N
                                       review_reason="Multiple page-size families fit; choose the family and crop type.",
                                       family_widths=widths))
     return result
+
+
+def _clear_width(observation) -> float | None:
+    """A screenshot's page width per single page, when both edges are clear and centred."""
+    _path, canvas, edges, kind, sparse, hard, _error = observation
+    if edges is None or kind not in ("single", "double") or sparse or not hard:
+        return None
+    left, right = edges
+    if abs(left - (canvas[0] - right)) > max(4, canvas[0] // 150):
+        return None
+    return (right - left) / (2 if kind == "double" else 1)
+
+
+# A cover this much narrower than the pages, or less, is taken as its own size.
+# Much narrower usually means artwork inside a black border that blends into
+# the screenshot, so the page sizes decide instead.
+COVER_NARROWER_MAX = 0.03
+
+
+def _cover_indexes(observations) -> set[int]:
+    """Covers that stand apart from the page sizes: the first and last screenshots
+    of a book of several, when their clear width matches none of the other pages'
+    and is either wider than the nearest page size (some DC covers) or only a
+    little narrower (1969 against 1988, say). A cover the same size as the
+    pages still counts towards them."""
+    count = len(observations)
+    if count < 3:
+        return set()
+    apart = set()
+    for index in {0, count - 1}:
+        width = _clear_width(observations[index])
+        if width is None:
+            continue
+        canvas = observations[index][1]
+        others = [w for i, o in enumerate(observations)
+                  if i not in (0, count - 1) and o[1] == canvas and (w := _clear_width(o)) is not None]
+        if not others or any(abs(width - w) <= max(3, round(w * .002)) for w in others):
+            continue
+        nearest = min(others, key=lambda w: abs(width - w))
+        if width > nearest or width >= nearest * (1 - COVER_NARROWER_MAX):
+            apart.add(index)
+    return apart
+
+
+def _cover_proposal(observation) -> CropProposal | None:
+    """A cover with clear, centred edges, cropped at its own measured size; None
+    when its edges are hidden (black artwork), so the page sizes decide."""
+    path, canvas, edges, kind, sparse, hard, _error = observation
+    if edges is None or kind not in ("single", "double") or sparse or not hard:
+        return None
+    left, right = edges
+    if abs(left - (canvas[0] - right)) > max(4, canvas[0] // 150):
+        return None
+    box = (left, 0, right, canvas[1])
+    return CropProposal(path, canvas, kind, box, box, "measured")
 
 
 def _propose_observations(observations, single_size=None, calibration=None):

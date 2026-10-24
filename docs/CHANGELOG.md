@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Screenshot import: the front and back covers no longer set the book's page
+  sizes. A cover a little narrower than the pages (1969 against 1988 px, say)
+  or wider (as in some DC collections) is cropped at its own size, and the rest
+  of the book is measured without it. Before, two such covers made a page size
+  of their own, and black-bordered pages were cropped to it.
 - CMYK pages without a colour profile are converted as printed for US coated
   web offset (SWOP, CGATS TR 001), the usual conditions for North American
   comics, instead of with the plain formula. On an untagged CMYK page whose

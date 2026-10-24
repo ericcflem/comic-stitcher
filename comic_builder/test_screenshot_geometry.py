@@ -30,12 +30,48 @@ class ScreenshotGeometryTest(unittest.TestCase):
             image = Image.new("RGB", (1400, 1000), "black")
             image.paste("red", (100, 100, 1300, 900))
             image.save(dark)
+            # The dark last page looks like a clean page 8% narrower; too narrow to
+            # be a cover of its own size, so the page sizes decide its crop.
             proposals = propose_crops(paths + [dark])
             self.assertEqual([p.page_width for p in proposals[:-1]], expected)
             self.assertTrue(all(p.source == "measured" for p in proposals[:-1]))
             self.assertTrue(all(p.family_widths == (650, 666) for p in proposals))
             self.assertEqual(proposals[-1].page_width, 1300)
             self.assertEqual(proposals[-1].family_width, 650)
+
+    def covers_book(self, directory, cover_width):
+        """A book whose covers differ from its 650 px pages, with black-bordered spreads."""
+        def shot(name, width, black=False):
+            image = Image.new("RGB", (1400, 1000), "black")
+            left = (1400 - width) // 2
+            draw = ImageDraw.Draw(image)
+            if black:  # Ragged panels inside a black border that blends into the screenshot.
+                for row, (top, inset) in enumerate(((60, 70), (330, 95), (610, 80))):
+                    draw.rectangle((left + inset + 7 * row, top, left + width - inset - 11 * row, top + 240),
+                                   fill=(200, 90 + 40 * row, 40))
+            else:
+                image.paste("white", (left, 0, left + width, 1000))
+                draw.rectangle((left + 30, 40, left + width - 30, 960), fill=(180, 60, 60))
+            path = Path(directory) / f"{name}.png"
+            image.save(path)
+            return path
+        paths = [shot("000", cover_width)]
+        paths += [shot(f"{i:03d}", 1300 if i % 5 == 0 else 650) for i in range(1, 16)]
+        paths += [shot(f"{i:03d}", 1300, black=True) for i in range(16, 19)]
+        paths += [shot("019", cover_width)]
+        return paths
+
+    def test_covers_of_their_own_size_dont_set_the_page_sizes(self):
+        # 644 against 650 is 1969 against 1988 px; DC covers can be wider (2063).
+        for cover in (644, 674):
+            with self.subTest(cover=cover), tempfile.TemporaryDirectory() as directory:
+                proposals = propose_crops(self.covers_book(directory, cover))
+                self.assertEqual([(p.page_width, p.source) for p in (proposals[0], proposals[-1])],
+                                 [(cover, "measured")] * 2)
+                self.assertTrue(all(p.page_width in (650, 1300) for p in proposals[1:16]))
+                self.assertFalse(any(p.family_widths for p in proposals))  # One page size, not two.
+                # The black spreads take the pages' double crop, not twice the cover.
+                self.assertEqual({(p.kind, p.page_width) for p in proposals[16:19]}, {("double", 1300)})
 
     def test_different_capture_heights_keep_separate_profiles(self):
         with tempfile.TemporaryDirectory() as directory:
