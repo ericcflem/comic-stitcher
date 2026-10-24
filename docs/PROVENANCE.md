@@ -24,6 +24,9 @@ reuse or sale are added to MIT.
   editing. This process is documented without claiming exclusive copyright in all
   generated portions. Applicable provider terms remain part of provenance review.
 - Phosphor interface icons remain MIT-licensed under their retained upstream notice.
+- `comic_builder/cmyk_profile.py` embeds `CGATS001Compat-v2-micro.icc` from Clinton
+  Ingram's Compact ICC Profiles (public domain, CC0 1.0), byte for byte; its SHA-256
+  is recorded in the module and checked by the tests.
 
 ## Dependencies
 

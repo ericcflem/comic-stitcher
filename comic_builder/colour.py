@@ -7,8 +7,11 @@ Two kinds of page need care, because Pillow's plain conversions get them wrong:
   Converting that to "L" or "RGB" clips every value above 255, so anything
   lighter than nearly black turns white. These are scaled to 8 bits instead.
 - CMYK (some publishers' scans and PDF images) is converted with its embedded
-  colour profile when it has one, as the profile describes the printing inks;
-  Pillow's built-in formula is only used without one. PNG can't hold CMYK.
+  colour profile when it has one, as the profile describes the printing inks.
+  Without one (or with a damaged one) it is converted as printed for US coated
+  web offset (SWOP, see cmyk_profile.py), the usual conditions for North
+  American comics; Pillow's plain formula, which gives brighter, cast-prone
+  colours, is the last resort. PNG can't hold CMYK.
 
 Everything else is returned unchanged.
 """
@@ -18,6 +21,8 @@ from io import BytesIO
 
 import numpy as np
 from PIL import Image, ImageCms
+
+from .cmyk_profile import SWOP_PROFILE
 
 SIXTEEN_BIT_GREY = {"I;16", "I;16L", "I;16B", "I;16N", "I"}
 
@@ -34,18 +39,20 @@ def _sixteen_bit_to_l(image: Image.Image) -> Image.Image:
 
 
 def _cmyk_to_rgb(image: Image.Image) -> Image.Image:
-    profile = image.info.get("icc_profile")
-    if profile:
+    srgb = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB"))
+    # The page's own profile first; a damaged or mismatched one is passed over.
+    for profile in (image.info.get("icc_profile"), SWOP_PROFILE):
+        if not profile:
+            continue
         try:
-            srgb = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB"))
             out = ImageCms.profileToProfile(image, ImageCms.ImageCmsProfile(BytesIO(profile)), srgb,
                                             outputMode="RGB")
-            if out is not None:
-                out.info.update({key: value for key, value in image.info.items() if key != "icc_profile"})
-                out.info["icc_profile"] = srgb.tobytes()
-                return out
         except (ImageCms.PyCMSError, OSError, ValueError):
-            pass  # A damaged or mismatched profile: fall back to the plain conversion.
+            continue
+        if out is not None:
+            out.info.update({key: value for key, value in image.info.items() if key != "icc_profile"})
+            out.info["icc_profile"] = srgb.tobytes()
+            return out
     out = image.convert("RGB")
     out.info.pop("icc_profile", None)  # A CMYK profile doesn't describe the RGB result.
     return out
