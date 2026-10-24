@@ -253,6 +253,7 @@ class ThumbnailTest(unittest.TestCase):
                                   family_widths=(1988, 2014), family_width=1988) for i in range(5)]
             for i in (1, 3):
                 mixed[i] = replace(mixed[i], box=(1093, 0, 3107, 3056), family_width=2014)
+            mixed[3] = replace(mixed[3], source="suggested", by_position=True)
             for proposals, expected in ((stray, "Screenshot 3 measured wider (2014 × 3056 per page) than the book's pages (1988 × 3056)"),
                                         (mixed, "single widths 1988 (3 screenshots), 2014 (2 screenshots: 2, 4) pixels")):
                 shown = []
@@ -260,6 +261,8 @@ class ThumbnailTest(unittest.TestCase):
                     summary(window, proposals, [])
                 self.assertEqual(shown[0][0], "These pages may have been reduced during capture")
                 self.assertIn(expected, shown[0][1])
+            self.assertIn("Screenshot 4 has black borders hiding the page edges; given 2014 because the pages "
+                          "before and after are.", shown[1][1])
         finally:
             window.close()
 

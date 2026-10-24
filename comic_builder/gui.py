@@ -3896,6 +3896,14 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                 for canvas, widths in mixed.items()))
             lines.insert(1, "Some pages may originally have been taller and were scaled down during capture. Cropping cannot restore lost resolution. Consider taking new screenshots at the original page height, or continue using each detected family's own crop dimensions. Hidden-edge pages use the smallest established crop that contains the visible content, unless an exposed edge identifies another family. In Review crop previews you can choose the page size for any screenshot, or one size for all pages. Unresolved crops still need your choice.")
             dialog.setIcon(QMessageBox.Warning)
+            placed = {}
+            for index, proposal in enumerate(proposals):
+                if getattr(proposal, "by_position", False):
+                    placed.setdefault(proposal.family_width, []).append(index)
+            for width, indexes in sorted(placed.items()):
+                lines.insert(1, f"{'Screenshot' if len(indexes) == 1 else 'Screenshots'} {numbers(indexes)} "
+                                f"{'has' if len(indexes) == 1 else 'have'} black borders hiding the page edges; "
+                                f"given {width} because the pages before and after are.")
         wider = [(index, p) for index, p in enumerate(proposals) if getattr(p, "wider_than", None)]
         for index, p in reversed(wider):
             single = p.page_width // (2 if p.kind == "double" else 1)

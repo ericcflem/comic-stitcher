@@ -35,6 +35,10 @@ class CropProposal:
     # A single screenshot wider than the book's page size: its own crop, and a
     # sign it may have been scaled down to fit (retake it at full height).
     wider_than: int | None = None
+    # Its edges are hidden; its page size was taken from the clearly measured
+    # pages before and after it, which agree (sizes come in runs: an issue, a
+    # backup story).
+    by_position: bool = False
 
     @property
     def page_width(self) -> int | None:
@@ -232,6 +236,12 @@ def propose_crops(paths: Iterable[Path], single_size: tuple[int, int] | None = N
         proposals = _propose_observations(observations, single_size, pages)
         return [_apart(o, wider.get(index)) or p if index in covers else p
                 for index, (o, p) in enumerate(zip(observations, proposals, strict=True))]
+    # Which family each clearly measured screenshot belongs to, by position.
+    family_at = {}
+    for canvas, entries in families.items():
+        for width, anchors in entries:
+            for anchor in anchors:
+                family_at[next(i for i, o in enumerate(observations) if o is anchor)] = (canvas, width)
     result = []
     for index, observation in enumerate(observations):
         path, canvas, edges, kind, sparse, hard, error = observation
@@ -258,6 +268,19 @@ def propose_crops(paths: Iterable[Path], single_size: tuple[int, int] | None = N
                              if p.path == path)
             candidates.append(replace(candidate, family_widths=widths, family_width=width))
         measured = [p for p in candidates if p.source == "measured"]
+        neighbours = _neighbour_family(family_at, index, canvas)
+        if not measured and neighbours is not None and edges is not None:
+            by_position = next(p for p in candidates if p.family_width == neighbours)
+            if by_position.box is None:
+                # A black-bordered single: everything visible fits that page size.
+                box = family_box(canvas, "single", neighbours)
+                if box is not None and _contains(box[0], box[2], *edges):
+                    by_position = replace(by_position, kind="single", box=box,
+                                          measured_box=(edges[0], 0, edges[1], canvas[1]),
+                                          source="suggested", review_reason=None)
+            if by_position.box is not None:
+                result.append(replace(by_position, by_position=True))
+                continue
         if measured:
             # A clearly exposed boundary wins over containment in another
             # family's larger rectangle. Resolve rounding overlap by distance.
@@ -326,6 +349,20 @@ def _cover_indexes(observations) -> set[int]:
         if width > nearest or width >= nearest * (1 - COVER_NARROWER_MAX):
             apart.add(index)
     return apart
+
+
+def _neighbour_family(family_at, index, canvas):
+    """The family of the nearest clearly measured screenshots before and after
+    this one, when both exist and agree."""
+    before = [family for i, family in family_at.items() if i < index and family[0] == canvas]
+    after = [family for i, family in family_at.items() if i > index and family[0] == canvas]
+    if not before or not after:
+        return None
+    previous = max((i for i, f in family_at.items() if i < index and f[0] == canvas))
+    following = min((i for i, f in family_at.items() if i > index and f[0] == canvas))
+    if family_at[previous] != family_at[following]:
+        return None
+    return family_at[previous][1]
 
 
 def _lone_wider(observations, skip) -> dict[int, int]:

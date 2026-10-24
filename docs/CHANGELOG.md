@@ -7,6 +7,11 @@
   the crop for every page. It's cropped at its own size and the summary names it
   as possibly scaled down, to retake at full height. When a smaller page size
   recurs, the summary lists its screenshot numbers.
+- Screenshot import, books with two page sizes: a black-bordered page takes the
+  page size of the clearly measured pages before and after it when they agree,
+  since sizes come in runs (an issue, a backup story). Before, it took the
+  smaller size whenever its artwork fit. The summary names these pages, so a
+  retake list includes them.
 - Screenshot import: the front and back covers no longer set the book's page
   sizes. A cover a little narrower than the pages (1969 against 1988 px, say)
   or wider (as in some DC collections) is cropped at its own size, and the rest
