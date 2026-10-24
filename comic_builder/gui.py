@@ -2589,6 +2589,12 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         credit.setOpenExternalLinks(True)
         layout.addWidget(credit)
         layout.addWidget(QLabel("Page icons: Created by Eric Fleming."))
+        cmyk_credit = QLabel('CMYK profile for untagged pages: CGATS TR 001 from Clinton Ingram\'s '
+                             '<a href="https://github.com/saucecontrol/Compact-ICC-Profiles">Compact ICC '
+                             'Profiles</a> (public domain, CC0).')
+        cmyk_credit.setOpenExternalLinks(True)
+        cmyk_credit.setWordWrap(True)
+        layout.addWidget(cmyk_credit)
         logo_credit = QLabel("Application icon: Developed by Eric Fleming using Gemini and Grok, with manual editing.")
         logo_credit.setWordWrap(True)
         layout.addWidget(logo_credit)

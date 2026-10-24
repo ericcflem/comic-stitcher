@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- CMYK pages without a colour profile are converted as printed for US coated
+  web offset (SWOP, CGATS TR 001), the usual conditions for North American
+  comics, instead of with the plain formula. On an untagged CMYK page whose
+  publisher also supplied an RGB version, this halved the colour difference
+  (average ΔE 8.5 to 4.4), correcting skin tones and colour casts. Pages with
+  their own profile still use it. PDFs that are rendered aren't affected (PDFium
+  converts their colours). The profile is public domain (CC0) and built in.
 - **Seam** always opens the line-up tools, showing the seam as the pages will be
   joined, including a suggested overlap or covered border: in pair review
   (**Use this alignment**, then Yes or No), on a spread in the final review, and

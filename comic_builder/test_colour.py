@@ -1,13 +1,16 @@
 """16-bit greyscale and CMYK pages: shown, scanned and encoded with correct colour."""
+import hashlib
 import tempfile
 import unittest
 from io import BytesIO
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 from PIL import Image, ImageCms
 
 from .backend import ExportOptions, _encode_entry
+from .cmyk_profile import SWOP_PROFILE, SWOP_PROFILE_SHA256
 from .colour import standard_mode
 from .detector import classify_page
 
@@ -39,10 +42,11 @@ class StandardModeTests(unittest.TestCase):
     def test_cmyk_uses_its_embedded_profile(self):
         page = cmyk()
         page.info["icc_profile"] = CMYK_PROFILE
-        converted = standard_mode(page)
         srgb = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB"))
         expected = ImageCms.profileToProfile(page, ImageCms.ImageCmsProfile(BytesIO(CMYK_PROFILE)), srgb,
                                              outputMode="RGB")
+        with patch("comic_builder.colour.SWOP_PROFILE", b"not used"):  # Only the page's own profile counts.
+            converted = standard_mode(page)
         self.assertEqual(converted.mode, "RGB")
         self.assertEqual(converted.tobytes(), expected.tobytes())
         # The new profile is sRGB (its header records when it was made, so compare the rest).
@@ -50,13 +54,33 @@ class StandardModeTests(unittest.TestCase):
         self.assertEqual(profile[:24] + profile[36:], srgb.tobytes()[:24] + srgb.tobytes()[36:])
         self.assertNotEqual(converted.tobytes(), page.convert("RGB").tobytes())
 
-    def test_cmyk_without_a_usable_profile_uses_the_plain_conversion(self):
+    def test_cmyk_without_a_usable_profile_is_taken_as_printed_for_swop(self):
+        srgb = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB"))
         for info in ({}, {"icc_profile": b"not a profile"}):
             page = cmyk(1)
             page.info.update(info)
             converted = standard_mode(page)
-            self.assertEqual(converted.tobytes(), page.convert("RGB").tobytes())
-            self.assertNotIn("icc_profile", converted.info)
+            expected = ImageCms.profileToProfile(page, ImageCms.ImageCmsProfile(BytesIO(SWOP_PROFILE)), srgb,
+                                                 outputMode="RGB")
+            self.assertEqual(converted.tobytes(), expected.tobytes())
+            self.assertNotEqual(converted.tobytes(), page.convert("RGB").tobytes())
+            self.assertIn("icc_profile", converted.info)  # Tagged sRGB, like other converted pages.
+
+    def test_the_plain_conversion_is_the_last_resort(self):
+        page = cmyk(2)
+        with patch("comic_builder.colour.SWOP_PROFILE", b"broken"):
+            converted = standard_mode(page)
+        self.assertEqual(converted.tobytes(), page.convert("RGB").tobytes())
+        self.assertNotIn("icc_profile", converted.info)
+
+    def test_the_bundled_profile_is_the_recorded_one(self):
+        self.assertEqual(hashlib.sha256(SWOP_PROFILE).hexdigest(), SWOP_PROFILE_SHA256)
+        self.assertEqual(SWOP_PROFILE, CMYK_PROFILE)  # The CC0 file kept in test_data.
+        self.assertEqual(ImageCms.ImageCmsProfile(BytesIO(SWOP_PROFILE)).profile.xcolor_space, "CMYK")
+
+    def test_white_paper_stays_white(self):
+        converted = standard_mode(Image.new("CMYK", (4, 4), (0, 0, 0, 0)))
+        self.assertTrue(all(channel >= 250 for channel in converted.getpixel((0, 0))), converted.getpixel((0, 0)))
 
     def test_ordinary_pages_are_untouched(self):
         for mode in ("RGB", "RGBA", "L", "LA", "P", "1"):
