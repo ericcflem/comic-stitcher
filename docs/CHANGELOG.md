@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- Screenshot import: the front and back covers no longer set the book's page
+  sizes. A cover a little narrower than the pages (1969 against 1988 px, say)
+  or wider (as in some DC collections) is cropped at its own size, and the rest
+  of the book is measured without it. Before, two such covers made a page size
+  of their own, and black-bordered pages were cropped to it.
+- Screenshot import: a black-bordered single page whose edges run into the
+  screenshot's black no longer needs review. When the book has one page size and
+  everything visible on the page fits inside it, the page is cropped at that
+  size. Books with two page sizes still ask, since the artwork can't tell which.
+- Screenshot crop review: the page size is chosen with radio buttons, each
+  showing how many screenshots measured at it. "Use this size for all pages"
+  crops the whole book at the chosen size (pages at their own size, such as
+  covers, and crops adjusted by hand keep theirs), and "This page's own size"
+  measures one screenshot again on its own. Black-bordered spreads whose panels
+  end in straight lines could measure as extra page sizes; one click undoes that.
+- Screenshot import: a page whose top or bottom rows are black has a black
+  border, so the sides measured on it belong to the artwork, not the page. It no
+  longer makes a page size of its own (Fire Power: 1909 and 1913 beside 1988);
+  it's cropped at the book's page size like other black-bordered pages.
 - CMYK pages without a colour profile are converted as printed for US coated
   web offset (SWOP, CGATS TR 001), the usual conditions for North American
   comics, instead of with the plain formula. On an untagged CMYK page whose

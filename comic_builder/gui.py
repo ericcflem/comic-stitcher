@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
     QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox,
     QProgressBar, QPushButton, QScrollArea, QSizePolicy, QSpinBox,
     QStackedWidget, QTabWidget, QVBoxLayout, QWidget, QGroupBox, QStyle,
-    QDialogButtonBox, QProxyStyle, QStyleFactory,
+    QDialogButtonBox, QProxyStyle, QStyleFactory, QRadioButton, QButtonGroup,
 )
 
 from .backend import (
@@ -55,6 +55,7 @@ from .session import (cached_folder_scan, clear_session, read_session, restore_p
                       save_session, session_path)
 from .screenshot_import import (CropChoice, StagedScreenshots, analyze_screenshots,
                                 looks_like_screenshot_folder, stage_screenshots)
+from .screenshot_geometry import family_box, kind_for_extent, own_size, remeasure
 
 
 def compact_filename_range(names):
@@ -1866,11 +1867,36 @@ class ScreenshotCropDialog(OutlinedWindow, QDialog):
         self.book_size_widget.setLayout(book_row)
         self.book_size_widget.hide()
         outer.addWidget(self.book_size_widget)
-        self.family_selection = {}
-        self.family_combo = QComboBox()
-        self.family_combo.setToolTip("Choose the measured page-size family for this screenshot, then choose Single or Double. The crop outline updates to match.")
-        self.family_combo.currentIndexChanged.connect(self._select_crop_family)
-        outer.addWidget(self.family_combo)
+        # Page sizes per screenshot size: the measured families, or the one size.
+        self.canvas_families: dict[tuple[int, int], set[int]] = {}
+        everything = calibration or proposals
+        for proposal in everything:
+            if proposal.family_widths:
+                self.canvas_families.setdefault(proposal.canvas, set()).update(proposal.family_widths)
+        for canvas, known in self.sizes.items():
+            if canvas not in self.canvas_families and "single" in known:
+                self.canvas_families[canvas] = {known["single"]}
+        self.family_counts = {}
+        for proposal in everything:
+            family = self._family_of(proposal, sorted(self.canvas_families.get(proposal.canvas, ())))
+            if isinstance(family, int) and proposal.box is not None:
+                key = (proposal.canvas, family)
+                self.family_counts[key] = self.family_counts.get(key, 0) + 1
+        self.family_selection = {index: self._initial_family(index) for index in range(len(proposals))}
+        self.book_family = None  # (canvas, width) once "use for all pages" is on
+        family_row = QHBoxLayout()
+        family_row.addWidget(QLabel("Page size:"))
+        self.family_buttons = QButtonGroup(self)
+        self.family_row = family_row
+        family_row.addStretch()
+        self.all_pages = QCheckBox("Use this size for all pages")
+        self.all_pages.setToolTip("Crop every page at the selected size. Pages measured at a size of "
+                                  "their own (covers, say) and crops you adjusted by hand keep theirs.")
+        self.all_pages.toggled.connect(self._use_for_all)
+        family_row.addWidget(self.all_pages)
+        self.family_widget = QWidget()
+        self.family_widget.setLayout(family_row)
+        outer.addWidget(self.family_widget)
         content = QHBoxLayout()
         self.list = CropThumbnailList()
         self.list.setViewMode(QListWidget.IconMode)
@@ -2034,22 +2060,142 @@ class ScreenshotCropDialog(OutlinedWindow, QDialog):
         self.list.item(index).setText(f"{index + 1}" + (" · Review" if choice is None else ""))
         self.list.item(index).setToolTip(str(self.sources[index]))
 
-    def _select_crop_family(self, *_):
+    def _families(self, index):
+        return sorted(self.canvas_families.get(self.canvases[index], ()))
+
+    def _initial_family(self, index):
+        return self._family_of(self.proposals[index], self._families(index))
+
+    @staticmethod
+    def _family_of(proposal, families):
+        """The page size a proposal was cropped at, "own" for a page measured at
+        a size of its own, or None when it's still to be chosen."""
+        if proposal.family_width is not None:
+            return proposal.family_width
+        if own_size(proposal, families):
+            return "own"
+        box = proposal.box
+        if box is not None and proposal.kind in ("single", "double"):
+            width = (box[2] - box[0]) / (2 if proposal.kind == "double" else 1)
+            near = [f for f in families if abs(f - width) <= max(3, round(f * .002))]
+            if near:
+                return min(near, key=lambda f: abs(f - width))
+        return families[0] if len(families) == 1 else None
+
+    def _show_families(self, index):
+        for button in self.family_buttons.buttons():
+            self.family_buttons.removeButton(button)
+            self.family_row.removeWidget(button)
+            button.deleteLater()
+        canvas = self.canvases[index]
+        selected = self.family_selection.get(index)
+        options = [(width, f"{width} × {canvas[1]}" +
+                    (f" ({count} {'page' if count == 1 else 'pages'})"
+                     if (count := self.family_counts.get((canvas, width))) else ""))
+                   for width in self._families(index)]
+        own = "This page's own size"
+        choice = self.choices[index]
+        if selected == "own" and choice is not None:
+            own += f" ({choice.box[2] - choice.box[0]} × {canvas[1]})"
+        options.append(("own", own))
+        for position, (value, caption) in enumerate(options, 1):
+            button = QRadioButton(caption)
+            button.setChecked(value == selected)
+            if value == "own":
+                button.setToolTip("Measure this screenshot again on its own and crop it at the size "
+                                  "it measures (for a cover of a different size, say).")
+            else:
+                button.setToolTip("Crop this screenshot at this page size.")
+            button.clicked.connect(lambda _=False, v=value: self._select_family(v))
+            self.family_buttons.addButton(button)
+            self.family_row.insertWidget(position, button)
+        self.all_pages.blockSignals(True)
+        self.all_pages.setChecked(self.book_family is not None and self.book_family[0] == canvas)
+        self.all_pages.setEnabled(isinstance(selected, int) or self.all_pages.isChecked())
+        self.all_pages.blockSignals(False)
+
+    def _flagged(self, index, kind):
+        reason = getattr(self.proposals[index], "review_reason", None)
+        return (index not in self.replaced and
+                (kind == "sideways" or reason is not None and "middle width" in reason))
+
+    def _refit(self, index):
+        """Redraw this page's crop at its selected page size, keeping single or
+        double; a page still to review gets the kind its content suggests."""
+        choice = self.choices[index]
+        if choice is not None and choice.custom:
+            return
+        if choice is not None:
+            kind = choice.kind
+        else:
+            width = self.family_selection.get(index)
+            extent = None if index in self.replaced else getattr(self.proposals[index], "measured_box", None)
+            kind = kind_for_extent(extent, width) if isinstance(width, int) else None
+            if kind is None:
+                return
+        box = self._guide(kind, index)
+        if box is None:
+            return
+        self.choices[index] = CropChoice(self.sources[index], kind, box,
+                                         choice.inferred if choice and choice.box == box else True,
+                                         flagged=choice.flagged if choice else self._flagged(index, kind))
+        self._label_item(index)
+
+    def _select_family(self, value):
         index = self.list.currentRow()
-        width = self.family_combo.currentData()
-        if index >= 0 and width is not None:
-            self.family_selection[index] = width
+        if index < 0:
+            return
+        if value == "own":
+            found = remeasure(self.sources[index])
+            if found is None:
+                QMessageBox.information(self, "Measure this page",
+                                        "This page's edges blend into the background, so it can't be "
+                                        "measured on its own. Choose a page size instead.")
+                self.show_page(index)
+                return
+            self.family_selection[index] = "own"
+            self.choices[index] = CropChoice(self.sources[index], found.kind, found.box)
+            self._label_item(index)
+        else:
+            self.family_selection[index] = value
+            self._refit(index)
+            if self.all_pages.isChecked():
+                self._apply_family(self.canvases[index], value)
+        self.show_page(index)
+
+    def _apply_family(self, canvas, width):
+        self.book_family = (canvas, width)
+        for index in range(len(self.sources)):
             choice = self.choices[index]
-            if choice is not None:
-                self.choices[index] = None
-                self._label_item(index)
-            self.show_page(index)
+            if (self.canvases[index] != canvas or self.family_selection.get(index) == "own" or
+                    choice is not None and choice.custom):
+                continue
+            self.family_selection[index] = width
+            self._refit(index)
+
+    def _use_for_all(self, checked):
+        index = self.list.currentRow()
+        if index < 0:
+            return
+        selected = self.family_selection.get(index)
+        if checked and isinstance(selected, int):
+            self._apply_family(self.canvases[index], selected)
+        elif not checked:
+            self.book_family = None
+        self.show_page(index)
 
     def _dimensions(self, index):
-        proposal = self.proposals[index]
-        family = self.family_selection.get(index, proposal.family_width)
-        if family is not None and proposal.family_widths:
+        family = self.family_selection.get(index)
+        if isinstance(family, int):
+            known = self.sizes.get(self.canvases[index], {})
+            if (len(self.canvas_families.get(self.canvases[index], ())) == 1 and
+                    known.get("single") == family and "double" in known):
+                return dict(known)  # Keep a measured double's odd pixel (397 = 2 × 198 + 1).
             return {"single": family, "double": family * 2}
+        choice = self.choices[index]
+        if family == "own" and choice is not None and choice.kind in ("single", "double"):
+            single = (choice.box[2] - choice.box[0]) // (2 if choice.kind == "double" else 1)
+            return {"single": single, "double": choice.box[2] - choice.box[0]}
         canvas = self.canvases[index]
         known = self.sizes.get(canvas, {}).copy()
         if not known and self.base_size:
@@ -2081,17 +2227,7 @@ class ScreenshotCropDialog(OutlinedWindow, QDialog):
         canvas = self.canvases[index]
         choice = self.choices[index]
         proposal = self.proposals[index]
-        self.family_combo.blockSignals(True)
-        self.family_combo.clear()
-        self.family_combo.setVisible(bool(proposal.family_widths))
-        for width in proposal.family_widths:
-            self.family_combo.addItem(f"Page-size family: {width} × {canvas[1]} single / {width * 2} × {canvas[1]} double", width)
-        selected = self.family_selection.get(index, proposal.family_width)
-        if selected is not None:
-            self.family_combo.setCurrentIndex(self.family_combo.findData(selected))
-        elif proposal.family_widths:
-            self.family_selection[index] = proposal.family_widths[0]
-        self.family_combo.blockSignals(False)
+        self._show_families(index)
         self.page_label.setText(f"Screenshot {index + 1} of {len(self.sources)}" +
                                 (f" · {choice.kind.title()}" if choice else " · Choose a crop type"))
         box = choice.box if choice else (0, 0, canvas[0], canvas[1])
@@ -2143,6 +2279,10 @@ class ScreenshotCropDialog(OutlinedWindow, QDialog):
             if abs(canvas[1] - self.base_size[1]) <= max(2, round(self.base_size[1] * .002)):
                 self.sizes[canvas] = {"single": self.base_size[0],
                                       "double": self.base_size[0] * 2}
+                self.canvas_families.setdefault(canvas, set()).add(self.base_size[0])
+                for index, page in enumerate(self.canvases):
+                    if page == canvas and self.family_selection.get(index) != "own":
+                        self.family_selection[index] = self.base_size[0]
         for index, choice in enumerate(self.choices):
             if (choice is not None and not choice.custom and
                     (choice.inferred or self.proposals[index].box is None or
@@ -2164,10 +2304,7 @@ class ScreenshotCropDialog(OutlinedWindow, QDialog):
         old = self.choices[index]
         self.choices[index] = CropChoice(self.sources[index], kind, box,
                                          old.inferred if old and old.kind == kind else False,
-                                         flagged=(index not in self.replaced and
-                                                  (kind == "sideways" or
-                                                   self.proposals[index].review_reason is not None and
-                                                   "middle width" in self.proposals[index].review_reason)))
+                                         flagged=self._flagged(index, kind))
         self._label_item(index)
         self.show_page(index)
 
@@ -2209,6 +2346,8 @@ class ScreenshotCropDialog(OutlinedWindow, QDialog):
         self.crop_thumb_generation = self.crop_thumb_worker.reset([(p, None, 0) for p in self.sources])
         self.crop_thumb_loaded.clear()
         self.replaced.add(index)
+        if self.family_selection.get(index) == "own":
+            self.family_selection[index] = self._initial_family(index) if canvas == self.proposals[index].canvas else None
         self.choices[index] = None
         self._label_item(index)
         self.show_page(index)
@@ -3737,11 +3876,16 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         for proposal in proposals:
             if proposal.family_widths:
                 mixed[proposal.canvas] = proposal.family_widths
+
+        def counted(canvas, width):
+            count = sum(p.canvas == canvas and p.family_width == width for p in proposals)
+            return f"{width} ({count} {'screenshot' if count == 1 else 'screenshots'})"
         if mixed:
             lines.insert(0, "Multiple recurring page-size families were detected:\n" + "\n".join(
-                f"Screenshot height {canvas[1]}: single widths " + ", ".join(map(str, widths)) + " pixels."
+                f"Screenshot height {canvas[1]}: single widths " +
+                ", ".join(counted(canvas, width) for width in widths) + " pixels."
                 for canvas, widths in mixed.items()))
-            lines.insert(1, "Some pages may originally have been taller and were scaled down during capture. Cropping cannot restore lost resolution. Consider taking new screenshots at the original page height, or continue using each detected family's own crop dimensions. Hidden-edge pages use the smallest established crop that contains the visible content, unless an exposed edge identifies another family. You can inspect or change these choices in Review crop previews. Unresolved crops still need your choice.")
+            lines.insert(1, "Some pages may originally have been taller and were scaled down during capture. Cropping cannot restore lost resolution. Consider taking new screenshots at the original page height, or continue using each detected family's own crop dimensions. Hidden-edge pages use the smallest established crop that contains the visible content, unless an exposed edge identifies another family. In Review crop previews you can choose the page size for any screenshot, or one size for all pages. Unresolved crops still need your choice.")
             dialog.setIcon(QMessageBox.Warning)
         dialog.setText("These pages may have been reduced during capture" if mixed else "Ready to crop your screenshots")
         dialog.setInformativeText("\n\n".join(lines))
@@ -3789,10 +3933,24 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                 self._compact_window()
                 return
             reviewed = iter(review.approved_choices())
+            book_family = review.book_family
+        else:
+            book_family = None
         attention_set = set(attention)
         choices = [next(reviewed) if index in attention_set else
                    CropChoice(item.path, item.kind, item.box)
                    for index, item in enumerate(proposals)]
+        if book_family is not None:
+            # "Use this size for all pages" also covers pages that didn't need review.
+            canvas, width = book_family
+            for index, item in enumerate(proposals):
+                if (index in attention_set or item.canvas != canvas or
+                        own_size(item, review.canvas_families.get(canvas, ())) or
+                        item.kind not in ("single", "double")):
+                    continue
+                box = family_box(canvas, item.kind, width)
+                if box is not None and box != item.box:
+                    choices[index] = CropChoice(item.path, item.kind, box, True)
         self._stage_approved_screenshots(choices)
 
     def _stage_approved_screenshots(self, choices):

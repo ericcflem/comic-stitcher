@@ -78,14 +78,30 @@ def _horizontal_edges(image: Image.Image, black_limit: int = 6) -> tuple[int, in
         if (gradient[rise] >= 10 and gradient[fall] <= -10 and
                 abs(cliff_left - (width - cliff_right)) <= 4 and
                 _kind(cliff_right - cliff_left, height) in ("single", "double")):
-            return cliff_left, cliff_right, False, True
+            return cliff_left, cliff_right, False, not _black_framed(image, cliff_left, cliff_right, black_limit)
     sparse = min(count[left], count[right - 1]) < max(3, round(height * .01))
     white_inside = (right - left > 2 and
                     min(white_count[left + 1], white_count[right - 2]) >= height * .95)
     hard_edges = (left > 0 and right < width and
                   count[left - 1] <= 1 and count[right] <= 1 and
                   (white_inside or min(count[left], count[right - 1]) >= height * .95))
+    if hard_edges and _black_framed(image, left, right, black_limit):
+        hard_edges = False
     return left, right, bool(sparse), bool(hard_edges)
+
+
+def _black_framed(image: Image.Image, left: int, right: int, black_limit: int) -> bool:
+    """A page fills the screenshot's height, so its top and bottom rows show the
+    page. When either is black across the measured width, the page has a black
+    border, which is the same black as the screenshot: the sides measured are
+    the artwork's (panels ending in straight lines, say), not the page's."""
+    width, height = image.size
+    rows = max(2, round(height * .003))
+    for top in (0, height - rows):
+        strip = np.asarray(image.crop((left, top, right, top + rows)).convert("RGB"))
+        if np.count_nonzero(np.max(strip, axis=2) > black_limit) < strip.shape[0] * strip.shape[1] * .02:
+            return True
+    return False
 
 
 def _kind(width: int, height: int) -> str:
@@ -178,10 +194,16 @@ def propose_crops(paths: Iterable[Path], single_size: tuple[int, int] | None = N
                 if progress:
                     progress(completed, len(paths))
 
+    # The front and back covers are often a different width from the pages
+    # (narrower, or wider in some DC books), so they don't calibrate the page
+    # sizes. A cover whose edges are clear is cropped at its own size.
+    covers = _cover_indexes(observations)
+    pages = [o for index, o in enumerate(observations) if index not in covers]
+
     # Cluster clear, centered boundaries by their equivalent single width.
     # Two examples establish a recurring family; tiny rounding changes stay together.
     groups = {}
-    for observation in observations:
+    for observation in pages:
         _path, canvas, edges, kind, sparse, hard, _error = observation
         if edges is None or kind not in ("single", "double") or sparse or not hard:
             continue
@@ -202,13 +224,20 @@ def propose_crops(paths: Iterable[Path], single_size: tuple[int, int] | None = N
             families[canvas] = [(round(max(w for w, _ in cluster)),
                                  [obs for _, obs in cluster]) for cluster in recurring]
     if not families:
-        return _propose_observations(observations, single_size)
+        proposals = _propose_observations(observations, single_size, pages)
+        return [_cover_proposal(o) or p if index in covers else p
+                for index, (o, p) in enumerate(zip(observations, proposals, strict=True))]
     result = []
-    for observation in observations:
+    for index, observation in enumerate(observations):
         path, canvas, edges, kind, sparse, hard, error = observation
+        if index in covers and (cover := _cover_proposal(observation)) is not None:
+            result.append(cover)
+            continue
         if canvas not in families:
             same_canvas = [o for o in observations if o[1] == canvas]
-            result.append(next(p for p in _propose_observations(same_canvas, single_size) if p.path == path))
+            calibration = [o for o in pages if o[1] == canvas]
+            result.append(next(p for p in _propose_observations(same_canvas, single_size, calibration)
+                               if p.path == path))
             continue
         entries = families[canvas]
         widths = tuple(width for width, _ in entries)
@@ -220,7 +249,8 @@ def propose_crops(paths: Iterable[Path], single_size: tuple[int, int] | None = N
             subset = list(anchors)
             if observation not in subset:
                 subset.append(observation)
-            candidate = next(p for p in _propose_observations(subset, None, anchors) if p.path == path)
+            candidate = next(p for p in _propose_observations(subset, None, anchors, hidden_singles=False)
+                             if p.path == path)
             candidates.append(replace(candidate, family_widths=widths, family_width=width))
         measured = [p for p in candidates if p.source == "measured"]
         if measured:
@@ -251,7 +281,117 @@ def propose_crops(paths: Iterable[Path], single_size: tuple[int, int] | None = N
     return result
 
 
-def _propose_observations(observations, single_size=None, calibration=None):
+def _clear_width(observation) -> float | None:
+    """A screenshot's page width per single page, when both edges are clear and centred."""
+    _path, canvas, edges, kind, sparse, hard, _error = observation
+    if edges is None or kind not in ("single", "double") or sparse or not hard:
+        return None
+    left, right = edges
+    if abs(left - (canvas[0] - right)) > max(4, canvas[0] // 150):
+        return None
+    return (right - left) / (2 if kind == "double" else 1)
+
+
+# A cover this much narrower than the pages, or less, is taken as its own size.
+# Much narrower usually means artwork inside a black border that blends into
+# the screenshot, so the page sizes decide instead.
+COVER_NARROWER_MAX = 0.03
+
+
+def _cover_indexes(observations) -> set[int]:
+    """Covers that stand apart from the page sizes: the first and last screenshots
+    of a book of several, when their clear width matches none of the other pages'
+    and is either wider than the nearest page size (some DC covers) or only a
+    little narrower (1969 against 1988, say). A cover the same size as the
+    pages still counts towards them."""
+    count = len(observations)
+    if count < 3:
+        return set()
+    apart = set()
+    for index in {0, count - 1}:
+        width = _clear_width(observations[index])
+        if width is None:
+            continue
+        canvas = observations[index][1]
+        others = [w for i, o in enumerate(observations)
+                  if i not in (0, count - 1) and o[1] == canvas and (w := _clear_width(o)) is not None]
+        if not others or any(abs(width - w) <= max(3, round(w * .002)) for w in others):
+            continue
+        nearest = min(others, key=lambda w: abs(width - w))
+        if width > nearest or width >= nearest * (1 - COVER_NARROWER_MAX):
+            apart.add(index)
+    return apart
+
+
+def _cover_proposal(observation) -> CropProposal | None:
+    """A cover with clear, centred edges, cropped at its own measured size; None
+    when its edges are hidden (black artwork), so the page sizes decide."""
+    path, canvas, edges, kind, sparse, hard, _error = observation
+    if edges is None or kind not in ("single", "double") or sparse or not hard:
+        return None
+    left, right = edges
+    if abs(left - (canvas[0] - right)) > max(4, canvas[0] // 150):
+        return None
+    box = (left, 0, right, canvas[1])
+    return CropProposal(path, canvas, kind, box, box, "measured")
+
+
+def _contains(x: int, end: int, left: int, right: int) -> bool:
+    """Visible content inside a crop, allowing a few pixels of compression ringing."""
+    tolerance = max(3, round((end - x) * .002))
+    return x - tolerance <= left and right <= end + tolerance
+
+
+def _hidden_single(left: int, right: int, canvas: tuple[int, int],
+                   known: dict[str, int]) -> tuple[int, int, int, int] | None:
+    """The book's single-page rectangle, centred, when a page whose edges are
+    both hidden (black borders running into the screenshot's black) has all its
+    visible content inside it: nothing on it is wider than a single page."""
+    if "single" not in known:
+        return None
+    single = known["single"]
+    x = (canvas[0] - single) // 2
+    tolerance = max(3, round(single * .002))
+    if x - tolerance <= left and right <= x + single + tolerance:
+        return (x, 0, x + single, canvas[1])
+    return None
+
+
+def family_box(canvas: tuple[int, int], kind: str,
+               single_width: int) -> tuple[int, int, int, int] | None:
+    """The centred crop for a single or double page of a page-size family."""
+    width = single_width * (2 if kind == "double" else 1)
+    if width > canvas[0]:
+        return None
+    x = (canvas[0] - width) // 2
+    return (x, 0, x + width, canvas[1])
+
+
+def kind_for_extent(extent: tuple[int, int, int, int] | None,
+                    single_width: int) -> str | None:
+    """Single or double, judged by how wide the visible content is."""
+    if extent is None:
+        return None
+    return "double" if extent[2] - extent[0] > single_width * 1.05 else "single"
+
+
+def own_size(proposal, families) -> bool:
+    """A page measured at a size of its own (a cover, say), matching none of
+    the page sizes; choosing a page size for the whole book leaves it alone."""
+    if proposal.source != "measured" or proposal.box is None or proposal.kind not in ("single", "double"):
+        return False
+    width = (proposal.box[2] - proposal.box[0]) / (2 if proposal.kind == "double" else 1)
+    return not any(abs(width - family) <= max(3, round(family * .002)) for family in families)
+
+
+def remeasure(path: Path) -> CropProposal | None:
+    """Measure one screenshot on its own, ignoring the book's page sizes; None
+    when its edges aren't clear and centred."""
+    return _cover_proposal(_observe(Path(path)))
+
+
+def _propose_observations(observations, single_size=None, calibration=None,
+                          hidden_singles=True):
     profiles: dict[tuple[int, int], dict[str, int]] = {}
     templates: dict[tuple[int, int], dict[str, list[tuple[int, int]]]] = {}
     for _path, canvas, edges, kind, sparse, hard_edges, _error in (observations if calibration is None else calibration):
@@ -335,12 +475,16 @@ def _propose_observations(observations, single_size=None, calibration=None):
             if likely_double and "double" in known:
                 double = known["double"]
                 x = (canvas[0] - double) // 2
-                if x <= left and right <= x + double:
+                if _contains(x, x + double, left, right):
                     suggestion = (x, 0, x + double, canvas[1])
             if suggestion is not None and _wide_double_evidence(raw_width, canvas, known):
                 # Even sparse marks spanning beyond the gray zone cannot fit
                 # on a single page. The crop itself comes from clear pages.
                 result.append(CropProposal(path, canvas, "double", suggestion,
+                                           visible, "suggested"))
+                continue
+            if hidden_singles and (single := _hidden_single(left, right, canvas, known)):
+                result.append(CropProposal(path, canvas, "single", single,
                                            visible, "suggested"))
                 continue
             reason = _middle_reason(raw_width, canvas, known)
@@ -377,7 +521,7 @@ def _propose_observations(observations, single_size=None, calibration=None):
             # one edge happens to align with the usual double-page crop.
             double = known["double"]
             x = (canvas[0] - double) // 2
-            option = (x, 0, x + double, canvas[1]) if x <= left and right <= x + double else None
+            option = (x, 0, x + double, canvas[1]) if _contains(x, x + double, left, right) else None
             result.append(CropProposal(path, canvas, "uncertain", None, measured,
                                        "review", suggested_box=option,
                                        review_reason=middle))
@@ -405,11 +549,18 @@ def _propose_observations(observations, single_size=None, calibration=None):
                 double = known["double"]
                 x = (canvas[0] - double) // 2
                 if (_wide_double_evidence(raw_width, canvas, known) and
-                        x <= left and right <= x + double):
+                        _contains(x, x + double, left, right)):
                     result.append(CropProposal(path, canvas, "double",
                                                (x, 0, x + double, canvas[1]),
                                                measured, "suggested"))
                     continue
+            # Everything visible fits inside the book's one single-page size,
+            # so it's a single page at that size. (With two page sizes in the
+            # book, the family code decides instead; see hidden_singles.)
+            if hidden_singles and (single := _hidden_single(left, right, canvas, known)):
+                result.append(CropProposal(path, canvas, "single", single,
+                                           measured, "suggested"))
+                continue
             # Wider than a calibrated single but unlike an ordinary double:
             # likely a special spread. Leave the proposed extent for review.
             unusual_wide = (kind == "uncertain" and "single" in known and
@@ -418,7 +569,7 @@ def _propose_observations(observations, single_size=None, calibration=None):
             if unusual_wide and "double" in known:
                 double = known["double"]
                 x = (canvas[0] - double) // 2
-                if x <= left and right <= x + double:
+                if _contains(x, x + double, left, right):
                     suggestion = (x, 0, x + double, canvas[1])
             result.append(CropProposal(path, canvas, "uncertain",
                                        None, measured, "review", suggested_box=suggestion,
