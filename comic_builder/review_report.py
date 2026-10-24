@@ -6,7 +6,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .backend import BookPlan, POSSIBLE_MIN_SCORE
+from .backend import BookPlan, POSSIBLE_MIN_SCORE, offered
 
 
 def report_data(plan: BookPlan) -> dict:
@@ -22,7 +22,7 @@ def report_data(plan: BookPlan) -> dict:
             status = "approved" if decision else "rejected"
         elif candidate.left in used or candidate.right in used:
             status = "overlapped"
-        elif not candidate.likely and candidate.continuity < POSSIBLE_MIN_SCORE:
+        elif not offered(candidate):
             status = "below_cutoff"
         elif plan.deferred_possible and not candidate.likely:
             status = "deferred"
@@ -57,6 +57,14 @@ def report_data(plan: BookPlan) -> dict:
         "review_complete": counts["pending"] == 0 and counts["deferred"] == 0,
         "continued_with_possible_unreviewed": plan.deferred_possible,
         "counts": counts,
+        # Spreads sliced with an overlap: what the scan found, what was decided, and
+        # the overlap each joined spread ended up with (Seam can change it).
+        "overlapping_halves": [
+            {"left_page": c["left_page"], "right_page": c["right_page"],
+             "repeated_px": c["metrics"]["overlap"], "status": c["status"],
+             "final_overlap_px": plan.join_overlaps.get(c["left_page"] - 1, (0, ""))[0]
+             if c["joined_in_final_preview"] else None}
+            for c in candidates if c["metrics"].get("overlap")],
         "rotated_single_pages": [
             {"file": pages[left].path.name, "rotation_clockwise": degrees}
             for left, degrees in sorted(plan.rotations.items()) if left not in approved

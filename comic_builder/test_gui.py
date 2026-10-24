@@ -1646,6 +1646,27 @@ class ThumbnailTest(unittest.TestCase):
             finally:
                 window.close()
 
+    def test_overlapped_halves_are_suggested_lined_up_in_pair_review(self):
+        from .test_spread_overlap import SuggestionTests
+        with tempfile.TemporaryDirectory() as directory:
+            scan = SuggestionTests().book(Path(directory))
+            window = ComicWindow()
+            try:
+                window.show()
+                window.scan_done(scan)
+                while window.plan.current() and window.plan.current()[1].left != 1:
+                    window.decide(False)
+                self.assertIn("overlapping halves (34 px", window.review_heading.text())
+                self.assertEqual(window.joined_review.overlap, 34)
+                rects = window.joined_review.image_rects()
+                if rects:  # Drawn overlapping, as the spread will be joined.
+                    left, right = rects
+                    self.assertLess(right.left(), left.right())
+                window.decide(True)
+                self.assertEqual(window.plan.join_overlaps, {1: (34, "right")})
+            finally:
+                window.close()
+
     def make_book(self, root: Path, name: str, shade=0) -> Path:
         folder = root / name
         folder.mkdir()

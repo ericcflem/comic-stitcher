@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Overlapping halves are suggested: the import scan looks for a strip of art
+  repeated on both pages of each neighbouring pair it checks, even where the
+  edges don't match. Pair review offers such a pair as **Possible · overlapping
+  halves**, drawn lined up; **Yes** joins it over the repeated strip, and Seam in
+  the final review can still adjust it. Each one found is noted in the
+  diagnostic log and in the pair review report (`overlapping_halves`), with what
+  was decided.
 - Spreads whose halves overlap: some books slice a spread from a page narrower
   than two pages, so both halves repeat a strip of art at the seam. In the final
   review, select the spread and choose **Seam** to line it up: **Find overlap**

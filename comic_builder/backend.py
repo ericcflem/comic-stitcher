@@ -137,12 +137,24 @@ def _scan_jobs(function, jobs: list[tuple], workers: int, done: Callable[[], Non
 
 def _measured_candidate(left: int, right: int, visual_left: Path, visual_right: Path,
                         left_info, right_info) -> Candidate:
-    """Score the seam between two neighbouring pages, as they appear side by side."""
-    score = seam_score(load_edge_rgb(visual_left, "right", band=SEAM_BAND_PX),
-                       load_edge_rgb(visual_right, "left", band=SEAM_BAND_PX), band=SEAM_BAND_PX)
-    return Candidate(left, right, score["continuity"], score["continuity"] >= LIKELY_MIN_SCORE,
-                     {"seam": score, "left_page_right_edge": left_info.right_stats,
-                      "right_page_left_edge": right_info.left_stats})
+    """Score the seam between two neighbouring pages, as they appear side by side,
+    and look for a strip of art both repeat (a spread sliced with an overlap)."""
+    seam_columns = 8 * SEAM_BAND_PX  # As load_edge_rgb reads for the seam score.
+    limit = overlap_limit(left_info.width, right_info.width)
+    left_edge = load_edge_rgb(visual_left, "right", width=max(seam_columns, limit + OVERLAP_RIGHT_COLUMNS))
+    right_edge = load_edge_rgb(visual_right, "left", width=max(seam_columns, OVERLAP_RIGHT_COLUMNS))
+    score = seam_score(left_edge[:, -seam_columns:], right_edge[:, :seam_columns], band=SEAM_BAND_PX)
+    metrics = {"seam": score, "left_page_right_edge": left_info.right_stats,
+               "right_page_left_edge": right_info.left_stats}
+    overlap = overlap_in(left_edge, right_edge, limit)
+    if overlap:
+        metrics["overlap"] = overlap
+    return Candidate(left, right, score["continuity"], score["continuity"] >= LIKELY_MIN_SCORE, metrics)
+
+
+def offered(candidate: Candidate) -> bool:
+    """Whether pair review shows this pair: a likely or possible seam, or a repeated strip."""
+    return candidate.likely or candidate.continuity >= POSSIBLE_MIN_SCORE or bool(candidate.metrics.get("overlap"))
 
 
 def scan_folder(folder: Path, progress: Callable[[int, int], None] | None = None,
@@ -337,7 +349,7 @@ class BookPlan:
         neighbors = self.neighbor_pairs()
         used = {j for i in self.approved() for j in (i, self.partner(i))}
         for index, candidate in sorted(enumerate(self.scan.candidates), key=lambda item: (not item[1].likely, item[0])):
-            if not candidate.likely and candidate.continuity < POSSIBLE_MIN_SCORE:
+            if not offered(candidate):
                 continue
             if ((candidate.left, candidate.right) in neighbors and index not in self.decisions and candidate.left not in used and candidate.right not in used
                     and candidate.left not in self.removed_pages
@@ -348,7 +360,7 @@ class BookPlan:
     def remaining_possible(self) -> int:
         neighbors = self.neighbor_pairs()
         used = {j for i in self.approved() for j in (i, self.partner(i))}
-        return sum(not candidate.likely and candidate.continuity >= POSSIBLE_MIN_SCORE and
+        return sum(not candidate.likely and offered(candidate) and
                    (candidate.left, candidate.right) in neighbors and index not in self.decisions and
                    candidate.left not in used and candidate.right not in used and
                    candidate.left not in self.removed_pages and
@@ -378,6 +390,11 @@ class BookPlan:
         self.preview_history.clear()
         self.history.append(item[0] if self.scan.manual_mode else self.decisions.copy())
         self.decisions[item[0]] = yes
+        overlap = item[1].metrics.get("overlap")
+        if yes and overlap:  # Joined over the strip both halves repeat.
+            self.join_overlaps[item[1].left] = (overlap, "right")
+        else:
+            self.join_overlaps.pop(item[1].left, None)
         if yes:
             self.rotations = {left: degrees for left, degrees in self.rotations.items()
                               if left == item[1].left or
@@ -409,6 +426,8 @@ class BookPlan:
                 self.rotations[previous["removed"]] = previous["rotation"]
         else:
             self.decisions = previous
+        approved = self.approved()
+        self.join_overlaps = {left: value for left, value in self.join_overlaps.items() if left in approved}
         return True
 
     def partner(self, left: int) -> int:
@@ -470,6 +489,7 @@ class BookPlan:
                           else "there is a gap in the source page numbers")
                 raise BoundaryOverrideRequired(f"The scanner excluded this pair because {reason}.")
         self.checkpoint_preview("join", left)
+        self.join_overlaps.pop(left, None)  # A new join starts without an overlap.
         self.manual_pairs.add(left)
         self.manual_rights[left] = right
         self.joined_rotations[left] = (self.rotations.pop(left, 0), self.rotations.pop(right, 0))
@@ -683,20 +703,28 @@ OVERLAP_STRIP = 12  # Columns of the right page compared at each position.
 OVERLAP_EDGE = 4
 
 
-def measure_overlap(left: Image.Image, right: Image.Image) -> int | None:
-    """How many pixels of art the halves of a spread repeat at the seam, or None.
+def overlap_limit(left_width: int, right_width: int) -> int:
+    """The widest overlap searched for between pages this wide."""
+    return int(min(OVERLAP_MAX_PIXELS, min(left_width, right_width) * OVERLAP_MAX_SHARE))
 
-    A spread sliced from a page narrower than two pages gives each half a copy of
-    the strip around the middle. A few columns from the start of the right page
-    are compared with the left page at every position near its edge; a repeat
-    is accepted only where they match far better than anywhere else, and only
-    when those columns have detail (flat colour would match anywhere).
+
+def _luma(pixels: np.ndarray) -> np.ndarray:
+    pixels = pixels.astype(np.float32)
+    return pixels[..., 0] * 0.299 + pixels[..., 1] * 0.587 + pixels[..., 2] * 0.114
+
+
+def overlap_in(left_edge: np.ndarray, right_edge: np.ndarray, limit: int) -> int | None:
+    """The repeated strip between the end of one page and the start of the next.
+
+    left_edge: RGB pixels of the left page's right-hand end (at least `limit`
+    plus a few dozen columns); right_edge: the right page's first columns. Both
+    top-aligned. See measure_overlap.
     """
-    height = min(left.height, right.height)
+    height = min(left_edge.shape[0], right_edge.shape[0])
     step = max(1, height // 1500)  # Every row isn't needed to recognise the art.
-    a = np.asarray(left.convert("L").crop((0, 0, left.width, height)), dtype=np.float32)[::step]
-    b = np.asarray(right.convert("L").crop((0, 0, right.width, height)), dtype=np.float32)[::step]
-    limit = int(min(OVERLAP_MAX_PIXELS, min(left.width, right.width) * OVERLAP_MAX_SHARE))
+    a = _luma(left_edge[:height:step])
+    b = _luma(right_edge[:height:step])
+    limit = min(limit, a.shape[1] - OVERLAP_STRIP)
     # Skip a thin border on the right page if the first columns don't line up.
     for skip in (0, 8, 16, 24):
         template = b[:, skip:skip + OVERLAP_STRIP]
@@ -706,6 +734,8 @@ def measure_overlap(left: Image.Image, right: Image.Image) -> int | None:
         scores = []
         for pixels in range(shortest, limit + 1):
             start = a.shape[1] - pixels + skip
+            if start < 0:
+                break
             scores.append((float(np.abs(a[:, start:start + OVERLAP_STRIP] - template).mean()), pixels))
         if len(scores) < 8:
             continue
@@ -717,6 +747,27 @@ def measure_overlap(left: Image.Image, right: Image.Image) -> int | None:
                 and match <= 0.25 * typical and match <= 0.5 * runner_up):
             return pixels
     return None
+
+
+# Columns read from each page edge so the scan can look for a repeated strip.
+OVERLAP_RIGHT_COLUMNS = 24 + OVERLAP_STRIP + 4
+
+
+def measure_overlap(left: Image.Image, right: Image.Image) -> int | None:
+    """How many pixels of art the halves of a spread repeat at the seam, or None.
+
+    A spread sliced from a page narrower than two pages gives each half a copy of
+    the strip around the middle. A few columns from the start of the right page
+    are compared with the left page at every position near its edge; a repeat
+    is accepted only where they match far better than anywhere else, and only
+    when those columns have detail (flat colour would match anywhere).
+    """
+    height = min(left.height, right.height)
+    limit = overlap_limit(left.width, right.width)
+    width = min(left.width, limit + OVERLAP_RIGHT_COLUMNS)
+    left_edge = np.asarray(left.convert("RGB").crop((left.width - width, 0, left.width, height)))
+    right_edge = np.asarray(right.convert("RGB").crop((0, 0, min(right.width, OVERLAP_RIGHT_COLUMNS), height)))
+    return overlap_in(left_edge, right_edge, limit)
 
 
 def rotated_image(image: Image.Image, rotation: int) -> Image.Image:

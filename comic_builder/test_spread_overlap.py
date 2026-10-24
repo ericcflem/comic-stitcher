@@ -8,8 +8,9 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
-from .backend import (BookPlan, ExportOptions, _entry_size, export_book, measure_overlap,
+from .backend import (BookPlan, ExportOptions, _entry_size, export_book, measure_overlap, offered,
                       scan_folder, stitched_image)
+from .review_report import report_data
 from .session import read_session, restore_plan, save_session
 
 
@@ -146,6 +147,46 @@ class JoinTests(unittest.TestCase):
             snapshot.pop("join_overlaps", None)
         self.assertEqual(restore_plan(self.plan.scan, data).join_overlaps, {})
 
+
+
+class SuggestionTests(unittest.TestCase):
+    """The import scan offers overlapped halves for review, lined up."""
+
+    def book(self, folder: Path, right_to_left=False):
+        spread = artwork(seed=11)
+        left, right = halves(spread, 34)
+        pages = [artwork(seed=20).crop((0, 0, left.width, 700)), jpeg(left), jpeg(right),
+                 artwork(seed=21).crop((0, 0, right.width, 700))]
+        # Back-to-front files keep the spread's left half before its right half on
+        # disk; reading right to left, the scan meets the right half first.
+        for number, page in enumerate(pages, 1):
+            page.save(folder / f"{number:03d}.jpg", quality=80)
+        return scan_folder(folder, right_to_left=right_to_left)
+
+    def test_overlapped_halves_are_offered_and_joined_lined_up(self):
+        with tempfile.TemporaryDirectory() as directory:
+            scan = self.book(Path(directory))
+            found = {(c.left, c.right): c.metrics.get("overlap") for c in scan.candidates}
+            self.assertEqual(found.get((1, 2)), 34)
+            self.assertFalse([pair for pair, overlap in found.items() if overlap and pair != (1, 2)])
+            plan = BookPlan(scan)
+            index, candidate = next((i, c) for i, c in enumerate(scan.candidates) if (c.left, c.right) == (1, 2))
+            self.assertTrue(offered(candidate))
+            while plan.current() and plan.current()[0] != index:
+                plan.decide(False)
+            plan.decide(True)
+            self.assertEqual(plan.join_overlaps, {1: (34, "right")})
+            report = report_data(plan)
+            self.assertEqual(report["overlapping_halves"],
+                             [{"left_page": 2, "right_page": 3, "repeated_px": 34, "status": "approved",
+                               "final_overlap_px": 34}])
+            plan.back()  # Undoing the decision drops the overlap with the join.
+            self.assertEqual(plan.join_overlaps, {})
+
+    def test_found_in_back_to_front_books_too(self):
+        with tempfile.TemporaryDirectory() as directory:
+            scan = self.book(Path(directory), right_to_left=True)
+            self.assertEqual([c.metrics["overlap"] for c in scan.candidates if c.metrics.get("overlap")], [34])
 
 if __name__ == "__main__":
     unittest.main()

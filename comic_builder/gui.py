@@ -33,7 +33,7 @@ from .backend import (
     safe_book_name, scan_folder, scan_manual_folder, stitched_image, rotated_image,
     encoding_workers, POSSIBLE_MIN_SCORE, copy_encoding_options, ENCODER_FIELDS,
     estimate_export_size, ESTIMATE_SAMPLES, lossless_alternative, LOSSLESS_HINT_SHARE,
-    lossless_check, LOSSLESS_CHECK_SKIP_SHARE, measure_overlap,
+    lossless_check, LOSSLESS_CHECK_SKIP_SHARE, measure_overlap, offered,
 )
 from . import __version__, diagnostics
 from .import_sources import expand_sources
@@ -434,7 +434,8 @@ class OverlapDialog(OutlinedDialog):
 
 
 class JoinedPairView(QWidget):
-    """Draw the two source pages at one scale, with their seam touching."""
+    """Draw the two source pages at one scale, with their seam touching, or with
+    the right page overlapping the left by `overlap` source pixels."""
 
     def __init__(self):
         super().__init__()
@@ -443,11 +444,13 @@ class JoinedPairView(QWidget):
         self.page_sizes: tuple[tuple[int, int], tuple[int, int]] | None = None
         self.message = "Loading pages…"
         self.rotation = 0
+        self.overlap = 0
         self.setMinimumSize(160, 120)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-    def load_pair(self, left_size: tuple[int, int], right_size: tuple[int, int]):
+    def load_pair(self, left_size: tuple[int, int], right_size: tuple[int, int], overlap: int = 0):
         self.page_sizes = (left_size, right_size)
+        self.overlap = overlap
         self.left = self.right = None
         self.message = "Loading pages…"
         self.update()
@@ -468,11 +471,12 @@ class JoinedPairView(QWidget):
         common_height = min(left_height, right_height)
         if not common_height or not self.width() or not self.height():
             return None
-        scale = min(self.width() / (left_width + right_width), self.height() / common_height)
-        x = (self.width() - (left_width + right_width) * scale) / 2
+        total = left_width + right_width - self.overlap
+        scale = min(self.width() / total, self.height() / common_height)
+        x = (self.width() - total * scale) / 2
         y = (self.height() - common_height * scale) / 2
         left_rect = QRectF(x, y, left_width * scale, common_height * scale)
-        right_rect = QRectF(left_rect.right(), y, right_width * scale, common_height * scale)
+        right_rect = QRectF(left_rect.right() - self.overlap * scale, y, right_width * scale, common_height * scale)
         return left_rect, right_rect
 
     def paintEvent(self, event):
@@ -481,7 +485,7 @@ class JoinedPairView(QWidget):
         if self.rotation and self.page_sizes and self.left is not None and self.right is not None:
             (lw, lh), (rw, rh) = self.page_sizes
             common = min(lh, rh)
-            width = lw + rw
+            width = lw + rw - self.overlap
             turned_width, turned_height = (common, width) if self.rotation % 180 else (width, common)
             scale = min(self.width() / turned_width, self.height() / turned_height)
             painter.setRenderHint(QPainter.SmoothPixmapTransform)
@@ -489,7 +493,7 @@ class JoinedPairView(QWidget):
             painter.rotate(self.rotation)
             painter.translate(-width * scale / 2, -common * scale / 2)
             for pixmap, x, page_width, height in ((self.left, 0, lw, lh),
-                                                   (self.right, lw, rw, rh)):
+                                                   (self.right, lw - self.overlap, rw, rh)):
                 painter.drawPixmap(QRectF(x * scale, 0, page_width * scale, common * scale),
                                    pixmap, QRectF(0, 0, pixmap.width(), pixmap.height() * common / height))
             return
@@ -4007,7 +4011,12 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         elif scan.numbering_assumed:
             self.statusBar().showMessage("Page numbers could not be read consistently; using natural filename order.")
         else:
-            suggested = sum(c.likely or c.continuity >= POSSIBLE_MIN_SCORE for c in scan.candidates)
+            suggested = sum(offered(c) for c in scan.candidates)
+            for c in scan.candidates:
+                if c.metrics.get("overlap"):
+                    diagnostics.note("Overlapping halves found: pages %d and %d, %d px repeated%s",
+                                     c.left + 1, c.right + 1, c.metrics["overlap"],
+                                     " (edges also match)" if c.likely or c.continuity >= POSSIBLE_MIN_SCORE else "")
             self.statusBar().showMessage(f"{len(scan.pages)} pages; {suggested} suggested pairs")
         if scan.case_twins and not resumed:
             self._show_case_twins_notice(scan.case_twins)
@@ -4051,13 +4060,16 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.review_view.setCurrentIndex(0)
         self.review_rotation = self.plan.rotations.get(c.left, 0)
         self.joined_review.rotation = self.review_rotation
-        self.joined_review.load_pair((a.width, a.height), (b.width, b.height))
+        overlap = c.metrics.get("overlap", 0)
+        self.joined_review.load_pair((a.width, a.height), (b.width, b.height), overlap)
         self.review_generation += 1
         diagnostics.note("Pair Review requested: %d / %d (request %d)",
                          c.left + 1, c.right + 1, self.review_generation)
         self.review_worker.request(self.review_generation, a.path, b.path)
         done = len(self.plan.decisions)
         label = "Manual" if self.plan.scan.manual_mode else "Likely" if c.likely else "Possible"
+        if overlap:
+            label += f" · overlapping halves ({overlap} px repeated, shown lined up)"
         warning = " · Unequal heights: taller page will be cropped at bottom" if a.height != b.height else ""
         self.review_heading.setText(f"{label} pair · decision {done + 1} · {a.path.name} + {b.path.name}{warning}")
         self._rotation_heading()
