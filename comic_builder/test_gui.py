@@ -1605,6 +1605,7 @@ class ThumbnailTest(unittest.TestCase):
                 window.close()
 
     def test_a_spread_with_repeated_art_is_lined_up_from_seam(self):
+        import numpy as np
         from PySide6.QtCore import QPoint
         from .gui import OverlapDialog
         from .test_spread_overlap import artwork, halves
@@ -1635,10 +1636,20 @@ class ThumbnailTest(unittest.TestCase):
                     self.assertEqual(dialog.seam_image().width, 2 * dialog.strip)
                     dialog.together.click()
                     dialog.apart.click()
-                    self.assertIn("Left page on top", dialog.top_button.text())  # The default.
-                    dialog.top_button.click()
+                    self.assertEqual(dialog.top_switch.side, "left")  # The default.
+                    before = dialog.seam_image()
+                    QTest.mouseClick(dialog.top_switch, Qt.LeftButton)
+                    self.assertEqual((dialog.overlap(), dialog.top_switch.side), ((30, "right"), "right"))
+                    after = np.asarray(dialog.seam_image())
+                    self.assertEqual(after.shape, np.asarray(before).shape)
+                    # The view doesn't slide: only the overlapping columns change.
+                    edge = dialog.strip - 15 - 1
+                    self.assertTrue(np.array_equal(after[:, :edge], np.asarray(before)[:, :edge]))
+                    self.assertTrue(np.array_equal(after[:, -edge:], np.asarray(before)[:, -edge:]))
+                    QTest.mouseClick(dialog.top_labels["left"], Qt.LeftButton)
+                    self.assertEqual(dialog.overlap(), (30, "left"))
+                    QTest.mouseClick(dialog.image, Qt.LeftButton, pos=QPoint(dialog.image.width() - 5, 5))
                     self.assertEqual(dialog.overlap(), (30, "right"))
-                    self.assertIn("Right page on top", dialog.top_button.text())
                     QTest.mouseClick(dialog.image, Qt.LeftButton, pos=QPoint(5, 5))  # The left half.
                     return QDialog.Accepted
                 with patch.object(QDialog, "exec", line_up):
@@ -1682,7 +1693,7 @@ class ThumbnailTest(unittest.TestCase):
         try:
             self.assertEqual(dialog.overlap(), (3, "right"))
             self.assertIn("3 px border on the left page", dialog.status.text())
-            self.assertIn("Right page on top", dialog.top_button.text())
+            self.assertEqual(dialog.top_switch.side, "right")
         finally:
             dialog.close()
 

@@ -245,6 +245,31 @@ class SuggestionTests(unittest.TestCase):
             self.assertTrue(np.array_equal(np.asarray(spread), np.asarray(art)))  # No white line.
             self.assertEqual(report_data(plan)["covered_borders"][0]["border_px"], 3)
 
+    def test_a_wider_border_the_edges_rule_out_is_set_aside(self):
+        """A 6 px border makes the right page's edge look solid, so the edge test
+        rules the pair out; with the border set aside the art carries on."""
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            art = artwork(width=2000, seed=23)
+            right = np.full((700, 1006, 3), 255, np.uint8)
+            right[:, 6:] = np.asarray(art)[:, 1000:]
+            pages = [artwork(width=1000, seed=60), art.crop((0, 0, 1000, 700)), Image.fromarray(right),
+                     artwork(width=1006, seed=61)]
+            for number, page in enumerate(pages, 1):
+                page.save(folder / f"{number:03d}.png")
+            scan = scan_folder(folder)
+            index, candidate = next((i, c) for i, c in enumerate(scan.candidates) if (c.left, c.right) == (1, 2))
+            self.assertEqual(candidate.metrics.get("border_set_aside"), 6)
+            self.assertTrue(offered(candidate))
+            self.assertEqual(join_layout(candidate), (6, "left"))
+            self.assertFalse([c for c in scan.candidates if (c.left, c.right) != (1, 2) and c.metrics.get("border_set_aside")])
+            plan = BookPlan(scan)
+            while plan.current() and plan.current()[0] != index:
+                plan.decide(False)
+            plan.decide(True)
+            spread = stitched_image(folder / "002.png", folder / "003.png", overlap=plan.join_overlaps[1])
+            self.assertTrue(np.array_equal(np.asarray(spread), np.asarray(art)))
+
     def test_found_in_back_to_front_books_too(self):
         with tempfile.TemporaryDirectory() as directory:
             scan = self.book(Path(directory), right_to_left=True)

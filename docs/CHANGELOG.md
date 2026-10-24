@@ -8,12 +8,13 @@
   halves**, drawn lined up; **Yes** joins it over the repeated strip, and Seam in
   the final review can still adjust it. Pairs whose edges are ruled out (a white
   border on an inner edge, for example) are checked for a repeated strip too.
-  The left page is on top by default; in **Line up spread** one button swaps
-  it, or click a half of the seam to bring it to the front. A thin plain strip
+  The left page is on top by default; in **Line up spread** a Left/Right switch
+  chooses it, or click a half of the seam to bring it to the front. A thin plain strip
   (up to 8 px) on one inner edge only, such as a white border added to one
   half, is covered by the other page when the pair is joined (pair review shows
   **thin border at the seam covered**), and **Find overlap** covers one too when
-  there's no repeated strip. Each one found is noted in the
+  there's no repeated strip. A pair whose border makes its edge look solid is
+  still scored with the border set aside. Each one found is noted in the
   diagnostic log and in the pair review report (`overlapping_halves`), with what
   was decided.
 - Spreads whose halves overlap: some books slice a spread from a page narrower

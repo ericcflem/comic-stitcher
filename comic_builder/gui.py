@@ -318,6 +318,55 @@ class FitImage(QLabel):
         self._fit()
 
 
+class SideSwitch(QWidget):
+    """A sliding switch between two sides, both equally "on": the knob shows
+    which side is chosen, and a click moves it to the other."""
+    toggled = Signal(str)
+
+    def __init__(self, side: str = "left", parent=None):
+        super().__init__(parent)
+        self.side = side
+        self.setFixedSize(46, 24)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFocusPolicy(Qt.StrongFocus)
+
+    def set_side(self, side: str):
+        if side != self.side:
+            self.side = side
+            self.update()
+
+    def mousePressEvent(self, event):
+        self.set_side("right" if self.side == "left" else "left")
+        self.toggled.emit(self.side)
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key_Space, Qt.Key_Return, Qt.Key_Enter, Qt.Key_Left, Qt.Key_Right):
+            wanted = {Qt.Key_Left: "left", Qt.Key_Right: "right"}.get(
+                event.key(), "right" if self.side == "left" else "left")
+            if wanted != self.side:
+                self.set_side(wanted)
+                self.toggled.emit(self.side)
+            return
+        super().keyPressEvent(event)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        track = QRectF(1, 1, self.width() - 2, self.height() - 2)
+        painter.setPen(QPen(QColor("#1266b6"), 1))
+        painter.setBrush(QColor("#1976cf"))
+        painter.drawRoundedRect(track, track.height() / 2, track.height() / 2)
+        knob = track.height() - 4
+        x = track.left() + 2 if self.side == "left" else track.right() - 2 - knob
+        painter.setPen(QPen(QColor("#d0d7de"), 1))
+        painter.setBrush(QColor("white"))
+        painter.drawEllipse(QRectF(x, track.top() + 2, knob, knob))
+        if self.hasFocus():
+            painter.setPen(QPen(QColor("#ffb300"), 1.5))
+            painter.setBrush(Qt.NoBrush)
+            painter.drawRoundedRect(track, track.height() / 2, track.height() / 2)
+
+
 class OverlapDialog(OutlinedDialog):
     """Line up a spread whose halves both repeat a strip of art at the seam.
 
@@ -336,8 +385,8 @@ class OverlapDialog(OutlinedDialog):
         layout = QVBoxLayout(self)
         layout.addWidget(ui_heading("Line up the halves", 20))
         note = QLabel("If this spread was cut from a page narrower than two pages, both halves repeat a "
-                      "strip of art at the seam. Move them together until the art lines up across the "
-                      "yellow line, or use Find overlap.")
+                      "strip of art at the seam. Move them together until the art lines up, "
+                      "or use Find overlap.")
         note.setWordWrap(True)
         layout.addWidget(note)
         self.view = QScrollArea()
@@ -351,7 +400,8 @@ class OverlapDialog(OutlinedDialog):
         layout.addWidget(self.view, 1)
         row = QHBoxLayout()
         row.addWidget(QLabel("Overlap"))
-        self.apart = QPushButton("◀ Apart")
+        self.apart = QPushButton("Apart")
+        self.apart.setIcon(interface_icon("split"))
         self.apart.setToolTip(tooltip_text("Move the halves one pixel apart."))
         self.apart.clicked.connect(lambda: self.pixels.stepBy(-1))
         row.addWidget(self.apart)
@@ -361,7 +411,8 @@ class OverlapDialog(OutlinedDialog):
         self.pixels.setValue(overlap[0])
         self.pixels.valueChanged.connect(self.render)
         row.addWidget(self.pixels)
-        self.together = QPushButton("Together ▶")
+        self.together = QPushButton("Together")
+        self.together.setIcon(interface_icon("merge"))
         self.together.setToolTip(tooltip_text("Move the halves one pixel closer together."))
         self.together.clicked.connect(lambda: self.pixels.stepBy(1))
         row.addWidget(self.together)
@@ -373,13 +424,23 @@ class OverlapDialog(OutlinedDialog):
         row.addWidget(self.find)
         row.addSpacing(16)
         self.top = overlap[1]
-        self.top_button = QPushButton()
-        self.top_button.setToolTip(tooltip_text(
-            "Where the halves overlap, the page on top covers the other. Click to swap, or click a "
-            "half in the seam view to bring it to the front. Put the page with the clean edge on "
-            "top, so a thin border on the other one is hidden."))
-        self.top_button.clicked.connect(lambda: self.set_top("right" if self.top == "left" else "left"))
-        row.addWidget(self.top_button)
+        row.addWidget(QLabel("Page on top:"))
+        self.top_labels = {}
+        self.top_switch = SideSwitch(self.top)
+        self.top_switch.toggled.connect(self.set_top)
+        for side in ("left", "right"):
+            label = QLabel(side.capitalize())
+            label.setCursor(Qt.PointingHandCursor)
+            label.installEventFilter(self)  # Clicking a side's name chooses it too.
+            self.top_labels[side] = label
+        row.addWidget(self.top_labels["left"])
+        row.addWidget(self.top_switch)
+        row.addWidget(self.top_labels["right"])
+        tip = tooltip_text("Where the halves overlap, the page on top covers the other. Click the switch "
+                           "or a side's name, or click a half of the seam view to bring it to the front. "
+                           "Put the page with the clean edge on top, so a thin border on the other is hidden.")
+        for widget in (self.top_switch, *self.top_labels.values()):
+            widget.setToolTip(tip)
         row.addStretch()
         layout.addLayout(row)
         self.status = QLabel("")
@@ -399,12 +460,18 @@ class OverlapDialog(OutlinedDialog):
 
     def set_top(self, top: str):
         self.top = top
+        self.top_switch.set_side(top)
         self.render()
 
     def eventFilter(self, watched, event):
-        if watched is self.image and event.type() == QEvent.MouseButtonPress:
-            self.set_top("left" if event.position().x() < self.image.width() / 2 else "right")
-            return True
+        if event.type() == QEvent.MouseButtonPress:
+            if watched is self.image:
+                self.set_top("left" if event.position().x() < self.image.width() / 2 else "right")
+                return True
+            for side, label in getattr(self, "top_labels", {}).items():
+                if watched is label:
+                    self.set_top(side)
+                    return True
         return super().eventFilter(watched, event)
 
     def find_overlap(self):
@@ -427,11 +494,12 @@ class OverlapDialog(OutlinedDialog):
                                 "overlap, move them together by hand.")
 
     def seam_image(self) -> Image.Image:
-        """The joined spread around its visible seam, as stitched_image lays it out."""
+        """The joined spread around the seam, as stitched_image lays it out. Centred
+        on the middle of the overlap, so swapping the page on top doesn't move it."""
         pixels, top = self.overlap()
         width, height = self.left.width, self.height_
-        seam = width if top == "left" else width - pixels
-        x0, x1 = seam - self.strip, seam + self.strip
+        middle = width - pixels // 2
+        x0, x1 = middle - self.strip, middle + self.strip
         canvas = Image.new("RGB", (x1 - x0, height), "white")
         halves = [(self.left, 0), (self.right, width - pixels)]
         for image, offset in (halves[::-1] if top == "left" else halves):
@@ -443,16 +511,13 @@ class OverlapDialog(OutlinedDialog):
     def render(self, *_):
         scroll = self.view.verticalScrollBar().value()
         pix = pixmap_from_pil(self.seam_image(), (900, 6000))
-        painter = QPainter(pix)
-        painter.setPen(QPen(QColor("#ffe500"), 2))
-        painter.drawLine(pix.width() // 2, 0, pix.width() // 2, pix.height() - 1)
-        painter.end()
         self.image.setPixmap(pix)
         self.image.resize(pix.size())
         self.view.verticalScrollBar().setValue(scroll)
         self.apart.setEnabled(self.pixels.value() > self.pixels.minimum())
         self.together.setEnabled(self.pixels.value() < self.pixels.maximum())
-        self.top_button.setText("◧ Left page on top" if self.top == "left" else "Right page on top ◨")
+        for side, label in self.top_labels.items():
+            label.setStyleSheet("font-weight:600; color:#1976cf;" if side == self.top else "color:#5f6b76;")
 
 
 class JoinedPairView(QWidget):
