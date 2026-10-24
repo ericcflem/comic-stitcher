@@ -43,11 +43,12 @@ def load_rgb(path: Path) -> np.ndarray:
         return np.asarray(standard_mode(im).convert("RGB"), dtype=np.uint8)
 
 
-def load_edge_rgb(path: Path, side: str, band: int = 24) -> np.ndarray:
-    """Decode an edge for scoring without allocating a full RGB NumPy page."""
+def load_edge_rgb(path: Path, side: str, band: int = 24, width: int | None = None) -> np.ndarray:
+    """Decode an edge for scoring without allocating a full RGB NumPy page:
+    8 bands' worth of columns, or `width` columns when given."""
     with Image.open(path) as im:
         ImageOps.exif_transpose(im, in_place=True)
-        width = min(im.width, max(8 * band, 2))
+        width = min(im.width, max(8 * band, 2) if width is None else max(width, 2))
         x = 0 if side == "left" else im.width - width
         return np.asarray(standard_mode(im.crop((x, 0, x + width, im.height))).convert("RGB"), dtype=np.uint8)
 

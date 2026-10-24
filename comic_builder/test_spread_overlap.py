@@ -8,8 +8,9 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
-from .backend import (BookPlan, ExportOptions, _entry_size, export_book, measure_overlap,
-                      scan_folder, stitched_image)
+from .backend import (BookPlan, ExportOptions, _entry_size, export_book, join_layout, measure_overlap,
+                      offered, scan_folder, stitched_image, thin_border, thin_border_between)
+from .review_report import report_data
 from .session import read_session, restore_plan, save_session
 
 
@@ -146,6 +147,133 @@ class JoinTests(unittest.TestCase):
             snapshot.pop("join_overlaps", None)
         self.assertEqual(restore_plan(self.plan.scan, data).join_overlaps, {})
 
+
+
+class SuggestionTests(unittest.TestCase):
+    """The import scan offers overlapped halves for review, lined up."""
+
+    def book(self, folder: Path, right_to_left=False):
+        spread = artwork(seed=11)
+        left, right = halves(spread, 34)
+        pages = [artwork(seed=20).crop((0, 0, left.width, 700)), jpeg(left), jpeg(right),
+                 artwork(seed=21).crop((0, 0, right.width, 700))]
+        # Back-to-front files keep the spread's left half before its right half on
+        # disk; reading right to left, the scan meets the right half first.
+        for number, page in enumerate(pages, 1):
+            page.save(folder / f"{number:03d}.jpg", quality=80)
+        return scan_folder(folder, right_to_left=right_to_left)
+
+    def test_overlapped_halves_are_offered_and_joined_lined_up(self):
+        with tempfile.TemporaryDirectory() as directory:
+            scan = self.book(Path(directory))
+            found = {(c.left, c.right): c.metrics.get("overlap") for c in scan.candidates}
+            self.assertEqual(found.get((1, 2)), 34)
+            self.assertFalse([pair for pair, overlap in found.items() if overlap and pair != (1, 2)])
+            plan = BookPlan(scan)
+            index, candidate = next((i, c) for i, c in enumerate(scan.candidates) if (c.left, c.right) == (1, 2))
+            self.assertTrue(offered(candidate))
+            while plan.current() and plan.current()[0] != index:
+                plan.decide(False)
+            plan.decide(True)
+            self.assertEqual(plan.join_overlaps, {1: (34, "left")})
+            report = report_data(plan)
+            self.assertEqual(report["overlapping_halves"],
+                             [{"left_page": 2, "right_page": 3, "repeated_px": 34, "status": "approved",
+                               "final_overlap_px": 34}])
+            plan.back()  # Undoing the decision drops the overlap with the join.
+            self.assertEqual(plan.join_overlaps, {})
+
+    def test_found_where_a_white_border_rules_the_edges_out(self):
+        for side, width in (("right page", 6), ("left page", 3)):
+            with self.subTest(side), tempfile.TemporaryDirectory() as directory:
+                folder = Path(directory)
+                left, right = halves(artwork(seed=13), 40)
+                if side == "right page":
+                    right = np.asarray(right).copy()
+                    right[:, :width] = 255
+                    right = Image.fromarray(right)
+                else:
+                    left = np.asarray(left).copy()
+                    left[:, -width:] = 255
+                    left = Image.fromarray(left)
+                pages = [artwork(seed=30).crop((0, 0, left.width, 700)), left, right,
+                         artwork(seed=31).crop((0, 0, right.width, 700))]
+                for number, page in enumerate(pages, 1):
+                    page.save(folder / f"{number:03d}.jpg", quality=80)
+                scan = scan_folder(folder)
+                found = [(c.left, c.right, c.metrics.get("overlap")) for c in scan.candidates if c.metrics.get("overlap")]
+                self.assertEqual(found, [(1, 2, 40)])
+                self.assertTrue(offered(next(c for c in scan.candidates if c.metrics.get("overlap"))))
+
+    def test_found_between_halves_of_different_widths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            art = artwork(seed=17)
+            left, right = art.crop((0, 0, 560, 700)), art.crop((520, 0, 1000, 700))  # 40 px repeated.
+            pages = [artwork(seed=40).crop((0, 0, 560, 700)), left, right, artwork(seed=41).crop((0, 0, 480, 700))]
+            for number, page in enumerate(pages, 1):
+                page.save(folder / f"{number:03d}.jpg", quality=80)
+            scan = scan_folder(folder)
+            self.assertEqual([(c.left, c.right, c.metrics.get("overlap")) for c in scan.candidates
+                              if c.metrics.get("overlap")], [(1, 2, 40)])
+
+    def test_a_thin_border_on_one_half_is_covered_when_joined(self):
+        self.assertEqual(thin_border(3, 0), (3, "right"))  # The right page covers the left's border.
+        self.assertEqual(thin_border(0, 6), (6, "left"))
+        self.assertIsNone(thin_border(2, 2))  # Both edges plain: leave it.
+        self.assertIsNone(thin_border(12, 0))  # Wider than a thin border: a frame or margin.
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            art = artwork(width=2000, seed=19)
+            left = np.full((700, 1003, 3), 255, np.uint8)  # A clean split, plus a 3 px white border.
+            left[:, :1000] = np.asarray(art)[:, :1000]
+            right = art.crop((1000, 0, 2000, 700))
+            pages = [artwork(width=1003, seed=50), Image.fromarray(left), right, artwork(width=1000, seed=51)]
+            for number, page in enumerate(pages, 1):
+                page.save(folder / f"{number:03d}.png")
+            scan = scan_folder(folder)
+            index, candidate = next((i, c) for i, c in enumerate(scan.candidates) if (c.left, c.right) == (1, 2))
+            self.assertIsNone(candidate.metrics.get("overlap"))
+            self.assertEqual(join_layout(candidate), (3, "right"))
+            self.assertEqual(thin_border_between(Image.fromarray(left), right), (3, "right"))
+            plan = BookPlan(scan)
+            while plan.current() and plan.current()[0] != index:
+                plan.decide(False)
+            plan.decide(True)
+            self.assertEqual(plan.join_overlaps, {1: (3, "right")})
+            spread = stitched_image(folder / "002.png", folder / "003.png", overlap=plan.join_overlaps[1])
+            self.assertTrue(np.array_equal(np.asarray(spread), np.asarray(art)))  # No white line.
+            self.assertEqual(report_data(plan)["covered_borders"][0]["border_px"], 3)
+
+    def test_a_wider_border_the_edges_rule_out_is_set_aside(self):
+        """A 6 px border makes the right page's edge look solid, so the edge test
+        rules the pair out; with the border set aside the art carries on."""
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            art = artwork(width=2000, seed=23)
+            right = np.full((700, 1006, 3), 255, np.uint8)
+            right[:, 6:] = np.asarray(art)[:, 1000:]
+            pages = [artwork(width=1000, seed=60), art.crop((0, 0, 1000, 700)), Image.fromarray(right),
+                     artwork(width=1006, seed=61)]
+            for number, page in enumerate(pages, 1):
+                page.save(folder / f"{number:03d}.png")
+            scan = scan_folder(folder)
+            index, candidate = next((i, c) for i, c in enumerate(scan.candidates) if (c.left, c.right) == (1, 2))
+            self.assertEqual(candidate.metrics.get("border_set_aside"), 6)
+            self.assertTrue(offered(candidate))
+            self.assertEqual(join_layout(candidate), (6, "left"))
+            self.assertFalse([c for c in scan.candidates if (c.left, c.right) != (1, 2) and c.metrics.get("border_set_aside")])
+            plan = BookPlan(scan)
+            while plan.current() and plan.current()[0] != index:
+                plan.decide(False)
+            plan.decide(True)
+            spread = stitched_image(folder / "002.png", folder / "003.png", overlap=plan.join_overlaps[1])
+            self.assertTrue(np.array_equal(np.asarray(spread), np.asarray(art)))
+
+    def test_found_in_back_to_front_books_too(self):
+        with tempfile.TemporaryDirectory() as directory:
+            scan = self.book(Path(directory), right_to_left=True)
+            self.assertEqual([c.metrics["overlap"] for c in scan.candidates if c.metrics.get("overlap")], [34])
 
 if __name__ == "__main__":
     unittest.main()

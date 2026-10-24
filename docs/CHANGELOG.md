@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- **Seam** always opens the line-up tools, showing the seam as the pages will be
+  joined, including a suggested overlap or covered border: in pair review
+  (**Use this alignment**, then Yes or No), on a spread in the final review, and
+  on two selected pages there (**Join as spread**). In the tools, I and O move
+  the halves a pixel together (in) or apart (out), ← and → choose
+  the page on top, Enter shows or hides a line where the page on top ends, Space
+  finishes and Esc cancels. The separate seam-only views are gone.
+- Overlapping halves are suggested: the import scan looks for a strip of art
+  repeated on both pages of each neighbouring pair it checks, even where the
+  edges don't match. Pair review offers such a pair as **Possible · overlapping
+  halves**, drawn lined up; **Yes** joins it over the repeated strip, and Seam in
+  the final review can still adjust it. Pairs whose edges are ruled out (a white
+  border on an inner edge, for example) are checked for a repeated strip too.
+  The left page is on top by default; in **Line up spread** a Left/Right switch
+  chooses it, or click a half of the seam to bring it to the front. A thin plain strip
+  (up to 8 px) on one inner edge only, such as a white border added to one
+  half, is covered by the other page when the pair is joined (pair review shows
+  **thin border at the seam covered**), and **Find overlap** covers one too when
+  there's no repeated strip. A pair whose border makes its edge look solid is
+  still scored with the border set aside. Each one found is noted in the
+  diagnostic log and in the pair review report (`overlapping_halves`), with what
+  was decided.
 - Spreads whose halves overlap: some books slice a spread from a page narrower
   than two pages, so both halves repeat a strip of art at the seam. In the final
   review, select the spread and choose **Seam** to line it up: **Find overlap**

@@ -6,6 +6,8 @@ import unittest
 import zipfile
 from pathlib import Path
 from unittest.mock import patch
+
+import numpy as np
 from PIL import Image
 from .backend import BookPlan, ExportOptions, scan_folder, export_book
 from .session import save_session, read_session, cached_folder_scan, restore_plan, session_path
@@ -28,7 +30,8 @@ class ReadingDirectionTests(unittest.TestCase):
             root = Path(tmp)
             self.make_pages(root)
             with patch('comic_builder.backend.is_candidate_pair', return_value=True), \
-                 patch('comic_builder.backend.load_edge_rgb', return_value=None) as edge, \
+                 patch('comic_builder.backend.load_edge_rgb',
+                       return_value=np.zeros((120, 200, 3), np.uint8)) as edge, \
                  patch('comic_builder.backend.seam_score', return_value={'continuity': .8}):
                 scan = scan_folder(root, right_to_left=True)
             self.assertTrue(scan.right_to_left)

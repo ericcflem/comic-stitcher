@@ -33,7 +33,7 @@ from .backend import (
     safe_book_name, scan_folder, scan_manual_folder, stitched_image, rotated_image,
     encoding_workers, POSSIBLE_MIN_SCORE, copy_encoding_options, ENCODER_FIELDS,
     estimate_export_size, ESTIMATE_SAMPLES, lossless_alternative, LOSSLESS_HINT_SHARE,
-    lossless_check, LOSSLESS_CHECK_SKIP_SHARE, measure_overlap,
+    lossless_check, LOSSLESS_CHECK_SKIP_SHARE, measure_overlap, offered, join_layout, thin_border_between,
 )
 from . import __version__, diagnostics
 from .import_sources import expand_sources
@@ -318,6 +318,54 @@ class FitImage(QLabel):
         self._fit()
 
 
+class SideSwitch(QWidget):
+    """A sliding switch between two sides, both equally "on": the knob shows
+    which side is chosen, and a click moves it to the other."""
+    toggled = Signal(str)
+
+    def __init__(self, side: str = "left", parent=None):
+        super().__init__(parent)
+        self.side = side
+        self.setFixedSize(46, 24)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFocusPolicy(Qt.StrongFocus)
+
+    def set_side(self, side: str):
+        if side != self.side:
+            self.side = side
+            self.update()
+
+    def mousePressEvent(self, event):
+        self.set_side("right" if self.side == "left" else "left")
+        self.toggled.emit(self.side)
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key_Left, Qt.Key_Right):
+            wanted = "left" if event.key() == Qt.Key_Left else "right"
+            if wanted != self.side:
+                self.set_side(wanted)
+                self.toggled.emit(self.side)
+            return
+        super().keyPressEvent(event)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        track = QRectF(1, 1, self.width() - 2, self.height() - 2)
+        painter.setPen(QPen(QColor("#1266b6"), 1))
+        painter.setBrush(QColor("#1976cf"))
+        painter.drawRoundedRect(track, track.height() / 2, track.height() / 2)
+        knob = track.height() - 4
+        x = track.left() + 2 if self.side == "left" else track.right() - 2 - knob
+        painter.setPen(QPen(QColor("#d0d7de"), 1))
+        painter.setBrush(QColor("white"))
+        painter.drawEllipse(QRectF(x, track.top() + 2, knob, knob))
+        if self.hasFocus():
+            painter.setPen(QPen(QColor("#ffb300"), 1.5))
+            painter.setBrush(Qt.NoBrush)
+            painter.drawRoundedRect(track, track.height() / 2, track.height() / 2)
+
+
 class OverlapDialog(OutlinedDialog):
     """Line up a spread whose halves both repeat a strip of art at the seam.
 
@@ -326,9 +374,11 @@ class OverlapDialog(OutlinedDialog):
     page on top covers the other where they overlap (hiding a thin border).
     """
 
-    def __init__(self, left: Image.Image, right: Image.Image, overlap: tuple[int, str], parent=None):
+    def __init__(self, left: Image.Image, right: Image.Image, overlap: tuple[int, str], parent=None,
+                 accept_text: str = "OK", find_on_open: bool | None = None):
         super().__init__(parent)
         self.setWindowTitle("Line up spread")
+        self.show_line = False  # Enter shows a line where the page on top ends.
         self.resize(760, 760)
         self.left, self.right = left, right
         self.height_ = min(left.height, right.height)
@@ -336,8 +386,9 @@ class OverlapDialog(OutlinedDialog):
         layout = QVBoxLayout(self)
         layout.addWidget(ui_heading("Line up the halves", 20))
         note = QLabel("If this spread was cut from a page narrower than two pages, both halves repeat a "
-                      "strip of art at the seam. Move them together until the art lines up across the "
-                      "yellow line, or use Find overlap.")
+                      "strip of art at the seam, or one has a thin border there. Move them together "
+                      "until the art lines up, or use Find overlap. This is the seam as the halves "
+                      "will be joined.")
         note.setWordWrap(True)
         layout.addWidget(note)
         self.view = QScrollArea()
@@ -346,11 +397,14 @@ class OverlapDialog(OutlinedDialog):
         self.image = QLabel()
         self.image.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
         self.view.setWidget(self.image)
+        self.image.setCursor(Qt.PointingHandCursor)
+        self.image.installEventFilter(self)  # Click a half to bring it to the front.
         layout.addWidget(self.view, 1)
         row = QHBoxLayout()
         row.addWidget(QLabel("Overlap"))
-        self.apart = QPushButton("◀ Apart")
-        self.apart.setToolTip(tooltip_text("Move the halves one pixel apart."))
+        self.apart = QPushButton("Apart")
+        self.apart.setIcon(interface_icon("split"))
+        self.apart.setToolTip(tooltip_text("Move the halves one pixel apart (O, for out)."))
         self.apart.clicked.connect(lambda: self.pixels.stepBy(-1))
         row.addWidget(self.apart)
         self.pixels = QSpinBox()
@@ -359,8 +413,9 @@ class OverlapDialog(OutlinedDialog):
         self.pixels.setValue(overlap[0])
         self.pixels.valueChanged.connect(self.render)
         row.addWidget(self.pixels)
-        self.together = QPushButton("Together ▶")
-        self.together.setToolTip(tooltip_text("Move the halves one pixel closer together."))
+        self.together = QPushButton("Together")
+        self.together.setIcon(interface_icon("merge"))
+        self.together.setToolTip(tooltip_text("Move the halves one pixel closer together (I, for in)."))
         self.together.clicked.connect(lambda: self.pixels.stepBy(1))
         row.addWidget(self.together)
         self.find = QPushButton("Find overlap")
@@ -370,47 +425,105 @@ class OverlapDialog(OutlinedDialog):
         self.find.clicked.connect(self.find_overlap)
         row.addWidget(self.find)
         row.addSpacing(16)
-        row.addWidget(QLabel("On top"))
-        self.top = QComboBox()
-        self.top.addItems(["Right page", "Left page"])
-        self.top.setCurrentIndex(1 if overlap[1] == "left" else 0)
-        self.top.setToolTip(tooltip_text(
-            "Where the halves overlap, this page covers the other. Choose the page whose edge "
-            "is clean, so a thin border on the other one is hidden."))
-        self.top.currentIndexChanged.connect(self.render)
-        row.addWidget(self.top)
+        self.top = overlap[1]
+        row.addWidget(QLabel("Page on top:"))
+        self.top_labels = {}
+        self.top_switch = SideSwitch(self.top)
+        self.top_switch.toggled.connect(self.set_top)
+        for side in ("left", "right"):
+            label = QLabel(side.capitalize())
+            label.setCursor(Qt.PointingHandCursor)
+            label.installEventFilter(self)  # Clicking a side's name chooses it too.
+            self.top_labels[side] = label
+        row.addWidget(self.top_labels["left"])
+        row.addWidget(self.top_switch)
+        row.addWidget(self.top_labels["right"])
+        tip = tooltip_text("Where the halves overlap, the page on top covers the other. Click the switch "
+                           "or a side's name, or click a half of the seam view to bring it to the front. "
+                           "Put the page with the clean edge on top, so a thin border on the other is hidden.")
+        for widget in (self.top_switch, *self.top_labels.values()):
+            widget.setToolTip(tip)
         row.addStretch()
         layout.addLayout(row)
         self.status = QLabel("")
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
+        keys = QLabel("Keys: I together · O apart · ← → page on top · Enter seam line · Space done · Esc cancel")
+        keys.setStyleSheet("color:#5f6b76;")
+        layout.addWidget(keys)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.ok_button = buttons.button(QDialogButtonBox.Ok)
+        self.ok_button.setText(accept_text)
+        for button in buttons.buttons():
+            button.setAutoDefault(False)  # Enter toggles the seam line instead.
+            button.setDefault(False)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
-        ui_primary(buttons.button(QDialogButtonBox.Ok))
+        ui_primary(self.ok_button)
         layout.addWidget(buttons)
-        if overlap[0] == 0:
+        for key, action in ((Qt.Key_Left, lambda: self.set_top("left")),
+                            (Qt.Key_Right, lambda: self.set_top("right")),
+                            (Qt.Key_Return, self.toggle_line), (Qt.Key_Enter, self.toggle_line),
+                            (Qt.Key_I, lambda: self.pixels.stepBy(1)),  # In: together.
+                            (Qt.Key_O, lambda: self.pixels.stepBy(-1)),  # Out: apart.
+                            (Qt.Key_Space, self.accept)):
+            shortcut = QShortcut(QKeySequence(key), self)
+            shortcut.setContext(Qt.WindowShortcut)
+            shortcut.activated.connect(action)
+        if overlap[0] == 0 if find_on_open is None else find_on_open:
             self.find_overlap()
         self.render()
+        self.view.setFocus(Qt.OtherFocusReason)  # Up and Down scroll the seam.
 
     def overlap(self) -> tuple[int, str]:
-        return self.pixels.value(), "left" if self.top.currentIndex() == 1 else "right"
+        return self.pixels.value(), self.top
+
+    def set_top(self, top: str):
+        self.top = top
+        self.top_switch.set_side(top)
+        self.render()
+
+    def toggle_line(self):
+        self.show_line = not self.show_line
+        self.render()
+
+    def eventFilter(self, watched, event):
+        if event.type() == QEvent.MouseButtonPress:
+            if watched is self.image:
+                self.set_top("left" if event.position().x() < self.image.width() / 2 else "right")
+                return True
+            for side, label in getattr(self, "top_labels", {}).items():
+                if watched is label:
+                    self.set_top(side)
+                    return True
+        return super().eventFilter(watched, event)
 
     def find_overlap(self):
         found = measure_overlap(self.left, self.right)
-        if found is None:
-            self.status.setText("No repeated strip of art was found at the seam. If the halves overlap, "
-                                "move them together by hand.")
-        else:
+        border = thin_border_between(self.left, self.right)
+        if found is not None:
             self.status.setText(f"Found a strip of {found} px repeated on both halves; the overlap is set to match.")
             self.pixels.setValue(found)
+            if border:
+                self.set_top(border[1])
+        elif border is not None:
+            pixels, top = border
+            covered = "left" if top == "right" else "right"
+            self.status.setText(f"Found a {pixels} px border on the {covered} page at the seam; the {top} "
+                                "page now covers it.")
+            self.pixels.setValue(pixels)
+            self.set_top(top)
+        else:
+            self.status.setText("No repeated strip of art or thin border was found at the seam. If the halves "
+                                "overlap, move them together by hand.")
 
     def seam_image(self) -> Image.Image:
-        """The joined spread around its visible seam, as stitched_image lays it out."""
+        """The joined spread around the seam, as stitched_image lays it out. Centred
+        on the middle of the overlap, so swapping the page on top doesn't move it."""
         pixels, top = self.overlap()
         width, height = self.left.width, self.height_
-        seam = width if top == "left" else width - pixels
-        x0, x1 = seam - self.strip, seam + self.strip
+        middle = width - pixels // 2
+        x0, x1 = middle - self.strip, middle + self.strip
         canvas = Image.new("RGB", (x1 - x0, height), "white")
         halves = [(self.left, 0), (self.right, width - pixels)]
         for image, offset in (halves[::-1] if top == "left" else halves):
@@ -421,20 +534,29 @@ class OverlapDialog(OutlinedDialog):
 
     def render(self, *_):
         scroll = self.view.verticalScrollBar().value()
-        pix = pixmap_from_pil(self.seam_image(), (900, 6000))
-        painter = QPainter(pix)
-        painter.setPen(QPen(QColor("#ffe500"), 2))
-        painter.drawLine(pix.width() // 2, 0, pix.width() // 2, pix.height() - 1)
-        painter.end()
+        image = self.seam_image()
+        pix = pixmap_from_pil(image, (900, 6000))
+        if self.show_line:
+            # Where the page on top ends: what is left of the seam once the halves are joined.
+            pixels, top = self.overlap()
+            edge = self.left.width if top == "left" else self.left.width - pixels
+            x = round((edge - (self.left.width - pixels // 2 - self.strip)) * pix.width() / image.width)
+            painter = QPainter(pix)
+            painter.setPen(QPen(QColor("#ffe500"), 1))
+            painter.drawLine(x, 0, x, pix.height() - 1)
+            painter.end()
         self.image.setPixmap(pix)
         self.image.resize(pix.size())
         self.view.verticalScrollBar().setValue(scroll)
         self.apart.setEnabled(self.pixels.value() > self.pixels.minimum())
         self.together.setEnabled(self.pixels.value() < self.pixels.maximum())
+        for side, label in self.top_labels.items():
+            label.setStyleSheet("font-weight:600; color:#1976cf;" if side == self.top else "color:#5f6b76;")
 
 
 class JoinedPairView(QWidget):
-    """Draw the two source pages at one scale, with their seam touching."""
+    """Draw the two source pages at one scale, with their seam touching, or with
+    the right page overlapping the left by `overlap` source pixels."""
 
     def __init__(self):
         super().__init__()
@@ -443,11 +565,15 @@ class JoinedPairView(QWidget):
         self.page_sizes: tuple[tuple[int, int], tuple[int, int]] | None = None
         self.message = "Loading pages…"
         self.rotation = 0
+        self.overlap = 0
+        self.top = "left"
         self.setMinimumSize(160, 120)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-    def load_pair(self, left_size: tuple[int, int], right_size: tuple[int, int]):
+    def load_pair(self, left_size: tuple[int, int], right_size: tuple[int, int], overlap: int = 0,
+                  top: str = "left"):
         self.page_sizes = (left_size, right_size)
+        self.overlap, self.top = overlap, top
         self.left = self.right = None
         self.message = "Loading pages…"
         self.update()
@@ -468,11 +594,12 @@ class JoinedPairView(QWidget):
         common_height = min(left_height, right_height)
         if not common_height or not self.width() or not self.height():
             return None
-        scale = min(self.width() / (left_width + right_width), self.height() / common_height)
-        x = (self.width() - (left_width + right_width) * scale) / 2
+        total = left_width + right_width - self.overlap
+        scale = min(self.width() / total, self.height() / common_height)
+        x = (self.width() - total * scale) / 2
         y = (self.height() - common_height * scale) / 2
         left_rect = QRectF(x, y, left_width * scale, common_height * scale)
-        right_rect = QRectF(left_rect.right(), y, right_width * scale, common_height * scale)
+        right_rect = QRectF(left_rect.right() - self.overlap * scale, y, right_width * scale, common_height * scale)
         return left_rect, right_rect
 
     def paintEvent(self, event):
@@ -481,15 +608,15 @@ class JoinedPairView(QWidget):
         if self.rotation and self.page_sizes and self.left is not None and self.right is not None:
             (lw, lh), (rw, rh) = self.page_sizes
             common = min(lh, rh)
-            width = lw + rw
+            width = lw + rw - self.overlap
             turned_width, turned_height = (common, width) if self.rotation % 180 else (width, common)
             scale = min(self.width() / turned_width, self.height() / turned_height)
             painter.setRenderHint(QPainter.SmoothPixmapTransform)
             painter.translate(self.width() / 2, self.height() / 2)
             painter.rotate(self.rotation)
             painter.translate(-width * scale / 2, -common * scale / 2)
-            for pixmap, x, page_width, height in ((self.left, 0, lw, lh),
-                                                   (self.right, lw, rw, rh)):
+            halves = ((self.right, lw - self.overlap, rw, rh), (self.left, 0, lw, lh))
+            for pixmap, x, page_width, height in (halves if self.top == "left" else halves[::-1]):
                 painter.drawPixmap(QRectF(x * scale, 0, page_width * scale, common * scale),
                                    pixmap, QRectF(0, 0, pixmap.width(), pixmap.height() * common / height))
             return
@@ -499,8 +626,9 @@ class JoinedPairView(QWidget):
             painter.drawText(self.rect(), Qt.AlignCenter, self.message)
             return
         painter.setRenderHint(QPainter.SmoothPixmapTransform)
-        for pixmap, destination, (_, source_height) in zip(
-                (self.left, self.right), rects, self.page_sizes, strict=True):
+        # Draw the page on top last, as the halves will be joined.
+        halves = list(zip((self.left, self.right), rects, self.page_sizes, strict=True))
+        for pixmap, destination, (_, source_height) in (halves[::-1] if self.top == "left" else halves):
             # Export crops the taller page at the bottom. Show the same join.
             common_height = min(height for _, height in self.page_sizes)
             source = QRectF(0, 0, pixmap.width(), pixmap.height() * common_height / source_height)
@@ -2681,8 +2809,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         current = self.pages.currentWidget()
         for key, shortcut in self.shortcuts.items():
             shortcut.setEnabled(current == self.review or
-                                (current == self.preview and (key in ("Left", "Right", "Space", "Escape") or
-                                 (self.preview_seam_active and key in ("Up", "Down")))) or
+                                (current == self.preview and key in ("Left", "Right", "Space", "Escape")) or
                                 (current == self.boss_page and key == "B"))
         if current == self.review:
             # The scan/progress page may still own keyboard focus while Qt is
@@ -2705,25 +2832,14 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             if action == "seam":
                 self.preview_seam()
                 return
-            if action == "escape" and self.preview_seam_active:
-                self._close_preview_seam()
-                return
-            if self.preview_seam_active and action in ("up", "down"):
-                scroll = self.preview_seam_area.verticalScrollBar()
-                scroll.setValue(scroll.value() + (-150 if action == "up" else 150))
-                return
         if screen == self.preview and action in ("left", "right"):
             self.navigate((1 if action == "left" else -1) if self.plan.scan.right_to_left
                           else (-1 if action == "left" else 1))
             return
         if screen != self.review:
             return
-        if action in ("seam", "escape"):
-            if action == "seam" or self.seam:
-                self.toggle_seam()
-        elif self.seam and action in ("up", "down"):
-            scroll = self.seam_area.verticalScrollBar()
-            scroll.setValue(scroll.value() + (-150 if action == "up" else 150))
+        if action == "seam":
+            self.toggle_seam()
         elif not self.seam and action in ("yes", "up"):
             self.decide(True)
         elif not self.seam and action in ("no", "down"):
@@ -2800,13 +2916,6 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.review_view = QStackedWidget()
         self.joined_review = JoinedPairView()
         self.review_view.addWidget(self.joined_review)
-        self.seam_area = QScrollArea()
-        self.seam_area.setWidgetResizable(False)
-        self.seam_area.setAlignment(Qt.AlignHCenter)
-        self.seam_image = QLabel()
-        self.seam_image.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
-        self.seam_area.setWidget(self.seam_image)
-        self.review_view.addWidget(self.seam_area)
         box.addWidget(self.review_view, 1)
         controls = QHBoxLayout()
         self.back_button = QPushButton("← Back")
@@ -2913,14 +3022,6 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         page_view = QWidget()
         page_view.setLayout(center)
         self.preview_view.addWidget(page_view)
-        self.preview_seam_area = QScrollArea()
-        self.preview_seam_area.setWidgetResizable(False)
-        self.preview_seam_area.setAlignment(Qt.AlignHCenter)
-        self.preview_seam_image = QLabel()
-        self.preview_seam_image.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
-        self.preview_seam_area.setWidget(self.preview_seam_image)
-        self.preview_view.addWidget(self.preview_seam_area)
-        self.preview_seam_active = False
         box.addWidget(self.preview_view, 1)
         self.thumb_area = QScrollArea()
         self.thumb_area.setWidgetResizable(False)
@@ -4007,7 +4108,12 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         elif scan.numbering_assumed:
             self.statusBar().showMessage("Page numbers could not be read consistently; using natural filename order.")
         else:
-            suggested = sum(c.likely or c.continuity >= POSSIBLE_MIN_SCORE for c in scan.candidates)
+            suggested = sum(offered(c) for c in scan.candidates)
+            for c in scan.candidates:
+                if c.metrics.get("overlap"):
+                    diagnostics.note("Overlapping halves found: pages %d and %d, %d px repeated%s",
+                                     c.left + 1, c.right + 1, c.metrics["overlap"],
+                                     " (edges also match)" if c.likely or c.continuity >= POSSIBLE_MIN_SCORE else "")
             self.statusBar().showMessage(f"{len(scan.pages)} pages; {suggested} suggested pairs")
         if scan.case_twins and not resumed:
             self._show_case_twins_notice(scan.case_twins)
@@ -4033,7 +4139,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         if item is None:
             self.enter_preview()
             return
-        _, c = item
+        index, c = item
         if (not c.likely and not self.possible_review_started and
                 any(candidate.likely for candidate in self.plan.scan.candidates)):
             remaining = self.plan.remaining_possible()
@@ -4051,13 +4157,21 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.review_view.setCurrentIndex(0)
         self.review_rotation = self.plan.rotations.get(c.left, 0)
         self.joined_review.rotation = self.review_rotation
-        self.joined_review.load_pair((a.width, a.height), (b.width, b.height))
+        overlap, top = self.plan.pair_layout(index) or (0, "left")
+        self.joined_review.load_pair((a.width, a.height), (b.width, b.height), overlap, top)
         self.review_generation += 1
         diagnostics.note("Pair Review requested: %d / %d (request %d)",
                          c.left + 1, c.right + 1, self.review_generation)
         self.review_worker.request(self.review_generation, a.path, b.path)
         done = len(self.plan.decisions)
         label = "Manual" if self.plan.scan.manual_mode else "Likely" if c.likely else "Possible"
+        if index in self.plan.proposed_layouts:
+            if overlap:
+                label += f" · lined up in Seam ({overlap} px, {top} page on top)"
+        elif c.metrics.get("overlap"):
+            label += f" · overlapping halves ({c.metrics['overlap']} px repeated, shown lined up)"
+        elif overlap:
+            label += f" · thin border at the seam covered ({overlap} px)"
         warning = " · Unequal heights: taller page will be cropped at bottom" if a.height != b.height else ""
         self.review_heading.setText(f"{label} pair · decision {done + 1} · {a.path.name} + {b.path.name}{warning}")
         self._rotation_heading()
@@ -4131,56 +4245,40 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             except OSError:
                 diagnostics.exception("Could not save preview position")
 
+    def _visual_halves(self, first: int, second: int, turns=(0, 0)):
+        """Two pages as they sit side by side (right-to-left books swap them), each
+        turned as it is in the comic, ready for Line up spread."""
+        if self.plan.scan.right_to_left:
+            first, second, turns = second, first, tuple(turns)[::-1]
+        halves = []
+        for index, turn in zip((first, second), turns, strict=True):
+            with Image.open(self.plan.scan.pages[index].path) as source:
+                page = standard_mode(ImageOps.exif_transpose(source)).convert("RGB")
+            halves.append(rotated_image(page, turn))
+        return halves
+
     def toggle_seam(self):
-        item = self.plan.current()
+        """Pair review's Seam: the pair's seam as it would be joined, with the tools to line it up."""
+        item = self.plan.current() if self.plan is not None else None
         if item is None:
             return
-        if self.seam:
-            self.seam = False
-            self.review_view.setCurrentIndex(0)
-            self.seam_button.review_caption.setText("Seam")
-            set_review_icon(self.seam_button, "seam-view", "▥")
-            return
-        c = item[1]
+        index, c = item
         try:
-            a, b = (self.plan.scan.pages[j].path for j in (c.left, c.right))
-            if self.plan is not None and self.plan.scan.right_to_left:
-                a, b = b, a
-            with Image.open(a) as left, Image.open(b) as right:
-                h = min(left.height, right.height)
-                strip = min(240, left.width // 3, right.width // 3)
-                L = standard_mode(left.crop((left.width - strip, 0, left.width, h))).convert("RGB")
-                R = standard_mode(right.crop((0, 0, strip, h))).convert("RGB")
-                seam = Image.new("RGB", (2 * strip, h))
-                seam.paste(L, (0, 0))
-                seam.paste(R, (strip, 0))
-                pix = pixmap_from_pil(seam, (900, 6000))
-                painter = QPainter(pix)
-                painter.setPen(QPen(QColor("#ffe500"), 2))
-                seam_x = round(strip * pix.width() / seam.width)
-                painter.drawLine(seam_x, 0, seam_x, pix.height() - 1)
-                painter.end()
-            self.seam_image.setPixmap(pix)
-            self.seam_image.resize(pix.size())
-            self.seam_area.verticalScrollBar().setValue(0)
-            self.seam = True
-            self.review_view.setCurrentIndex(1)
-            self.seam_button.review_caption.setText("Pages")
-            set_review_icon(self.seam_button, "seam-view", "▥", zoomed=True)
+            halves = self._visual_halves(c.left, c.right)
         except Exception as exc:
             QMessageBox.critical(self, "Seam View", str(exc))
-
-    def _close_preview_seam(self):
-        self.preview_seam_active = False
-        self.preview_view.setCurrentIndex(0)
-        self.preview_seam_button.review_caption.setText("Seam")
-        set_review_icon(self.preview_seam_button, "seam-view", "▥")
-        self._update_shortcuts()
+            return
+        layout = self.plan.pair_layout(index) or (0, "left")
+        dialog = OverlapDialog(*halves, layout, self, accept_text="Use this alignment", find_on_open=False)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        self.plan.proposed_layouts[index] = dialog.overlap()
+        diagnostics.note("Pair review alignment: pages %d and %d, %d px, %s on top",
+                         c.left + 1, c.right + 1, *dialog.overlap())
+        self.show_candidate()
 
     def preview_seam(self):
-        if self.preview_seam_active:
-            self._close_preview_seam()
-            return
+        """Final review's Seam: a spread's seam to line up, or two selected pages' to join."""
         if not self.comparing:
             self.adjust_spread_overlap()
             return
@@ -4188,9 +4286,23 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         # Only two individual adjacent pages have a prospective join seam.
         if any(entries[i][1] is not None for i in self.comparing):
             return
-        a, b = (self.plan.scan.pages[entries[i][0]].path for i in self.comparing)
-        turns = tuple(self.plan.rotations.get(entries[i][0], 0) for i in self.comparing)
-        self._show_preview_seam(a, b, turns)
+        first, second = (entries[i][0] for i in self.comparing)
+        turns = tuple(self.plan.rotations.get(i, 0) for i in (first, second))
+        try:
+            halves = self._visual_halves(first, second, turns)
+        except Exception as exc:
+            QMessageBox.warning(self, "Seam View", str(exc))
+            return
+        joinable = self.join_button.isEnabled()
+        dialog = OverlapDialog(*halves, (0, "left"), self, accept_text="Join as spread" if joinable else "Close")
+        if dialog.exec() != QDialog.Accepted or not joinable:
+            return
+        if self.join_selected() and dialog.overlap()[0]:
+            pixels, top = dialog.overlap()
+            self.plan.set_overlap(first, pixels, top, checkpoint=False)  # Undone with the join.
+            self._save_review_report()
+            self.rebuild_thumbnails()
+            self.show_preview()
 
     def adjust_spread_overlap(self):
         """Line up the current spread's halves where they repeat art at the seam."""
@@ -4199,20 +4311,13 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         left, right = self.plan.entries()[self.preview_index]
         if right is None:
             return
-        turns = self.plan.joined_rotations.get(left, (0, 0))
-        first, second = left, right
-        if self.plan.scan.right_to_left:
-            first, second, turns = right, left, turns[::-1]
         try:
-            halves = []
-            for index, turn in zip((first, second), turns, strict=True):
-                with Image.open(self.plan.scan.pages[index].path) as source:
-                    page = standard_mode(ImageOps.exif_transpose(source)).convert("RGB")
-                halves.append(rotated_image(page, turn))
+            halves = self._visual_halves(left, right, self.plan.joined_rotations.get(left, (0, 0)))
         except Exception as exc:
             QMessageBox.warning(self, "Line up spread", str(exc))
             return
-        dialog = OverlapDialog(*halves, self.plan.join_overlaps.get(left, (0, "right")), self)
+        dialog = OverlapDialog(*halves, self.plan.join_overlaps.get(left, (0, "left")), self,
+                               find_on_open=left not in self.plan.join_overlaps)
         if dialog.exec() != QDialog.Accepted:
             return
         pixels, top = dialog.overlap()
@@ -4225,38 +4330,6 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self._save_review_report()
         self.rebuild_thumbnails()
         self.show_preview()
-
-    def _show_preview_seam(self, a, b, turns=(0, 0)):
-        try:
-            if self.plan is not None and self.plan.scan.right_to_left:
-                a, b = b, a
-                turns = turns[::-1]
-            with Image.open(a) as left_source, Image.open(b) as right_source:
-                left = rotated_image(ImageOps.exif_transpose(left_source), turns[0])
-                right = rotated_image(ImageOps.exif_transpose(right_source), turns[1])
-                h = min(left.height, right.height)
-                strip = min(240, left.width // 3, right.width // 3)
-                seam = Image.new("RGB", (2 * strip, h))
-                seam.paste(standard_mode(left.crop((left.width - strip, 0, left.width, h))).convert("RGB"), (0, 0))
-                seam.paste(standard_mode(right.crop((0, 0, strip, h))).convert("RGB"), (strip, 0))
-                pix = pixmap_from_pil(seam, (900, 6000))
-                painter = QPainter(pix)
-                painter.setPen(QPen(QColor("#ffe500"), 2))
-                seam_x = round(strip * pix.width() / seam.width)
-                painter.drawLine(seam_x, 0, seam_x, pix.height() - 1)
-                painter.end()
-            self.preview_seam_image.setPixmap(pix)
-            self.preview_seam_image.resize(pix.size())
-        except Exception as exc:
-            QMessageBox.warning(self, "Seam View", str(exc))
-            return
-        self.preview_seam_area.verticalScrollBar().setValue(0)
-        self.preview_seam_active = True
-        self.preview_view.setCurrentIndex(1)
-        self.preview_seam_button.review_caption.setText("Pages")
-        set_review_icon(self.preview_seam_button, "seam-view", "▥", zoomed=True)
-        self.preview_seam_area.setFocus(Qt.OtherFocusReason)
-        self._update_shortcuts()
 
     def decide(self, yes):
         if self.seam:
@@ -4602,7 +4675,6 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.show_preview(follow=False)
 
     def show_preview(self, follow=True):
-        self._close_preview_seam()
         entries = self.plan.entries()
         review_control(self.previous_preview_button, "→" if self.plan.scan.right_to_left else "←", "Previous",
                        icon_label="Next" if self.plan.scan.right_to_left else "Previous")
@@ -4796,7 +4868,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
 
     def join_selected(self):
         if not self.comparing:
-            return
+            return False
         left = self.plan.entries()[self.comparing[0]][0]
         right = self.plan.entries()[self.comparing[1]][0]
         try:
@@ -4812,16 +4884,17 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             dialog.setDefaultButton(join_button)
             dialog.exec()
             if dialog.clickedButton() != join_button:
-                return
+                return False
             self.plan.join(left, override_boundary=True, right=right)
         except ValueError as exc:
             QMessageBox.warning(self, "Cannot join", str(exc))
-            return
+            return False
         self.comparing = None
         self._save_review_report()
         self.selected_first = None
         self.rebuild_thumbnails()
         self.show_preview()
+        return True
 
     def split_selected(self):
         left, right = self.plan.entries()[self.preview_index]
