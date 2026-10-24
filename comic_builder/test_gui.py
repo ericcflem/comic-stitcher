@@ -36,6 +36,7 @@ class ThumbnailTest(unittest.TestCase):
         ui_app_style(cls.app)
 
     def setUp(self):
+        self.real_crop_summary = ComicWindow.screenshot_crop_summary
         summary_patch = patch.object(ComicWindow, "screenshot_crop_summary", return_value=False)
         summary_patch.start()
         self.addCleanup(summary_patch.stop)
@@ -240,6 +241,7 @@ class ThumbnailTest(unittest.TestCase):
     def test_summary_names_screenshots_of_a_wider_or_smaller_page_size(self):
         from .screenshot_geometry import CropProposal
         from dataclasses import replace
+        summary = self.real_crop_summary  # setUp stubs the summary out.
         window = ComicWindow()
         try:
             canvas = (4200, 3056)
@@ -255,7 +257,7 @@ class ThumbnailTest(unittest.TestCase):
                                         (mixed, "single widths 1988 (3 screenshots), 2014 (2 screenshots: 2, 4) pixels")):
                 shown = []
                 with patch.object(QMessageBox, "exec", lambda box: shown.append((box.text(), box.informativeText()))):
-                    window.screenshot_crop_summary(proposals, [])
+                    summary(window, proposals, [])
                 self.assertEqual(shown[0][0], "These pages may have been reduced during capture")
                 self.assertIn(expected, shown[0][1])
         finally:
