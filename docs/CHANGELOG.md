@@ -11,6 +11,12 @@
   screenshot's black no longer needs review. When the book has one page size and
   everything visible on the page fits inside it, the page is cropped at that
   size. Books with two page sizes still ask, since the artwork can't tell which.
+- Screenshot crop review: the page size is chosen with radio buttons, each
+  showing how many screenshots measured at it. "Use this size for all pages"
+  crops the whole book at the chosen size (pages at their own size, such as
+  covers, and crops adjusted by hand keep theirs), and "This page's own size"
+  measures one screenshot again on its own. Black-bordered spreads whose panels
+  end in straight lines can measure as extra page sizes; one click now undoes that.
 - CMYK pages without a colour profile are converted as printed for US coated
   web offset (SWOP, CGATS TR 001), the usual conditions for North American
   comics, instead of with the plain formula. On an untagged CMYK page whose
