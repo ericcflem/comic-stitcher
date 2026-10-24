@@ -239,6 +239,7 @@ class ThumbnailTest(unittest.TestCase):
 
     def test_summary_names_screenshots_of_a_wider_or_smaller_page_size(self):
         from .screenshot_geometry import CropProposal
+        from dataclasses import replace
         window = ComicWindow()
         try:
             canvas = (4200, 3056)
