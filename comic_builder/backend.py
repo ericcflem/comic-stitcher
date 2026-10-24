@@ -357,6 +357,8 @@ class BookPlan:
         # narrower than two): first page -> (pixels the halves overlap, "left" or
         # "right" for the half drawn on top, as the pages appear side by side).
         self.join_overlaps: dict[int, tuple[int, str]] = {}
+        # Alignments chosen in pair review's Seam before deciding: candidate -> (pixels, top).
+        self.proposed_layouts: dict[int, tuple[int, str]] = {}
         self.preview_history: list[dict] = []
         self.deferred_possible = False
         self._measured_neighbors = set(zip(range(len(scan.pages) - 1), range(1, len(scan.pages)), strict=True))
@@ -477,8 +479,8 @@ class BookPlan:
         self.preview_history.clear()
         self.history.append(item[0] if self.scan.manual_mode else self.decisions.copy())
         self.decisions[item[0]] = yes
-        layout = join_layout(item[1])
-        if yes and layout:  # Joined over a repeated strip, or covering a thin border.
+        layout = self.pair_layout(item[0])
+        if yes and layout and layout[0]:  # Joined over a repeated strip, or covering a thin border.
             self.join_overlaps[item[1].left] = layout
         else:
             self.join_overlaps.pop(item[1].left, None)
@@ -488,6 +490,12 @@ class BookPlan:
                               (left not in (item[1].left - 1, item[1].left + 1))}
         else:
             self.rotations.pop(item[1].left, None)
+
+    def pair_layout(self, index: int) -> tuple[int, str] | None:
+        """How a candidate pair would be joined: as lined up in Seam, else as suggested."""
+        if index in self.proposed_layouts:
+            return self.proposed_layouts[index]
+        return join_layout(self.scan.candidates[index])
 
     def set_rotation(self, left: int, degrees: int) -> None:
         if left not in {entry_left for entry_left, _ in self.entries()} or degrees not in (0, 90, 180, 270):

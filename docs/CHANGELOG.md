@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Seam** always opens the line-up tools, showing the seam as the pages will be
+  joined, including a suggested overlap or covered border: in pair review
+  (**Use this alignment**, then Yes or No), on a spread in the final review, and
+  on two selected pages there (**Join as spread**). In the tools, ← and → choose
+  the page on top, Enter shows or hides a line where the page on top ends, Space
+  finishes and Esc cancels. The separate seam-only views are gone.
 - Overlapping halves are suggested: the import scan looks for a strip of art
   repeated on both pages of each neighbouring pair it checks, even where the
   edges don't match. Pair review offers such a pair as **Possible · overlapping

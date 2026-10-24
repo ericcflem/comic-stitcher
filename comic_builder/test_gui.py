@@ -475,7 +475,8 @@ class ThumbnailTest(unittest.TestCase):
         for button in controls:
             button.close()
 
-    def test_pair_review_seam_has_yellow_marker(self):
+    def test_pair_review_seam_lines_up_the_pair_before_deciding(self):
+        from .gui import OverlapDialog
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory)
             Image.new("RGB", (120, 160), "red").save(folder / "001.png")
@@ -483,40 +484,50 @@ class ThumbnailTest(unittest.TestCase):
             window = ComicWindow()
             try:
                 window.scan_done(scan_manual_folder(folder))
-                from .gui import interface_icon
-                from PySide6.QtCore import QSize
-                self.assertEqual(window.seam_button.review_icon.pixmap().toImage(),
-                                 interface_icon('seam-view').pixmap(QSize(32, 32)).toImage())
-                window.toggle_seam()
-                self.assertEqual(window.seam_button.review_icon.pixmap().toImage(),
-                                 interface_icon('seam-view', zoomed=True).pixmap(QSize(32, 32)).toImage())
-                image = window.seam_image.pixmap().toImage()
-                self.assertEqual(image.pixelColor(image.width() // 2, 20).name(), "#ffe500")
-                window.toggle_seam()
-                self.assertEqual(window.seam_button.review_icon.pixmap().toImage(),
-                                 interface_icon('seam-view').pixmap(QSize(32, 32)).toImage())
+                seen = {}
+
+                def line_up(dialog):
+                    self.assertIsInstance(dialog, OverlapDialog)
+                    seen["ok"] = dialog.ok_button.text()
+                    dialog.pixels.setValue(5)
+                    QTest.keyClick(dialog, Qt.Key_Right)  # Arrow keys choose the page on top.
+                    QTest.keyClick(dialog, Qt.Key_Left)
+                    return QDialog.Accepted
+                with patch.object(QDialog, "exec", line_up):
+                    window.seam_button.click()
+                self.assertEqual(seen["ok"], "Use this alignment")
+                self.assertIn("lined up in Seam (5 px, left page on top)", window.review_heading.text())
+                self.assertEqual((window.joined_review.overlap, window.joined_review.top), (5, "left"))
+                with patch.object(QDialog, "exec", lambda dialog: QDialog.Rejected):
+                    window.seam_button.click()  # Cancel keeps it.
+                self.assertEqual(window.joined_review.overlap, 5)
+                window.decide(True)
+                self.assertEqual(window.plan.join_overlaps, {0: (5, "left")})
             finally:
                 window.close()
 
-    def test_final_seam_marker_is_preview_only(self):
-        with tempfile.TemporaryDirectory() as directory:
-            left, right = Path(directory) / "left.png", Path(directory) / "right.png"
-            Image.new("RGB", (120, 160), "red").save(left)
-            Image.new("RGB", (120, 160), "blue").save(right)
-            original = left.read_bytes(), right.read_bytes()
-            window = ComicWindow()
-            try:
-                window._show_preview_seam(left, right)
-                image = window.preview_seam_image.pixmap().toImage()
-                self.assertEqual(image.pixelColor(image.width() // 2, 20).name(), "#ffe500")
-                self.assertEqual(window.preview_view.currentIndex(), 1)
-                window._close_preview_seam()
-                self.assertEqual(window.preview_view.currentIndex(), 0)
-                self.assertEqual((left.read_bytes(), right.read_bytes()), original)
-            finally:
-                window.close()
+    def test_line_up_keys_enter_shows_the_seam_line_and_space_finishes(self):
+        from .gui import OverlapDialog
+        left, right = Image.new("RGB", (120, 160), "red"), Image.new("RGB", (120, 160), "blue")
+        dialog = OverlapDialog(left, right, (0, "left"), find_on_open=False)
+        try:
+            dialog.show()
+            self.app.processEvents()
+            image = dialog.image.pixmap().toImage()
+            self.assertNotEqual(image.pixelColor(image.width() // 2, 20).name(), "#ffe500")  # Off at first.
+            QTest.keyClick(dialog, Qt.Key_Return)
+            image = dialog.image.pixmap().toImage()
+            self.assertEqual(image.pixelColor(image.width() // 2, 20).name(), "#ffe500")
+            self.assertTrue(dialog.isVisible())  # Enter didn't close it.
+            QTest.keyClick(dialog, Qt.Key_Return)
+            image = dialog.image.pixmap().toImage()
+            self.assertNotEqual(image.pixelColor(image.width() // 2, 20).name(), "#ffe500")
+            QTest.keyClick(dialog, Qt.Key_Space)
+            self.assertEqual(dialog.result(), QDialog.Accepted)
+        finally:
+            dialog.close()
 
-    def test_final_seam_space_overrides_focused_edit_button(self):
+    def test_final_seam_opens_line_up_for_two_selected_pages(self):
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory)
             for name, color in (("001.png", "red"), ("002.png", "blue")):
@@ -532,24 +543,23 @@ class ThumbnailTest(unittest.TestCase):
                 window.activateWindow()
                 window.join_button.setFocus()
                 self.app.processEvents()
-                QTest.keyClick(window.join_button, Qt.Key_Space)
-                self.assertTrue(window.preview_seam_active)
-                self.assertEqual(window.plan.entries(), before)
-                self.assertEqual(window.preview_view.currentIndex(), 1)
-                self.app.processEvents()
-                QTest.keyClick(window.preview_seam_area, Qt.Key_Down)
-                self.assertGreater(window.preview_seam_area.verticalScrollBar().value(), 0)
-                QTest.keyClick(window.preview_seam_area, Qt.Key_Space)
-                self.assertFalse(window.preview_seam_active)
-                self.assertEqual(window.comparing, (0, 1))
-                window.preview_seam_button.click()
-                self.assertTrue(window.preview_seam_active)
-                QTest.keyClick(window.preview_seam_area, Qt.Key_Escape)
-                self.assertFalse(window.preview_seam_active)
-                window.preview_seam()
-                window.navigate(1)
-                self.assertFalse(window.preview_seam_active)
-                self.assertEqual(window.plan.entries(), before)
+                opened = []
+                with patch.object(QDialog, "exec", lambda dialog: opened.append(dialog.ok_button.text())
+                                  or QDialog.Rejected):
+                    QTest.keyClick(window.join_button, Qt.Key_Space)  # Space is Seam, not the button.
+                self.assertEqual(opened, ["Join as spread"])
+                self.assertEqual(window.plan.entries(), before)  # Cancelled: nothing joined.
+
+                def join(dialog):
+                    dialog.pixels.setValue(4)
+                    dialog.set_top("right")
+                    return QDialog.Accepted
+                with patch.object(QDialog, "exec", join):
+                    window.preview_seam_button.click()
+                self.assertEqual(window.plan.entries(), [(0, 1)])
+                self.assertEqual(window.plan.join_overlaps, {0: (4, "right")})
+                window.undo_preview_removal()  # One undo removes the join and its alignment.
+                self.assertEqual((window.plan.entries(), window.plan.join_overlaps), (before, {}))
             finally:
                 window.close()
 
