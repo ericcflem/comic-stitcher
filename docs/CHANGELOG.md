@@ -16,7 +16,11 @@
   crops the whole book at the chosen size (pages at their own size, such as
   covers, and crops adjusted by hand keep theirs), and "This page's own size"
   measures one screenshot again on its own. Black-bordered spreads whose panels
-  end in straight lines can measure as extra page sizes; one click now undoes that.
+  end in straight lines could measure as extra page sizes; one click undoes that.
+- Screenshot import: a page whose top or bottom rows are black has a black
+  border, so the sides measured on it belong to the artwork, not the page. It no
+  longer makes a page size of its own (Fire Power: 1909 and 1913 beside 1988);
+  it's cropped at the book's page size like other black-bordered pages.
 - CMYK pages without a colour profile are converted as printed for US coated
   web offset (SWOP, CGATS TR 001), the usual conditions for North American
   comics, instead of with the plain formula. On an untagged CMYK page whose

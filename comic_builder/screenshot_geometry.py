@@ -78,14 +78,30 @@ def _horizontal_edges(image: Image.Image, black_limit: int = 6) -> tuple[int, in
         if (gradient[rise] >= 10 and gradient[fall] <= -10 and
                 abs(cliff_left - (width - cliff_right)) <= 4 and
                 _kind(cliff_right - cliff_left, height) in ("single", "double")):
-            return cliff_left, cliff_right, False, True
+            return cliff_left, cliff_right, False, not _black_framed(image, cliff_left, cliff_right, black_limit)
     sparse = min(count[left], count[right - 1]) < max(3, round(height * .01))
     white_inside = (right - left > 2 and
                     min(white_count[left + 1], white_count[right - 2]) >= height * .95)
     hard_edges = (left > 0 and right < width and
                   count[left - 1] <= 1 and count[right] <= 1 and
                   (white_inside or min(count[left], count[right - 1]) >= height * .95))
+    if hard_edges and _black_framed(image, left, right, black_limit):
+        hard_edges = False
     return left, right, bool(sparse), bool(hard_edges)
+
+
+def _black_framed(image: Image.Image, left: int, right: int, black_limit: int) -> bool:
+    """A page fills the screenshot's height, so its top and bottom rows show the
+    page. When either is black across the measured width, the page has a black
+    border, which is the same black as the screenshot: the sides measured are
+    the artwork's (panels ending in straight lines, say), not the page's."""
+    width, height = image.size
+    rows = max(2, round(height * .003))
+    for top in (0, height - rows):
+        strip = np.asarray(image.crop((left, top, right, top + rows)).convert("RGB"))
+        if np.count_nonzero(np.max(strip, axis=2) > black_limit) < strip.shape[0] * strip.shape[1] * .02:
+            return True
+    return False
 
 
 def _kind(width: int, height: int) -> str:
@@ -320,6 +336,12 @@ def _cover_proposal(observation) -> CropProposal | None:
     return CropProposal(path, canvas, kind, box, box, "measured")
 
 
+def _contains(x: int, end: int, left: int, right: int) -> bool:
+    """Visible content inside a crop, allowing a few pixels of compression ringing."""
+    tolerance = max(3, round((end - x) * .002))
+    return x - tolerance <= left and right <= end + tolerance
+
+
 def _hidden_single(left: int, right: int, canvas: tuple[int, int],
                    known: dict[str, int]) -> tuple[int, int, int, int] | None:
     """The book's single-page rectangle, centred, when a page whose edges are
@@ -453,7 +475,7 @@ def _propose_observations(observations, single_size=None, calibration=None,
             if likely_double and "double" in known:
                 double = known["double"]
                 x = (canvas[0] - double) // 2
-                if x <= left and right <= x + double:
+                if _contains(x, x + double, left, right):
                     suggestion = (x, 0, x + double, canvas[1])
             if suggestion is not None and _wide_double_evidence(raw_width, canvas, known):
                 # Even sparse marks spanning beyond the gray zone cannot fit
@@ -499,7 +521,7 @@ def _propose_observations(observations, single_size=None, calibration=None,
             # one edge happens to align with the usual double-page crop.
             double = known["double"]
             x = (canvas[0] - double) // 2
-            option = (x, 0, x + double, canvas[1]) if x <= left and right <= x + double else None
+            option = (x, 0, x + double, canvas[1]) if _contains(x, x + double, left, right) else None
             result.append(CropProposal(path, canvas, "uncertain", None, measured,
                                        "review", suggested_box=option,
                                        review_reason=middle))
@@ -527,7 +549,7 @@ def _propose_observations(observations, single_size=None, calibration=None,
                 double = known["double"]
                 x = (canvas[0] - double) // 2
                 if (_wide_double_evidence(raw_width, canvas, known) and
-                        x <= left and right <= x + double):
+                        _contains(x, x + double, left, right)):
                     result.append(CropProposal(path, canvas, "double",
                                                (x, 0, x + double, canvas[1]),
                                                measured, "suggested"))
@@ -547,7 +569,7 @@ def _propose_observations(observations, single_size=None, calibration=None,
             if unusual_wide and "double" in known:
                 double = known["double"]
                 x = (canvas[0] - double) // 2
-                if x <= left and right <= x + double:
+                if _contains(x, x + double, left, right):
                     suggestion = (x, 0, x + double, canvas[1])
             result.append(CropProposal(path, canvas, "uncertain",
                                        None, measured, "review", suggested_box=suggestion,

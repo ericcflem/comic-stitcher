@@ -78,6 +78,30 @@ class ScreenshotGeometryTest(unittest.TestCase):
                 self.assertEqual({(p.kind, p.box, p.source) for p in proposals[19:21]},
                                  {("single", (375, 0, 1025, 1000), "suggested")})
 
+    def test_straight_panel_edges_inside_a_black_border_dont_make_a_page_size(self):
+        # Fire Power: black-bordered spreads whose panels end in straight vertical
+        # lines measured as clean pages 3810-3826 wide and made two page sizes
+        # beside the real 1988. Their top and bottom rows are black: the border.
+        with tempfile.TemporaryDirectory() as directory:
+            paths = []
+            for index in range(6):
+                image = Image.new("RGB", (1400, 1000), "black")
+                image.paste("white", (50, 0, 1350, 1000))
+                draw = ImageDraw.Draw(image)
+                draw.rectangle((90, 40, 1310, 960), fill=(180, 60, 60))
+                paths.append(Path(directory) / f"{index}.png")
+                image.save(paths[-1])
+            for index, inset in enumerate((30, 31, 32), 6):
+                image = Image.new("RGB", (1400, 1000), "black")
+                draw = ImageDraw.Draw(image)
+                for top in (25, 345, 665):  # Full-width panels, straight sides, black gutters.
+                    draw.rectangle((50 + inset, top, 1349 - inset, top + 300), fill=(60, 120, 200))
+                paths.append(Path(directory) / f"{index}.png")
+                image.save(paths[-1])
+            proposals = propose_crops(paths)
+            self.assertFalse(any(p.family_widths for p in proposals))
+            self.assertEqual({(p.kind, p.box) for p in proposals[6:]}, {("double", (50, 0, 1350, 1000))})
+
     def test_hidden_edge_single_with_two_page_sizes_still_goes_to_review(self):
         # Two real page sizes (Marvel 1988 and 2063, say): which one a black page
         # belongs to can't be told from its artwork, so it's left for review.
