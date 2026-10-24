@@ -1605,7 +1605,7 @@ class ThumbnailTest(unittest.TestCase):
                 window.close()
 
     def test_a_spread_with_repeated_art_is_lined_up_from_seam(self):
-        from PySide6.QtWidgets import QComboBox
+        from PySide6.QtCore import QPoint
         from .gui import OverlapDialog
         from .test_spread_overlap import artwork, halves
         with tempfile.TemporaryDirectory() as directory:
@@ -1635,7 +1635,11 @@ class ThumbnailTest(unittest.TestCase):
                     self.assertEqual(dialog.seam_image().width, 2 * dialog.strip)
                     dialog.together.click()
                     dialog.apart.click()
-                    dialog.findChild(QComboBox).setCurrentIndex(1)  # Left page on top.
+                    self.assertIn("Left page on top", dialog.top_button.text())  # The default.
+                    dialog.top_button.click()
+                    self.assertEqual(dialog.overlap(), (30, "right"))
+                    self.assertIn("Right page on top", dialog.top_button.text())
+                    QTest.mouseClick(dialog.image, Qt.LeftButton, pos=QPoint(5, 5))  # The left half.
                     return QDialog.Accepted
                 with patch.object(QDialog, "exec", line_up):
                     window.preview_seam_button.click()
@@ -1663,7 +1667,7 @@ class ThumbnailTest(unittest.TestCase):
                     left, right = rects
                     self.assertLess(right.left(), left.right())
                 window.decide(True)
-                self.assertEqual(window.plan.join_overlaps, {1: (34, "right")})
+                self.assertEqual(window.plan.join_overlaps, {1: (34, "left")})
             finally:
                 window.close()
 

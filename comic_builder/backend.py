@@ -152,6 +152,34 @@ def _measured_candidate(left: int, right: int, visual_left: Path, visual_right: 
     return Candidate(left, right, score["continuity"], score["continuity"] >= LIKELY_MIN_SCORE, metrics)
 
 
+def _overlap_candidate(left: int, right: int, visual_left: Path, visual_right: Path,
+                       left_info, right_info) -> Candidate | None:
+    """For neighbouring pages the edge test rules out (a border on an inner edge,
+    for example): only look for a repeated strip, which is strict enough to
+    trust on its own. A Candidate when one is found."""
+    limit = overlap_limit(left_info.width, right_info.width)
+    left_edge = load_edge_rgb(visual_left, "right", width=limit + OVERLAP_RIGHT_COLUMNS)
+    right_edge = load_edge_rgb(visual_right, "left", width=OVERLAP_RIGHT_COLUMNS)
+    overlap = overlap_in(left_edge, right_edge, limit)
+    if not overlap:
+        return None
+    return Candidate(left, right, 0.0, False,
+                     {"overlap": overlap, "edges_not_scored": True,
+                      "left_page_right_edge": left_info.right_stats,
+                      "right_page_left_edge": right_info.left_stats})
+
+
+def _pair_job(scored: bool, *job) -> Candidate | None:
+    """One neighbouring pair in the scan: scored as a seam, or only checked for a repeated strip."""
+    return _measured_candidate(*job) if scored else _overlap_candidate(*job)
+
+
+def _same_size(a, b) -> bool:
+    """Pages a sliced spread could have been cut into: as is_candidate_pair's size test."""
+    return (abs(a.width - b.width) <= max(2, round(min(a.width, b.width) * .005)) and
+            abs(a.height - b.height) <= max(2, round(min(a.height, b.height) * .002)))
+
+
 def offered(candidate: Candidate) -> bool:
     """Whether pair review shows this pair: a likely or possible seam, or a repeated strip."""
     return candidate.likely or candidate.continuity >= POSSIBLE_MIN_SCORE or bool(candidate.metrics.get("overlap"))
@@ -228,15 +256,19 @@ def scan_folder(folder: Path, progress: Callable[[int, int], None] | None = None
         pages.append(Page(path, i, assigned_group, p.width, p.height,
                           stat.st_size, stat.st_mtime_ns))
 
-    pairs = []
+    pairs, overlap_only = [], []
     for i in range(len(pages) - 1):
         a, b = pages[i:i + 2]
         visual_left, visual_right = (b, a) if right_to_left else (a, b)
         left_info, right_info = (info[i + 1], info[i]) if right_to_left else (info[i], info[i + 1])
+        job = (i, i + 1, visual_left.path, visual_right.path, left_info, right_info)
         if a.group >= 0 and a.group == b.group and is_candidate_pair(left_info, right_info):
-            pairs.append((i, i + 1, visual_left.path, visual_right.path, left_info, right_info))
-    steps["done"] = len(paths) + (len(pages) - 1 - len(pairs))  # Pairs that need no measuring.
-    candidates = _scan_jobs(_measured_candidate, pairs, workers, step)
+            pairs.append(job)
+        elif _same_size(left_info, right_info):
+            overlap_only.append(job)  # Ruled out by its edges; a repeated strip can still show a spread.
+    steps["done"] = len(paths) + (len(pages) - 1 - len(pairs) - len(overlap_only))  # Pairs that need no measuring.
+    jobs = [(True, *job) for job in pairs] + [(False, *job) for job in overlap_only]
+    candidates = [c for c in _scan_jobs(_pair_job, jobs, workers, step) if c is not None]
     candidates.sort(key=lambda c: (not c.likely, c.left))
     if progress:
         progress(2 * len(paths), 2 * len(paths))
@@ -392,7 +424,7 @@ class BookPlan:
         self.decisions[item[0]] = yes
         overlap = item[1].metrics.get("overlap")
         if yes and overlap:  # Joined over the strip both halves repeat.
-            self.join_overlaps[item[1].left] = (overlap, "right")
+            self.join_overlaps[item[1].left] = (overlap, "left")
         else:
             self.join_overlaps.pop(item[1].left, None)
         if yes:
@@ -494,7 +526,7 @@ class BookPlan:
         self.manual_rights[left] = right
         self.joined_rotations[left] = (self.rotations.pop(left, 0), self.rotations.pop(right, 0))
 
-    def set_overlap(self, left: int, pixels: int, top: str = "right", checkpoint: bool = True) -> None:
+    def set_overlap(self, left: int, pixels: int, top: str = "left", checkpoint: bool = True) -> None:
         """Line up a spread whose halves repeat art at the seam: they overlap by
         `pixels`, with the `top` half ("left" or "right", as displayed) covering the other."""
         if left not in self.approved():
@@ -505,7 +537,7 @@ class BookPlan:
         narrowest = min(self.scan.pages[i].width for i in (left, right))
         if not 0 <= pixels < narrowest:
             raise ValueError("The overlap must be smaller than the pages.")
-        if (pixels, top) == self.join_overlaps.get(left, (0, "right")):
+        if (pixels, top) == self.join_overlaps.get(left, (0, "left")):
             return
         if checkpoint:
             self.checkpoint_preview("spread overlap", left)

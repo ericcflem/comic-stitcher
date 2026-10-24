@@ -175,13 +175,35 @@ class SuggestionTests(unittest.TestCase):
             while plan.current() and plan.current()[0] != index:
                 plan.decide(False)
             plan.decide(True)
-            self.assertEqual(plan.join_overlaps, {1: (34, "right")})
+            self.assertEqual(plan.join_overlaps, {1: (34, "left")})
             report = report_data(plan)
             self.assertEqual(report["overlapping_halves"],
                              [{"left_page": 2, "right_page": 3, "repeated_px": 34, "status": "approved",
                                "final_overlap_px": 34}])
             plan.back()  # Undoing the decision drops the overlap with the join.
             self.assertEqual(plan.join_overlaps, {})
+
+    def test_found_where_a_white_border_rules_the_edges_out(self):
+        for side, width in (("right page", 6), ("left page", 3)):
+            with self.subTest(side), tempfile.TemporaryDirectory() as directory:
+                folder = Path(directory)
+                left, right = halves(artwork(seed=13), 40)
+                if side == "right page":
+                    right = np.asarray(right).copy()
+                    right[:, :width] = 255
+                    right = Image.fromarray(right)
+                else:
+                    left = np.asarray(left).copy()
+                    left[:, -width:] = 255
+                    left = Image.fromarray(left)
+                pages = [artwork(seed=30).crop((0, 0, left.width, 700)), left, right,
+                         artwork(seed=31).crop((0, 0, right.width, 700))]
+                for number, page in enumerate(pages, 1):
+                    page.save(folder / f"{number:03d}.jpg", quality=80)
+                scan = scan_folder(folder)
+                found = [(c.left, c.right, c.metrics.get("overlap")) for c in scan.candidates if c.metrics.get("overlap")]
+                self.assertEqual(found, [(1, 2, 40)])
+                self.assertTrue(offered(next(c for c in scan.candidates if c.metrics.get("overlap"))))
 
     def test_found_in_back_to_front_books_too(self):
         with tempfile.TemporaryDirectory() as directory:

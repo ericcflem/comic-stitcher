@@ -346,6 +346,8 @@ class OverlapDialog(OutlinedDialog):
         self.image = QLabel()
         self.image.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
         self.view.setWidget(self.image)
+        self.image.setCursor(Qt.PointingHandCursor)
+        self.image.installEventFilter(self)  # Click a half to bring it to the front.
         layout.addWidget(self.view, 1)
         row = QHBoxLayout()
         row.addWidget(QLabel("Overlap"))
@@ -370,15 +372,14 @@ class OverlapDialog(OutlinedDialog):
         self.find.clicked.connect(self.find_overlap)
         row.addWidget(self.find)
         row.addSpacing(16)
-        row.addWidget(QLabel("On top"))
-        self.top = QComboBox()
-        self.top.addItems(["Right page", "Left page"])
-        self.top.setCurrentIndex(1 if overlap[1] == "left" else 0)
-        self.top.setToolTip(tooltip_text(
-            "Where the halves overlap, this page covers the other. Choose the page whose edge "
-            "is clean, so a thin border on the other one is hidden."))
-        self.top.currentIndexChanged.connect(self.render)
-        row.addWidget(self.top)
+        self.top = overlap[1]
+        self.top_button = QPushButton()
+        self.top_button.setToolTip(tooltip_text(
+            "Where the halves overlap, the page on top covers the other. Click to swap, or click a "
+            "half in the seam view to bring it to the front. Put the page with the clean edge on "
+            "top, so a thin border on the other one is hidden."))
+        self.top_button.clicked.connect(lambda: self.set_top("right" if self.top == "left" else "left"))
+        row.addWidget(self.top_button)
         row.addStretch()
         layout.addLayout(row)
         self.status = QLabel("")
@@ -394,7 +395,17 @@ class OverlapDialog(OutlinedDialog):
         self.render()
 
     def overlap(self) -> tuple[int, str]:
-        return self.pixels.value(), "left" if self.top.currentIndex() == 1 else "right"
+        return self.pixels.value(), self.top
+
+    def set_top(self, top: str):
+        self.top = top
+        self.render()
+
+    def eventFilter(self, watched, event):
+        if watched is self.image and event.type() == QEvent.MouseButtonPress:
+            self.set_top("left" if event.position().x() < self.image.width() / 2 else "right")
+            return True
+        return super().eventFilter(watched, event)
 
     def find_overlap(self):
         found = measure_overlap(self.left, self.right)
@@ -431,6 +442,7 @@ class OverlapDialog(OutlinedDialog):
         self.view.verticalScrollBar().setValue(scroll)
         self.apart.setEnabled(self.pixels.value() > self.pixels.minimum())
         self.together.setEnabled(self.pixels.value() < self.pixels.maximum())
+        self.top_button.setText("◧ Left page on top" if self.top == "left" else "Right page on top ◨")
 
 
 class JoinedPairView(QWidget):
@@ -492,8 +504,8 @@ class JoinedPairView(QWidget):
             painter.translate(self.width() / 2, self.height() / 2)
             painter.rotate(self.rotation)
             painter.translate(-width * scale / 2, -common * scale / 2)
-            for pixmap, x, page_width, height in ((self.left, 0, lw, lh),
-                                                   (self.right, lw - self.overlap, rw, rh)):
+            for pixmap, x, page_width, height in ((self.right, lw - self.overlap, rw, rh),
+                                                   (self.left, 0, lw, lh)):
                 painter.drawPixmap(QRectF(x * scale, 0, page_width * scale, common * scale),
                                    pixmap, QRectF(0, 0, pixmap.width(), pixmap.height() * common / height))
             return
@@ -503,8 +515,9 @@ class JoinedPairView(QWidget):
             painter.drawText(self.rect(), Qt.AlignCenter, self.message)
             return
         painter.setRenderHint(QPainter.SmoothPixmapTransform)
-        for pixmap, destination, (_, source_height) in zip(
-                (self.left, self.right), rects, self.page_sizes, strict=True):
+        # Overlapping halves are joined with the left page on top; draw them that way.
+        for pixmap, destination, (_, source_height) in reversed(list(zip(
+                (self.left, self.right), rects, self.page_sizes, strict=True))):
             # Export crops the taller page at the bottom. Show the same join.
             common_height = min(height for _, height in self.page_sizes)
             source = QRectF(0, 0, pixmap.width(), pixmap.height() * common_height / source_height)
@@ -4224,7 +4237,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         except Exception as exc:
             QMessageBox.warning(self, "Line up spread", str(exc))
             return
-        dialog = OverlapDialog(*halves, self.plan.join_overlaps.get(left, (0, "right")), self)
+        dialog = OverlapDialog(*halves, self.plan.join_overlaps.get(left, (0, "left")), self)
         if dialog.exec() != QDialog.Accepted:
             return
         pixels, top = dialog.overlap()
