@@ -8,8 +8,8 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
-from .backend import (BookPlan, ExportOptions, _entry_size, export_book, measure_overlap, offered,
-                      scan_folder, stitched_image)
+from .backend import (BookPlan, ExportOptions, _entry_size, export_book, join_layout, measure_overlap,
+                      offered, scan_folder, stitched_image, thin_border, thin_border_between)
 from .review_report import report_data
 from .session import read_session, restore_plan, save_session
 
@@ -216,6 +216,34 @@ class SuggestionTests(unittest.TestCase):
             scan = scan_folder(folder)
             self.assertEqual([(c.left, c.right, c.metrics.get("overlap")) for c in scan.candidates
                               if c.metrics.get("overlap")], [(1, 2, 40)])
+
+    def test_a_thin_border_on_one_half_is_covered_when_joined(self):
+        self.assertEqual(thin_border(3, 0), (3, "right"))  # The right page covers the left's border.
+        self.assertEqual(thin_border(0, 6), (6, "left"))
+        self.assertIsNone(thin_border(2, 2))  # Both edges plain: leave it.
+        self.assertIsNone(thin_border(12, 0))  # Wider than a thin border: a frame or margin.
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            art = artwork(width=2000, seed=19)
+            left = np.full((700, 1003, 3), 255, np.uint8)  # A clean split, plus a 3 px white border.
+            left[:, :1000] = np.asarray(art)[:, :1000]
+            right = art.crop((1000, 0, 2000, 700))
+            pages = [artwork(width=1003, seed=50), Image.fromarray(left), right, artwork(width=1000, seed=51)]
+            for number, page in enumerate(pages, 1):
+                page.save(folder / f"{number:03d}.png")
+            scan = scan_folder(folder)
+            index, candidate = next((i, c) for i, c in enumerate(scan.candidates) if (c.left, c.right) == (1, 2))
+            self.assertIsNone(candidate.metrics.get("overlap"))
+            self.assertEqual(join_layout(candidate), (3, "right"))
+            self.assertEqual(thin_border_between(Image.fromarray(left), right), (3, "right"))
+            plan = BookPlan(scan)
+            while plan.current() and plan.current()[0] != index:
+                plan.decide(False)
+            plan.decide(True)
+            self.assertEqual(plan.join_overlaps, {1: (3, "right")})
+            spread = stitched_image(folder / "002.png", folder / "003.png", overlap=plan.join_overlaps[1])
+            self.assertTrue(np.array_equal(np.asarray(spread), np.asarray(art)))  # No white line.
+            self.assertEqual(report_data(plan)["covered_borders"][0]["border_px"], 3)
 
     def test_found_in_back_to_front_books_too(self):
         with tempfile.TemporaryDirectory() as directory:

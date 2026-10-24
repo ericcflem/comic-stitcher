@@ -6,7 +6,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .backend import BookPlan, POSSIBLE_MIN_SCORE, offered
+from .backend import BookPlan, POSSIBLE_MIN_SCORE, join_layout, offered
 
 
 def report_data(plan: BookPlan) -> dict:
@@ -65,6 +65,14 @@ def report_data(plan: BookPlan) -> dict:
              "final_overlap_px": plan.join_overlaps.get(c["left_page"] - 1, (0, ""))[0]
              if c["joined_in_final_preview"] else None}
             for c in candidates if c["metrics"].get("overlap")],
+        # Pairs joined covering a thin border on one inner edge (no repeated strip).
+        "covered_borders": [
+            {"left_page": c["left_page"], "right_page": c["right_page"], "border_px": layout[0],
+             "covered_page": "left" if layout[1] == "right" else "right", "status": c["status"],
+             "final_overlap_px": plan.join_overlaps.get(c["left_page"] - 1, (0, ""))[0]
+             if c["joined_in_final_preview"] else None}
+            for c, candidate in zip(candidates, plan.scan.candidates, strict=True)
+            if not c["metrics"].get("overlap") and (layout := join_layout(candidate))],
         "rotated_single_pages": [
             {"file": pages[left].path.name, "rotation_clockwise": degrees}
             for left, degrees in sorted(plan.rotations.items()) if left not in approved

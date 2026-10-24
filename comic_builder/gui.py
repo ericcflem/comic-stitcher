@@ -33,7 +33,7 @@ from .backend import (
     safe_book_name, scan_folder, scan_manual_folder, stitched_image, rotated_image,
     encoding_workers, POSSIBLE_MIN_SCORE, copy_encoding_options, ENCODER_FIELDS,
     estimate_export_size, ESTIMATE_SAMPLES, lossless_alternative, LOSSLESS_HINT_SHARE,
-    lossless_check, LOSSLESS_CHECK_SKIP_SHARE, measure_overlap, offered,
+    lossless_check, LOSSLESS_CHECK_SKIP_SHARE, measure_overlap, offered, join_layout, thin_border_between,
 )
 from . import __version__, diagnostics
 from .import_sources import expand_sources
@@ -409,12 +409,22 @@ class OverlapDialog(OutlinedDialog):
 
     def find_overlap(self):
         found = measure_overlap(self.left, self.right)
-        if found is None:
-            self.status.setText("No repeated strip of art was found at the seam. If the halves overlap, "
-                                "move them together by hand.")
-        else:
+        border = thin_border_between(self.left, self.right)
+        if found is not None:
             self.status.setText(f"Found a strip of {found} px repeated on both halves; the overlap is set to match.")
             self.pixels.setValue(found)
+            if border:
+                self.set_top(border[1])
+        elif border is not None:
+            pixels, top = border
+            covered = "left" if top == "right" else "right"
+            self.status.setText(f"Found a {pixels} px border on the {covered} page at the seam; the {top} "
+                                "page now covers it.")
+            self.pixels.setValue(pixels)
+            self.set_top(top)
+        else:
+            self.status.setText("No repeated strip of art or thin border was found at the seam. If the halves "
+                                "overlap, move them together by hand.")
 
     def seam_image(self) -> Image.Image:
         """The joined spread around its visible seam, as stitched_image lays it out."""
@@ -457,12 +467,14 @@ class JoinedPairView(QWidget):
         self.message = "Loading pages…"
         self.rotation = 0
         self.overlap = 0
+        self.top = "left"
         self.setMinimumSize(160, 120)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-    def load_pair(self, left_size: tuple[int, int], right_size: tuple[int, int], overlap: int = 0):
+    def load_pair(self, left_size: tuple[int, int], right_size: tuple[int, int], overlap: int = 0,
+                  top: str = "left"):
         self.page_sizes = (left_size, right_size)
-        self.overlap = overlap
+        self.overlap, self.top = overlap, top
         self.left = self.right = None
         self.message = "Loading pages…"
         self.update()
@@ -504,8 +516,8 @@ class JoinedPairView(QWidget):
             painter.translate(self.width() / 2, self.height() / 2)
             painter.rotate(self.rotation)
             painter.translate(-width * scale / 2, -common * scale / 2)
-            for pixmap, x, page_width, height in ((self.right, lw - self.overlap, rw, rh),
-                                                   (self.left, 0, lw, lh)):
+            halves = ((self.right, lw - self.overlap, rw, rh), (self.left, 0, lw, lh))
+            for pixmap, x, page_width, height in (halves if self.top == "left" else halves[::-1]):
                 painter.drawPixmap(QRectF(x * scale, 0, page_width * scale, common * scale),
                                    pixmap, QRectF(0, 0, pixmap.width(), pixmap.height() * common / height))
             return
@@ -515,9 +527,9 @@ class JoinedPairView(QWidget):
             painter.drawText(self.rect(), Qt.AlignCenter, self.message)
             return
         painter.setRenderHint(QPainter.SmoothPixmapTransform)
-        # Overlapping halves are joined with the left page on top; draw them that way.
-        for pixmap, destination, (_, source_height) in reversed(list(zip(
-                (self.left, self.right), rects, self.page_sizes, strict=True))):
+        # Draw the page on top last, as the halves will be joined.
+        halves = list(zip((self.left, self.right), rects, self.page_sizes, strict=True))
+        for pixmap, destination, (_, source_height) in (halves[::-1] if self.top == "left" else halves):
             # Export crops the taller page at the bottom. Show the same join.
             common_height = min(height for _, height in self.page_sizes)
             source = QRectF(0, 0, pixmap.width(), pixmap.height() * common_height / source_height)
@@ -4073,16 +4085,18 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.review_view.setCurrentIndex(0)
         self.review_rotation = self.plan.rotations.get(c.left, 0)
         self.joined_review.rotation = self.review_rotation
-        overlap = c.metrics.get("overlap", 0)
-        self.joined_review.load_pair((a.width, a.height), (b.width, b.height), overlap)
+        overlap, top = join_layout(c) or (0, "left")
+        self.joined_review.load_pair((a.width, a.height), (b.width, b.height), overlap, top)
         self.review_generation += 1
         diagnostics.note("Pair Review requested: %d / %d (request %d)",
                          c.left + 1, c.right + 1, self.review_generation)
         self.review_worker.request(self.review_generation, a.path, b.path)
         done = len(self.plan.decisions)
         label = "Manual" if self.plan.scan.manual_mode else "Likely" if c.likely else "Possible"
-        if overlap:
-            label += f" · overlapping halves ({overlap} px repeated, shown lined up)"
+        if c.metrics.get("overlap"):
+            label += f" · overlapping halves ({c.metrics['overlap']} px repeated, shown lined up)"
+        elif overlap:
+            label += f" · thin border at the seam covered ({overlap} px)"
         warning = " · Unequal heights: taller page will be cropped at bottom" if a.height != b.height else ""
         self.review_heading.setText(f"{label} pair · decision {done + 1} · {a.path.name} + {b.path.name}{warning}")
         self._rotation_heading()

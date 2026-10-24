@@ -28,7 +28,7 @@ from .pdf_export import PDF_IMAGE_SUFFIXES, verify_pdf, write_pdf
 from .detector import (
     case_twin_groups,
     classify_page, collect_images, is_candidate_pair, load_edge_rgb,
-    seam_score,
+    seam_score, strip_stats,
 )
 
 # Spread-detection tuning. Only a thin strip at each page edge is examined.
@@ -180,6 +180,42 @@ def _same_size(a, b) -> bool:
     since a slice with an overlap, or a cropped one, needn't be exactly half."""
     return (abs(a.height - b.height) <= max(2, round(min(a.height, b.height) * .002)) and
             max(a.width, b.width) <= 1.5 * min(a.width, b.width))
+
+
+# A plain strip this narrow on one inner edge only (a border added to one half,
+# or blank slicing debris) is covered by the other page when the pair is joined.
+BORDER_COVER_MAX = 8
+
+
+def thin_border(left_plain: int, right_plain: int) -> tuple[int, str] | None:
+    """(pixels, page on top) covering a thin plain strip on one inner edge, or None."""
+    if 0 < left_plain <= BORDER_COVER_MAX and right_plain == 0:
+        return left_plain, "right"
+    if 0 < right_plain <= BORDER_COVER_MAX and left_plain == 0:
+        return right_plain, "left"
+    return None
+
+
+def thin_border_between(left: Image.Image, right: Image.Image) -> tuple[int, str] | None:
+    """thin_border for two pages, as displayed side by side."""
+    height = min(left.height, right.height)
+    columns = 14  # As the scan's edge statistics.
+    left_edge = np.asarray(left.convert("RGB").crop((left.width - columns, 0, left.width, height)))
+    right_edge = np.asarray(right.convert("RGB").crop((0, 0, columns, height)))
+    return thin_border(strip_stats(left_edge, "right", columns)["plain_px"],
+                       strip_stats(right_edge, "left", columns)["plain_px"])
+
+
+def join_layout(candidate: Candidate) -> tuple[int, str] | None:
+    """How a pair is joined when approved: over the strip both halves repeat,
+    and/or covering a thin border on one inner edge. (pixels, page on top) or None."""
+    metrics = candidate.metrics
+    border = thin_border(metrics.get("left_page_right_edge", {}).get("plain_px", 0),
+                         metrics.get("right_page_left_edge", {}).get("plain_px", 0))
+    if metrics.get("overlap"):
+        # The page without a border goes on top, hiding the other's.
+        return metrics["overlap"], border[1] if border else "left"
+    return border
 
 
 def offered(candidate: Candidate) -> bool:
@@ -424,9 +460,9 @@ class BookPlan:
         self.preview_history.clear()
         self.history.append(item[0] if self.scan.manual_mode else self.decisions.copy())
         self.decisions[item[0]] = yes
-        overlap = item[1].metrics.get("overlap")
-        if yes and overlap:  # Joined over the strip both halves repeat.
-            self.join_overlaps[item[1].left] = (overlap, "left")
+        layout = join_layout(item[1])
+        if yes and layout:  # Joined over a repeated strip, or covering a thin border.
+            self.join_overlaps[item[1].left] = layout
         else:
             self.join_overlaps.pop(item[1].left, None)
         if yes:

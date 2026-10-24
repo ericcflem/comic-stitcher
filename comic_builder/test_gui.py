@@ -1671,6 +1671,21 @@ class ThumbnailTest(unittest.TestCase):
             finally:
                 window.close()
 
+    def test_find_overlap_covers_a_thin_border(self):
+        import numpy as np
+        from .gui import OverlapDialog
+        from .test_spread_overlap import artwork
+        art = artwork(width=2000, seed=19)
+        left = np.full((700, 1003, 3), 255, np.uint8)
+        left[:, :1000] = np.asarray(art)[:, :1000]
+        dialog = OverlapDialog(Image.fromarray(left), art.crop((1000, 0, 2000, 700)), (0, "left"))
+        try:
+            self.assertEqual(dialog.overlap(), (3, "right"))
+            self.assertIn("3 px border on the left page", dialog.status.text())
+            self.assertIn("Right page on top", dialog.top_button.text())
+        finally:
+            dialog.close()
+
     def make_book(self, root: Path, name: str, shade=0) -> Path:
         folder = root / name
         folder.mkdir()
