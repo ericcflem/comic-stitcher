@@ -233,7 +233,8 @@ def propose_crops(paths: Iterable[Path], single_size: tuple[int, int] | None = N
             subset = list(anchors)
             if observation not in subset:
                 subset.append(observation)
-            candidate = next(p for p in _propose_observations(subset, None, anchors) if p.path == path)
+            candidate = next(p for p in _propose_observations(subset, None, anchors, hidden_singles=False)
+                             if p.path == path)
             candidates.append(replace(candidate, family_widths=widths, family_width=width))
         measured = [p for p in candidates if p.source == "measured"]
         if measured:
@@ -319,7 +320,23 @@ def _cover_proposal(observation) -> CropProposal | None:
     return CropProposal(path, canvas, kind, box, box, "measured")
 
 
-def _propose_observations(observations, single_size=None, calibration=None):
+def _hidden_single(left: int, right: int, canvas: tuple[int, int],
+                   known: dict[str, int]) -> tuple[int, int, int, int] | None:
+    """The book's single-page rectangle, centred, when a page whose edges are
+    both hidden (black borders running into the screenshot's black) has all its
+    visible content inside it: nothing on it is wider than a single page."""
+    if "single" not in known:
+        return None
+    single = known["single"]
+    x = (canvas[0] - single) // 2
+    tolerance = max(3, round(single * .002))
+    if x - tolerance <= left and right <= x + single + tolerance:
+        return (x, 0, x + single, canvas[1])
+    return None
+
+
+def _propose_observations(observations, single_size=None, calibration=None,
+                          hidden_singles=True):
     profiles: dict[tuple[int, int], dict[str, int]] = {}
     templates: dict[tuple[int, int], dict[str, list[tuple[int, int]]]] = {}
     for _path, canvas, edges, kind, sparse, hard_edges, _error in (observations if calibration is None else calibration):
@@ -411,6 +428,10 @@ def _propose_observations(observations, single_size=None, calibration=None):
                 result.append(CropProposal(path, canvas, "double", suggestion,
                                            visible, "suggested"))
                 continue
+            if hidden_singles and (single := _hidden_single(left, right, canvas, known)):
+                result.append(CropProposal(path, canvas, "single", single,
+                                           visible, "suggested"))
+                continue
             reason = _middle_reason(raw_width, canvas, known)
             result.append(CropProposal(path, canvas, "uncertain",
                                        None, visible, "review", suggested_box=suggestion,
@@ -478,6 +499,13 @@ def _propose_observations(observations, single_size=None, calibration=None):
                                                (x, 0, x + double, canvas[1]),
                                                measured, "suggested"))
                     continue
+            # Everything visible fits inside the book's one single-page size,
+            # so it's a single page at that size. (With two page sizes in the
+            # book, the family code decides instead; see hidden_singles.)
+            if hidden_singles and (single := _hidden_single(left, right, canvas, known)):
+                result.append(CropProposal(path, canvas, "single", single,
+                                           measured, "suggested"))
+                continue
             # Wider than a calibrated single but unlike an ordinary double:
             # likely a special spread. Leave the proposed extent for review.
             unusual_wide = (kind == "uncertain" and "single" in known and

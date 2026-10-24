@@ -7,6 +7,10 @@
   or wider (as in some DC collections) is cropped at its own size, and the rest
   of the book is measured without it. Before, two such covers made a page size
   of their own, and black-bordered pages were cropped to it.
+- Screenshot import: a black-bordered single page whose edges run into the
+  screenshot's black no longer needs review. When the book has one page size and
+  everything visible on the page fits inside it, the page is cropped at that
+  size. Books with two page sizes still ask, since the artwork can't tell which.
 - CMYK pages without a colour profile are converted as printed for US coated
   web offset (SWOP, CGATS TR 001), the usual conditions for North American
   comics, instead of with the plain formula. On an untagged CMYK page whose
