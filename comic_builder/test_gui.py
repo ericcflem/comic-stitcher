@@ -249,6 +249,7 @@ class ThumbnailTest(unittest.TestCase):
                  patch.object(window, "_stage_approved_screenshots") as stage:
                 dialog.return_value.exec.return_value = QDialog.Accepted
                 dialog.return_value.approved_choices.return_value = [choice]
+                dialog.return_value.book_family = None
                 window._screenshot_analysis_done(proposals)
                 self.assertEqual(dialog.call_args.args[0], proposals)
                 stage.assert_called_once_with([choice])
@@ -725,13 +726,111 @@ class ThumbnailTest(unittest.TestCase):
                                 family_widths=(1988, 2037))
         dialog = ScreenshotCropDialog([proposal])
         try:
-            self.assertEqual(dialog._guide("single", 0)[2] - dialog._guide("single", 0)[0], 1988)
-            dialog.family_combo.setCurrentIndex(1)
-            self.assertEqual(dialog._guide("single", 0)[2] - dialog._guide("single", 0)[0], 2037)
+            self.assertEqual([b.text() for b in dialog.family_buttons.buttons()],
+                             ["1988 × 3056", "2037 × 3056", "This page's own size"])
+            self.assertFalse(any(b.isChecked() for b in dialog.family_buttons.buttons()))
+            self.assertIsNone(dialog.choices[0])
+            # Choosing a size settles a review page: its content is double-width.
+            dialog._select_family(1988)
+            self.assertEqual((dialog.choices[0].kind, dialog.choices[0].box), ("double", (112, 0, 4088, 3056)))
+            dialog._select_family(2037)
+            self.assertEqual(dialog.choices[0].box[2] - dialog.choices[0].box[0], 4074)
             dialog.choose("single")
             self.assertEqual(dialog.choices[0].box[2] - dialog.choices[0].box[0], 2037)
+            self.assertTrue(dialog.family_buttons.buttons()[1].isChecked())
         finally:
             dialog.close()
+
+    def test_one_page_size_for_all_pages_and_measuring_a_page_again(self):
+        from .screenshot_geometry import CropProposal
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            cover, clear, black = folder / "cover.png", folder / "clear.png", folder / "black.png"
+            with Image.new("RGB", (420, 306), "black") as image:
+                image.paste("white", (115, 0, 305, 306))
+                image.save(cover)
+            with Image.new("RGB", (420, 306), "black") as image:
+                image.paste("white", (111, 0, 309, 306))
+                image.save(clear)
+            with Image.new("RGB", (420, 306), "black") as image:
+                image.paste("red", (150, 100, 270, 200))
+                image.save(black)
+            families = (195, 198)
+            proposals = [
+                CropProposal(cover, (420, 306), "single", (115, 0, 305, 306), (115, 0, 305, 306),
+                             "measured", family_widths=families),
+                CropProposal(clear, (420, 306), "single", (111, 0, 309, 306), (111, 0, 309, 306),
+                             "measured", family_widths=families, family_width=198),
+                CropProposal(folder / "spread.png", (420, 306), "double", (15, 0, 405, 306),
+                             (15, 0, 405, 306), "measured", family_widths=families, family_width=195),
+                CropProposal(black, (420, 306), "uncertain", None, (20, 0, 400, 306), "review",
+                             family_widths=families),
+            ]
+            dialog = ScreenshotCropDialog(proposals)
+            try:
+                self.assertEqual(dialog.family_selection, {0: "own", 1: 198, 2: 195, 3: None})
+                dialog.list.setCurrentRow(1)
+                self.assertEqual([b.text() for b in dialog.family_buttons.buttons()][:2],
+                                 ["195 × 306 (1 page)", "198 × 306 (1 page)"])
+                dialog.all_pages.setChecked(True)
+                self.assertEqual(dialog.book_family, ((420, 306), 198))
+                self.assertEqual([c.box if c else None for c in dialog.choices],
+                                 [(115, 0, 305, 306), (111, 0, 309, 306), (12, 0, 408, 306), (12, 0, 408, 306)])
+                self.assertEqual(dialog.choices[3].kind, "double")
+                self.assertTrue(dialog.choices[2].inferred)
+                # With the box ticked, choosing another size on any page moves them all,
+                # except the cover measured at its own size.
+                dialog.list.setCurrentRow(2)
+                dialog._select_family(195)
+                self.assertEqual([c.box for c in dialog.choices],
+                                 [(115, 0, 305, 306), (112, 0, 307, 306), (15, 0, 405, 306), (15, 0, 405, 306)])
+                dialog.all_pages.setChecked(False)
+                self.assertIsNone(dialog.book_family)
+                # Measure a page again: it's cropped at the size it measures on its own.
+                dialog.list.setCurrentRow(1)
+                dialog._select_family("own")
+                self.assertEqual((dialog.choices[1].box, dialog.family_selection[1]),
+                                 ((111, 0, 309, 306), "own"))
+                self.assertIn("(198 × 306)", dialog.family_buttons.buttons()[-1].text())
+                # A page whose edges blend into the black can't be measured; nothing changes.
+                dialog.list.setCurrentRow(3)
+                before = dialog.choices[3]
+                with patch.object(QMessageBox, "information") as told:
+                    dialog._select_family("own")
+                told.assert_called_once()
+                self.assertEqual((dialog.choices[3], dialog.family_selection[3]), (before, 195))
+            finally:
+                dialog.close()
+
+    def test_one_page_size_for_all_reaches_pages_that_needed_no_review(self):
+        from .screenshot_geometry import CropProposal
+        window = ComicWindow()
+        try:
+            window.screenshot_single_size = None
+            families = (1909, 1988)
+            proposals = [
+                CropProposal(Path("cover.png"), (4200, 3056), "single", (1115, 0, 3084, 3056), None,
+                             "measured", family_widths=families),
+                CropProposal(Path("panels.png"), (4200, 3056), "double", (291, 0, 4109, 3056), None,
+                             "measured", family_widths=families, family_width=1909),
+                CropProposal(Path("review.png"), (4200, 3056), "uncertain", None, (200, 0, 4000, 3056),
+                             "review", family_widths=families),
+            ]
+            choice = CropChoice(Path("review.png"), "double", (112, 0, 4088, 3056), True)
+            with patch.object(window, "screenshot_crop_summary", return_value=False), \
+                 patch("comic_builder.gui.ScreenshotCropDialog") as dialog, \
+                 patch.object(window, "_stage_approved_screenshots") as stage:
+                dialog.return_value.exec.return_value = QDialog.Accepted
+                dialog.return_value.approved_choices.return_value = [choice]
+                dialog.return_value.book_family = ((4200, 3056), 1988)
+                dialog.return_value.canvas_families = {(4200, 3056): {1909, 1988}}
+                window._screenshot_analysis_done(proposals)
+                choices = stage.call_args.args[0]
+                self.assertEqual([c.box for c in choices],
+                                 [(1115, 0, 3084, 3056), (112, 0, 4088, 3056), (112, 0, 4088, 3056)])
+                self.assertTrue(choices[1].inferred)
+        finally:
+            window.close()
 
     def test_crop_strip_centers_current_thumbnail(self):
         from types import SimpleNamespace

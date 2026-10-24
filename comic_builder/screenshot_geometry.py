@@ -335,6 +335,39 @@ def _hidden_single(left: int, right: int, canvas: tuple[int, int],
     return None
 
 
+def family_box(canvas: tuple[int, int], kind: str,
+               single_width: int) -> tuple[int, int, int, int] | None:
+    """The centred crop for a single or double page of a page-size family."""
+    width = single_width * (2 if kind == "double" else 1)
+    if width > canvas[0]:
+        return None
+    x = (canvas[0] - width) // 2
+    return (x, 0, x + width, canvas[1])
+
+
+def kind_for_extent(extent: tuple[int, int, int, int] | None,
+                    single_width: int) -> str | None:
+    """Single or double, judged by how wide the visible content is."""
+    if extent is None:
+        return None
+    return "double" if extent[2] - extent[0] > single_width * 1.05 else "single"
+
+
+def own_size(proposal, families) -> bool:
+    """A page measured at a size of its own (a cover, say), matching none of
+    the page sizes; choosing a page size for the whole book leaves it alone."""
+    if proposal.source != "measured" or proposal.box is None or proposal.kind not in ("single", "double"):
+        return False
+    width = (proposal.box[2] - proposal.box[0]) / (2 if proposal.kind == "double" else 1)
+    return not any(abs(width - family) <= max(3, round(family * .002)) for family in families)
+
+
+def remeasure(path: Path) -> CropProposal | None:
+    """Measure one screenshot on its own, ignoring the book's page sizes; None
+    when its edges aren't clear and centred."""
+    return _cover_proposal(_observe(Path(path)))
+
+
 def _propose_observations(observations, single_size=None, calibration=None,
                           hidden_singles=True):
     profiles: dict[tuple[int, int], dict[str, int]] = {}
