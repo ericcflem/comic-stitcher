@@ -262,7 +262,7 @@ class ThumbnailTest(unittest.TestCase):
                 self.assertEqual(shown[0][0], "These pages may have been reduced during capture")
                 self.assertIn(expected, shown[0][1])
             self.assertIn("Screenshot 4 has black borders hiding the page edges; given 2014 because the pages "
-                          "before and after are.", shown[1][1])
+                          "before and after are.", shown[0][1])  # The two-size book, shown last.
         finally:
             window.close()
 
