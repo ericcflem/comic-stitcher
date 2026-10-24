@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Create your comic: No archive saves the finished pages in a folder in the
+  format you chose (JPEG, WebP or PNG; one folder for each size, such as "Book -
+  Full - JPEG pages" and "Book - Reduced - WebP pages"), instead of only lossless
+  PNG pages. "Also keep lossless PNG pages" now always adds PNG folders beside
+  whatever you make; it's grayed out when, with no archive, the pages are already
+  PNG.
 - Screenshot import: a single screenshot measured wider than the book's page
   size (a 2063 × 3131 Marvel page scaled to 2014 beside 1988, say) no longer sets
   the crop for every page. It's cropped at its own size and the summary names it

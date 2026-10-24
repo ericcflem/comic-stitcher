@@ -1217,7 +1217,7 @@ def estimate_export_size(plan: BookPlan, opt: ExportOptions, samples: int = ESTI
     needed by both copies is prepared once. With several workers, samples are
     encoded in parallel processes, and progress(estimate, done, total) reports
     a provisional estimate as they finish; pass an executor to reuse its
-    already-started processes. Measures the archive, or the PNG page folder when
+    already-started processes. Measures the archive, or the folder of pages when
     no archive is made. Returns None if cancelled.
     """
     import time
@@ -1230,7 +1230,7 @@ def estimate_export_size(plan: BookPlan, opt: ExportOptions, samples: int = ESTI
         encoding_opt = copy_encoding_options(opt, reduce)
         exact, encoded = 0, []
         for index, (left, right) in enumerate(entries):
-            fmt = _entry_format(plan, opt, encoding_opt, left, right, reduce) if opt.cbz else "png"
+            fmt = _entry_format(plan, opt, encoding_opt, left, right, reduce)
             if fmt is None:
                 exact += plan.scan.pages[left].size  # Copied as is; size recorded by the scan.
             else:
@@ -1349,10 +1349,38 @@ def publish_archive(source: Path, destination: Path) -> None:
             raise
 
 
+def _images_label(opt: ExportOptions, variant: str) -> str:
+    """How a folder of finished pages is named after its format."""
+    if opt.keep_originals and variant == "full":
+        return "Pages"  # Unchanged pages copied as they are, joined spreads encoded.
+    return {"jpeg": "JPEG", "webp": "WebP", "png": "PNG"}[copy_encoding_options(opt, variant == "reduced").format] + " pages"
+
+
+def keeps_png(opt: ExportOptions, variant: str) -> bool:
+    """Whether a separate folder of lossless PNG pages is made for this size:
+    not when, with no archive, the pages are already being saved as PNG."""
+    return opt.keep_images and (opt.cbz or _images_label(opt, variant) != "PNG pages")
+
+
+def export_outputs(folder: Path, title: str, opt: ExportOptions) -> list[tuple[str, str, Path]]:
+    """Every (size, kind, path) an export makes: the archive, or with no archive a
+    folder of the finished pages in the chosen format; plus, when asked, a folder
+    of lossless PNG pages."""
+    variants = ("full", "reduced") if opt.size_output == "both" else (opt.size_output,)
+    outputs = []
+    for variant in variants:
+        suffix = f" - {'Full' if variant == 'full' else 'Reduced'}" if opt.size_output == "both" else ""
+        if opt.cbz:
+            outputs.append((variant, "archive", folder / f"{title}{suffix}.{opt.archive_format}"))
+        else:
+            outputs.append((variant, "images", folder / f"{title}{suffix} - {_images_label(opt, variant)}"))
+        if keeps_png(opt, variant):
+            outputs.append((variant, "png", folder / f"{title}{suffix} - PNG pages"))
+    return outputs
+
+
 def export_book(plan: BookPlan, opt: ExportOptions,
                 progress: Callable[[int, int], None] | None = None) -> Path | tuple[Path, Path]:
-    if not opt.cbz and not opt.keep_images:
-        raise ValueError("Choose an archive, processed images, or both.")
     if opt.archive_format not in ("cbz", "cb7", "pdf"):
         raise ValueError("Choose CBZ, CB7 or PDF as the archive format.")
     if opt.cbz and opt.archive_format == "pdf" and pdf_format_problem(opt):
@@ -1378,15 +1406,15 @@ def export_book(plan: BookPlan, opt: ExportOptions,
     title = safe_book_name(opt.book_name)
     folder = plan.scan.output_folder or plan.scan.folder
     variants = ("full", "reduced") if opt.size_output == "both" else (opt.size_output,)
-    def destination(variant: str) -> Path:
-        suffix = f" - {'Full' if variant == 'full' else 'Reduced'}" if opt.size_output == "both" else ""
-        return folder / f"{title}{suffix}.{opt.archive_format}" if opt.cbz else folder / f"{title}{suffix} - PNG pages"
+    outputs = export_outputs(folder, title, opt)
 
-    for variant in variants:
-        suffix = f" - {'Full' if variant == 'full' else 'Reduced'}" if opt.size_output == "both" else ""
-        for output in ((folder / f"{title}{suffix}.{opt.archive_format}",) if opt.cbz else ()) + ((folder / f"{title}{suffix} - PNG pages",) if opt.keep_images else ()):
-            if output.exists():
-                raise FileExistsError(f"Output already exists: {output.name}. Choose another book name.")
+    def destination(variant: str, kind: str | None = None) -> Path:
+        return next(path for size, what, path in outputs
+                    if size == variant and (what == kind if kind else what != "png"))
+
+    for _variant, _kind, output in outputs:
+        if output.exists():
+            raise FileExistsError(f"Output already exists: {output.name}. Choose another book name.")
 
     work = folder / f"__ComicStitcher_work_{uuid.uuid4().hex}"
     work.mkdir(exist_ok=False)
@@ -1409,23 +1437,22 @@ def export_book(plan: BookPlan, opt: ExportOptions,
             variant_work.mkdir()
             variant_names = planned_names(plan, opt, reduced=reduce)
             png_work = work / f"{variant}-png"
-            if opt.keep_images:
+            keep_png = keeps_png(opt, variant)
+            if keep_png:
                 png_work.mkdir()
             jobs = []
             for (left, right), name in zip(entries, variant_names, strict=True):
                 fmt = _entry_format(plan, opt, encoding_opt, left, right, reduce)
-                if not opt.cbz:
-                    fmt = None  # Only lossless PNG pages are being kept.
                 jobs.append((*_entry_sources(plan, left, right), variant_work / name, fmt,
                              *_entry_rotations(plan, left), _entry_overlap(plan, left)))
-            encode_count = sum(fmt is not None or opt.keep_images for _, _, _, fmt, _, _, _ in jobs)
+            encode_count = sum(fmt is not None or keep_png for _, _, _, fmt, _, _, _ in jobs)
             if worker_count == 1 or encode_count <= 1:
                 for source, right, dest, fmt, rotation, page_rotations, overlap in jobs:
-                    if fmt is None and not opt.keep_images:
+                    if fmt is None and not keep_png:
                         shutil.copyfile(source, dest)
                     else:
                         _encode_entry(str(source), str(right) if right else None, str(dest), fmt, encoding_opt, reduce, rotation,
-                                      str(png_work / (dest.stem + ".png")) if opt.keep_images else None, page_rotations,
+                                      str(png_work / (dest.stem + ".png")) if keep_png else None, page_rotations,
                                       overlap)
                     done()
             else:
@@ -1435,14 +1462,14 @@ def export_book(plan: BookPlan, opt: ExportOptions,
                     pending = set()
                     try:
                         for source, right, dest, fmt, rotation, page_rotations, overlap in jobs:
-                            if fmt is None and not opt.keep_images:
+                            if fmt is None and not keep_png:
                                 shutil.copyfile(source, dest)
                                 done()
                             else:
                                 pending.add(executor.submit(_encode_entry, str(source),
                                                             str(right) if right else None,
                                                             str(dest), fmt, encoding_opt, reduce, rotation,
-                                                            str(png_work / (dest.stem + ".png")) if opt.keep_images else None, page_rotations,
+                                                            str(png_work / (dest.stem + ".png")) if keep_png else None, page_rotations,
                                                             overlap))
                             if len(pending) >= 2 * worker_count:
                                 finished, pending = wait(pending, return_when=FIRST_COMPLETED)
@@ -1462,11 +1489,11 @@ def export_book(plan: BookPlan, opt: ExportOptions,
             archive_names = list(variant_names)
             if opt.comicinfo_xml is not None:
                 from .comicinfo import export_xml
-                if opt.cbz and opt.archive_format != "pdf":  # A PDF has no place for it.
+                if not opt.cbz or opt.archive_format != "pdf":  # A PDF has no place for it.
                     data = export_xml(opt.comicinfo_xml, plan, entries, [variant_work / name for name in variant_names])
                     (variant_work / "ComicInfo.xml").write_bytes(data)
                     archive_names.append("ComicInfo.xml")
-                if opt.keep_images:
+                if keep_png:
                     png_paths = [png_work / (Path(name).stem + ".png") for name in variant_names]
                     (png_work / "ComicInfo.xml").write_bytes(export_xml(opt.comicinfo_xml, plan, entries, png_paths))
             if opt.cbz:
@@ -1495,13 +1522,14 @@ def export_book(plan: BookPlan, opt: ExportOptions,
         # Publish only after every requested copy has been built and verified.
         check_sources(plan.scan)
         for variant in variants:
+            out = destination(variant)
             if opt.cbz:
-                out = destination(variant)
                 publish_archive(work / f"{variant}.{opt.archive_format}", out)
-                published.append(out)
-            if opt.keep_images:
-                suffix = f" - {'Full' if variant == 'full' else 'Reduced'}" if opt.size_output == "both" else ""
-                out = folder / f"{title}{suffix} - PNG pages"
+            else:
+                (work / variant).rename(out)  # The finished pages, in the chosen format.
+            published.append(out)
+            if keeps_png(opt, variant):
+                out = destination(variant, "png")
                 (work / f"{variant}-png").rename(out)
                 published.append(out)
         try:

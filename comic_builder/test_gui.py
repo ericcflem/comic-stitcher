@@ -2134,6 +2134,40 @@ class ThumbnailTest(unittest.TestCase):
                 with patch.object(QMessageBox, "question", return_value=QMessageBox.Yes):
                     window.close()
 
+    def test_lossless_png_checkbox_is_extra_and_grayed_when_pages_are_png_already(self):
+        from .gui import ARCHIVE_CHOICES
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory) / "pages"
+            folder.mkdir()
+            Image.new("RGB", (60, 80), "white").save(folder / "000.png")
+            window = ComicWindow()
+            try:
+                window.scan_done(scan_manual_folder(folder)); window.show_export()
+                window.book_name.setText("Book")
+                self.assertEqual(window.keep_images.text(), "Also keep lossless PNG pages")
+                window.keep_images.setChecked(False)
+                window.opt.format = "jpeg"
+                window.archive_format.setCurrentIndex(ARCHIVE_CHOICES.index("none"))
+                # No archive no longer forces PNG pages: JPEG pages, PNG optional.
+                self.assertFalse(window.keep_images.isChecked())
+                self.assertTrue(window.keep_images.isEnabled())
+                self.assertTrue(window.create_button.isEnabled())
+                self.assertEqual([p.name for p in window._preflight_export(window.options_from_screen())],
+                                 ["Book - JPEG pages"])
+                window.opt.format = "png"
+                window.refresh_export()
+                self.assertFalse(window.keep_images.isEnabled())
+                window.opt.size_output = "both"
+                window.opt.reduced_custom, window.opt.reduced_settings = True, {"format": "webp"}
+                window.refresh_export()
+                self.assertTrue(window.keep_images.isEnabled())  # The reduced copy is WebP.
+                window.archive_format.setCurrentIndex(ARCHIVE_CHOICES.index("cbz"))
+                window.opt.size_output, window.opt.reduced_custom = "full", False
+                window.refresh_export()
+                self.assertTrue(window.keep_images.isEnabled())
+            finally:
+                window.close()
+
     def test_existing_export_renames_all_copies_and_preserves_existing_files(self):
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory) / "pages"
