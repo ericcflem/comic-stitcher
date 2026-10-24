@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Screenshot import: a single screenshot measured wider than the book's page
+  size (a 2063 × 3131 Marvel page scaled to 2014 beside 1988, say) no longer sets
+  the crop for every page. It's cropped at its own size and the summary names it
+  as possibly scaled down, to retake at full height. When a smaller page size
+  recurs, the summary lists its screenshot numbers.
 - Screenshot import: the front and back covers no longer set the book's page
   sizes. A cover a little narrower than the pages (1969 against 1988 px, say)
   or wider (as in some DC collections) is cropped at its own size, and the rest

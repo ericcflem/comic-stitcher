@@ -237,6 +237,29 @@ class ThumbnailTest(unittest.TestCase):
         finally:
             window.close()
 
+    def test_summary_names_screenshots_of_a_wider_or_smaller_page_size(self):
+        from .screenshot_geometry import CropProposal
+        window = ComicWindow()
+        try:
+            canvas = (4200, 3056)
+            stray = [CropProposal(Path(f"{i}.png"), canvas, "single", (1106, 0, 3094, 3056), None, "measured")
+                     for i in range(4)]
+            stray[2] = CropProposal(Path("2.png"), canvas, "single", (1093, 0, 3107, 3056), None,
+                                    "measured", wider_than=1988)
+            mixed = [CropProposal(Path(f"{i}.png"), canvas, "single", (1106, 0, 3094, 3056), None, "measured",
+                                  family_widths=(1988, 2014), family_width=1988) for i in range(5)]
+            for i in (1, 3):
+                mixed[i] = replace(mixed[i], box=(1093, 0, 3107, 3056), family_width=2014)
+            for proposals, expected in ((stray, "Screenshot 3 measured wider (2014 × 3056 per page) than the book's pages (1988 × 3056)"),
+                                        (mixed, "single widths 1988 (3 screenshots), 2014 (2 screenshots: 2, 4) pixels")):
+                shown = []
+                with patch.object(QMessageBox, "exec", lambda box: shown.append((box.text(), box.informativeText()))):
+                    window.screenshot_crop_summary(proposals, [])
+                self.assertEqual(shown[0][0], "These pages may have been reduced during capture")
+                self.assertIn(expected, shown[0][1])
+        finally:
+            window.close()
+
     def test_optional_crop_preview_includes_confident_pages(self):
         from types import SimpleNamespace
         window = ComicWindow()

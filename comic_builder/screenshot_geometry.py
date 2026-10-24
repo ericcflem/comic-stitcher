@@ -32,6 +32,9 @@ class CropProposal:
 
     family_widths: tuple[int, ...] = ()
     family_width: int | None = None
+    # A single screenshot wider than the book's page size: its own crop, and a
+    # sign it may have been scaled down to fit (retake it at full height).
+    wider_than: int | None = None
 
     @property
     def page_width(self) -> int | None:
@@ -198,6 +201,8 @@ def propose_crops(paths: Iterable[Path], single_size: tuple[int, int] | None = N
     # (narrower, or wider in some DC books), so they don't calibrate the page
     # sizes. A cover whose edges are clear is cropped at its own size.
     covers = _cover_indexes(observations)
+    wider = _lone_wider(observations, covers)
+    covers |= set(wider)
     pages = [o for index, o in enumerate(observations) if index not in covers]
 
     # Cluster clear, centered boundaries by their equivalent single width.
@@ -225,12 +230,12 @@ def propose_crops(paths: Iterable[Path], single_size: tuple[int, int] | None = N
                                  [obs for _, obs in cluster]) for cluster in recurring]
     if not families:
         proposals = _propose_observations(observations, single_size, pages)
-        return [_cover_proposal(o) or p if index in covers else p
+        return [_apart(o, wider.get(index)) or p if index in covers else p
                 for index, (o, p) in enumerate(zip(observations, proposals, strict=True))]
     result = []
     for index, observation in enumerate(observations):
         path, canvas, edges, kind, sparse, hard, error = observation
-        if index in covers and (cover := _cover_proposal(observation)) is not None:
+        if index in covers and (cover := _apart(observation, wider.get(index))) is not None:
             result.append(cover)
             continue
         if canvas not in families:
@@ -321,6 +326,37 @@ def _cover_indexes(observations) -> set[int]:
         if width > nearest or width >= nearest * (1 - COVER_NARROWER_MAX):
             apart.add(index)
     return apart
+
+
+def _lone_wider(observations, skip) -> dict[int, int]:
+    """Screenshots that are the only one at their clear width, wider than the
+    book's one recurring page size: {index: that page size}. A Marvel page of
+    2063 x 3131 scaled into a 3056-high screenshot measures 2014 against the
+    book's 1988. Left in, it would set the size for every page."""
+    by_canvas = {}
+    for index, observation in enumerate(observations):
+        if index not in skip and (width := _clear_width(observation)) is not None:
+            by_canvas.setdefault(observation[1], []).append((width, index))
+    found = {}
+    for samples in by_canvas.values():
+        clusters = []
+        for width, index in sorted(samples):
+            if not clusters or width - clusters[-1][0][0] > max(3, round(width * .002)):
+                clusters.append([])
+            clusters[-1].append((width, index))
+        recurring = [cluster for cluster in clusters if len(cluster) >= 2]
+        if len(recurring) != 1:
+            continue
+        size = max(width for width, _ in recurring[0])
+        for cluster in clusters:
+            if len(cluster) == 1 and cluster[0][0] > size:
+                found[cluster[0][1]] = round(size)
+    return found
+
+
+def _apart(observation, wider_than=None) -> CropProposal | None:
+    proposal = _cover_proposal(observation)
+    return proposal if proposal is None or wider_than is None else replace(proposal, wider_than=wider_than)
 
 
 def _cover_proposal(observation) -> CropProposal | None:

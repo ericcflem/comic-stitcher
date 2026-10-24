@@ -102,6 +102,31 @@ class ScreenshotGeometryTest(unittest.TestCase):
             self.assertFalse(any(p.family_widths for p in proposals))
             self.assertEqual({(p.kind, p.box) for p in proposals[6:]}, {("double", (50, 0, 1350, 1000))})
 
+    def test_one_wider_page_is_flagged_and_doesnt_set_the_page_size(self):
+        # 2063 x 3131 Marvel pages fitted to a 3056 screenshot measure 2014 against
+        # 1988 (here 658 against 650). One such page used to set every page's crop.
+        def book(directory, widths):
+            paths = []
+            for index, width in enumerate(widths):
+                image = Image.new("RGB", (1400, 1000), "black")
+                left = (1400 - width) // 2
+                image.paste("white", (left, 0, left + width, 1000))
+                ImageDraw.Draw(image).rectangle((left + 30, 40, left + width - 30, 960), fill=(180, 60, 60))
+                paths.append(Path(directory) / f"{index:03d}.png")
+                image.save(paths[-1])
+            return propose_crops(paths)
+        for stray in (658, 1316):
+            with self.subTest(stray=stray), tempfile.TemporaryDirectory() as directory:
+                proposals = book(directory, [650, 1300] * 3 + [stray] + [650, 1300] * 3)
+                self.assertEqual([p.page_width for p in proposals], [650, 1300] * 3 + [stray] + [650, 1300] * 3)
+                self.assertEqual([p.wider_than for p in proposals], [None] * 6 + [650] + [None] * 6)
+                self.assertEqual(proposals[6].source, "measured")
+        with tempfile.TemporaryDirectory() as directory:
+            # Two or more make a page size of their own, with the "reduced" warning.
+            proposals = book(directory, [650] * 5 + [658, 658] + [650] * 5)
+            self.assertEqual(proposals[0].family_widths, (650, 658))
+            self.assertFalse(any(p.wider_than for p in proposals))
+
     def test_hidden_edge_single_with_two_page_sizes_still_goes_to_review(self):
         # Two real page sizes (Marvel 1988 and 2063, say): which one a black page
         # belongs to can't be told from its artwork, so it's left for review.

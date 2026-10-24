@@ -3877,9 +3877,18 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             if proposal.family_widths:
                 mixed[proposal.canvas] = proposal.family_widths
 
+        def numbers(indexes):
+            shown = ", ".join(str(index + 1) for index in indexes[:15])
+            return shown + (", …" if len(indexes) > 15 else "")
+
         def counted(canvas, width):
-            count = sum(p.canvas == canvas and p.family_width == width for p in proposals)
-            return f"{width} ({count} {'screenshot' if count == 1 else 'screenshots'})"
+            members = [i for i, p in enumerate(proposals) if p.canvas == canvas and p.family_width == width]
+            largest = max(sum(p.canvas == canvas and p.family_width == w for p in proposals)
+                          for w in mixed[canvas])
+            count = len(members)
+            label = f"{width} ({count} {'screenshot' if count == 1 else 'screenshots'}"
+            # Name the screenshots of the smaller sizes: those are the ones to retake.
+            return label + (f": {numbers(members)})" if count < largest else ")")
         if mixed:
             lines.insert(0, "Multiple recurring page-size families were detected:\n" + "\n".join(
                 f"Screenshot height {canvas[1]}: single widths " +
@@ -3887,7 +3896,15 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                 for canvas, widths in mixed.items()))
             lines.insert(1, "Some pages may originally have been taller and were scaled down during capture. Cropping cannot restore lost resolution. Consider taking new screenshots at the original page height, or continue using each detected family's own crop dimensions. Hidden-edge pages use the smallest established crop that contains the visible content, unless an exposed edge identifies another family. In Review crop previews you can choose the page size for any screenshot, or one size for all pages. Unresolved crops still need your choice.")
             dialog.setIcon(QMessageBox.Warning)
-        dialog.setText("These pages may have been reduced during capture" if mixed else "Ready to crop your screenshots")
+        wider = [(index, p) for index, p in enumerate(proposals) if getattr(p, "wider_than", None)]
+        for index, p in reversed(wider):
+            single = p.page_width // (2 if p.kind == "double" else 1)
+            lines.insert(0, f"Screenshot {index + 1} measured wider ({single} × {p.canvas[1]} per page) than the "
+                            f"book's pages ({p.wider_than} × {p.canvas[1]}). It may have been scaled down to fit "
+                            "the screen; consider retaking it at its full height. It will be cropped at its own size.")
+        if wider and not mixed:
+            dialog.setIcon(QMessageBox.Warning)
+        dialog.setText("These pages may have been reduced during capture" if mixed or wider else "Ready to crop your screenshots")
         dialog.setInformativeText("\n\n".join(lines))
         verify = dialog.addButton("Review crop previews", QMessageBox.ActionRole)
         proceed = dialog.addButton("Review required crops" if attention else "Continue with detected sizes" if mixed else "Continue to cropping", QMessageBox.AcceptRole)
