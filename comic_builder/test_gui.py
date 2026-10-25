@@ -848,10 +848,11 @@ class ThumbnailTest(unittest.TestCase):
             dialog.list.setCurrentRow(0)
             with patch.object(QMessageBox, "information") as told:
                 dialog.all_pages.setChecked(True)
-            self.assertIn("Screenshot 3 kept its crop: the artwork is wider than a 1988 × 3056 page",
+            # The page measured at 2014 keeps it too: 1988 would cut its edges.
+            self.assertIn("Screenshots 2, 3 kept their crop: the artwork is wider than a 1988 × 3056 page",
                           told.call_args.args[2])
             self.assertEqual([c.box for c in dialog.choices],
-                             [(1106, 0, 3094, 3056), (1106, 0, 3094, 3056), (86, 0, 4114, 3056)])
+                             [(1106, 0, 3094, 3056), (1093, 0, 3107, 3056), (86, 0, 4114, 3056)])
             self.assertEqual(dialog.family_selection[2], 2014)
             dialog.list.setCurrentRow(2)
             with patch.object(QMessageBox, "information") as told:
