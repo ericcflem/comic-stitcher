@@ -493,5 +493,28 @@ class ScreenshotGeometryTest(unittest.TestCase):
             self.assertEqual(items[taller].box, (3, 0, 437, 326))
 
 
+class CropSummaryTest(unittest.TestCase):
+    def test_names_each_page_size_and_how_it_was_found(self):
+        from dataclasses import replace
+        from .crop_summary import crop_summary, screenshot_numbers
+        from .screenshot_geometry import CropProposal
+        self.assertEqual(screenshot_numbers([23, 24, 25, 26, 30, 32, 33]), "24–27, 31, 33, 34")
+        self.assertEqual(screenshot_numbers([0, 83]), "1 and 84")
+        canvas = (4200, 3056)
+        cover = CropProposal(Path("c.png"), canvas, "single", (1115, 0, 3084, 3056), None, "measured")
+        page = CropProposal(Path("p.png"), canvas, "single", (1106, 0, 3094, 3056), None, "measured")
+        spread = CropProposal(Path("s.png"), canvas, "double", (112, 0, 4088, 3056), None, "measured")
+        black = replace(spread, source="suggested")
+        review = CropProposal(Path("r.png"), canvas, "uncertain", None, None, "review")
+        heading, lines = crop_summary([cover, page, spread, spread, black, review, cover], [5])
+        self.assertEqual(heading, "7 screenshots measured")
+        self.assertEqual(lines, [
+            "1988 × 3056 pages: 4 screenshots, 1 single page and 3 two-page spreads at 3976 × 3056\n"
+            "• 3 measured from clear page edges\n"
+            "• 1 with black borders hiding the edges, fitted to this size",
+            "Covers and other pages measured at their own size: screenshots 1 and 7 at 1969 × 3056.",
+            "1 screenshot needs your choice in the next step: 6."])
+
+
 if __name__ == "__main__":
     unittest.main()

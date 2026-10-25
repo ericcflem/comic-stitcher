@@ -254,15 +254,16 @@ class ThumbnailTest(unittest.TestCase):
             for i in (1, 3):
                 mixed[i] = replace(mixed[i], box=(1093, 0, 3107, 3056), family_width=2014)
             mixed[3] = replace(mixed[3], source="suggested", by_position=True)
-            for proposals, expected in ((stray, "Screenshot 3 measured wider (2014 × 3056 per page) than the book's pages (1988 × 3056)"),
-                                        (mixed, "single widths 1988 (3 screenshots), 2014 (2 screenshots: 2, 4) pixels")):
+            for proposals, expected in ((stray, "Screenshot 3 is wider (2014 × 3056) than the book's 1988 × 3056 pages"),
+                                        (mixed, "2014 × 3056 pages: 2 screenshots, all single pages: screenshots 2 and 4")):
                 shown = []
-                with patch.object(QMessageBox, "exec", lambda box: shown.append((box.text(), box.informativeText()))):
+                with patch.object(QMessageBox, "exec", lambda box: shown.append((box.text(), box.informativeText(), box.icon()))):
                     summary(window, proposals, [])
-                self.assertEqual(shown[0][0], "These pages may have been reduced during capture")
+                self.assertEqual(shown[0][0], "Ready to crop 5 screenshots" if proposals is mixed else "Ready to crop 4 screenshots")
+                self.assertEqual(shown[0][2], QMessageBox.NoIcon)  # Not an error.
                 self.assertIn(expected, shown[0][1])
-            self.assertIn("Screenshot 4 has black borders hiding the page edges; given 2014 from the pages "
-                          "around it and the width of black borders on other 2014 pages.", shown[0][1])  # The two-size book, shown last.
+            self.assertIn("1988 × 3056 pages: 3 screenshots, all single pages", shown[0][1])
+            self.assertIn("(4 going by the pages around it and their black borders)", shown[0][1])
         finally:
             window.close()
 
