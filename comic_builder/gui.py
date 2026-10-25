@@ -19,7 +19,7 @@ from uuid import uuid4
 
 from PIL import Image, ImageOps
 from PySide6.QtCore import QFile, QEvent, QObject, QSettings, QSize, Qt, QThread, QTimer, Signal, QUrl, QRectF, QSignalBlocker, QMimeData
-from PySide6.QtGui import QFontMetrics, QDesktopServices, QImage, QPixmap, QShortcut, QKeySequence, QPainter, QColor, QPen, QDrag, QIcon
+from PySide6.QtGui import QCursor, QFontMetrics, QDesktopServices, QImage, QPixmap, QShortcut, QKeySequence, QPainter, QColor, QPen, QDrag, QIcon
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout,
     QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox,
@@ -940,6 +940,15 @@ class QueueList(QListWidget):
         super().keyPressEvent(event)
 
 
+# Dragging a page within this many pixels of either end of the thumbnail strip
+# scrolls it, from DRAG_SCROLL_MIN up to DRAG_SCROLL_MAX pixels every
+# DRAG_SCROLL_INTERVAL milliseconds, faster the closer to the end.
+DRAG_SCROLL_ZONE = 64
+DRAG_SCROLL_MIN = 6
+DRAG_SCROLL_MAX = 48
+DRAG_SCROLL_INTERVAL = 30
+
+
 class ThumbnailStrip(QWidget):
     def __init__(self, owner):
         super().__init__()
@@ -955,7 +964,7 @@ class ThumbnailStrip(QWidget):
         else: event.ignore()
 
     def dragLeaveEvent(self, event):
-        self.owner.clear_page_drop()
+        self.owner.page_drag_left()
         event.accept()
 
     def dropEvent(self, event):
@@ -999,7 +1008,7 @@ class PageThumbnail(QPushButton):
         else: event.ignore()
 
     def dragLeaveEvent(self, event):
-        self.owner.clear_page_drop()
+        self.owner.page_drag_left()
         event.accept()
 
     def dropEvent(self, event):
@@ -3183,6 +3192,11 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.thumb_content = ThumbnailStrip(self)
         self.page_drop_marker = DropMarker(self.thumb_content)
         self.page_drop_boundary = None
+        # Holding a dragged page near either end of the strip keeps scrolling it.
+        self.drag_scroll = None  # (dragged thumbnail, x in the visible strip)
+        self.drag_scroll_timer = QTimer(self)
+        self.drag_scroll_timer.setInterval(DRAG_SCROLL_INTERVAL)
+        self.drag_scroll_timer.timeout.connect(self._drag_scroll_tick)
         self.thumb_row = QHBoxLayout(self.thumb_content)
         self.thumb_row.setContentsMargins(4, 4, 4, 4)
         self.thumb_area.setWidget(self.thumb_content)
@@ -4943,6 +4957,45 @@ class ComicWindow(OutlinedWindow, QMainWindow):
     def clear_page_drop(self):
         self.page_drop_boundary = None
         self.page_drop_marker.hide()
+        self.drag_scroll = None
+        self.drag_scroll_timer.stop()
+
+    def page_drag_left(self):
+        """A thumbnail or the strip says a drag left it: passing from one
+        thumbnail to the next, or a page scrolling out from under a still
+        pointer, isn't leaving the strip."""
+        viewport = self.thumb_area.viewport()
+        if not viewport.rect().contains(viewport.mapFromGlobal(QCursor.pos())):
+            self.clear_page_drop()
+
+    def _drag_scroll_step(self, visible_x):
+        """Pixels to scroll the strip per tick for a drag at this point: faster
+        the closer to an end, none away from both ends."""
+        width = self.thumb_area.viewport().width()
+        zone = min(DRAG_SCROLL_ZONE, width // 4)
+        if visible_x < zone:
+            depth = zone - visible_x
+        elif visible_x > width - zone:
+            depth = -(visible_x - (width - zone))
+        else:
+            return 0
+        depth = max(-zone, min(zone, depth))
+        step = max(DRAG_SCROLL_MIN, round(DRAG_SCROLL_MAX * abs(depth) / max(1, zone)))
+        return -step if depth > 0 else step
+
+    def _drag_scroll_tick(self):
+        if self.drag_scroll is None:
+            self.drag_scroll_timer.stop()
+            return
+        source, visible_x = self.drag_scroll
+        bar = self.thumb_area.horizontalScrollBar()
+        before = bar.value()
+        bar.setValue(before + self._drag_scroll_step(visible_x))
+        if bar.value() == before:
+            self.drag_scroll_timer.stop()  # Reached the end of the strip.
+            return
+        # The pointer hasn't moved, but the pages under it have.
+        self.update_page_drop(source, visible_x + bar.value())
 
     def page_drop_at(self, x):
         rtl = self.plan.scan.right_to_left
@@ -4970,6 +5023,14 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                     (before.x() + before.width() + after.x()) / 2)
         self.page_drop_marker.setGeometry(round(edge) - 3, 2, 6, self.thumb_content.height() - 4)
         self.page_drop_marker.show(); self.page_drop_marker.raise_()
+        visible_x = x - self.thumb_area.horizontalScrollBar().value()
+        if self._drag_scroll_step(visible_x):
+            self.drag_scroll = (source, visible_x)
+            if not self.drag_scroll_timer.isActive():
+                self.drag_scroll_timer.start()
+        else:
+            self.drag_scroll = None
+            self.drag_scroll_timer.stop()
         return True
 
     def finish_page_drop(self, source, x):
