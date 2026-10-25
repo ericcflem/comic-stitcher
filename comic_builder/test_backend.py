@@ -5,6 +5,7 @@ import zipfile
 import json
 import os
 import io
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -769,6 +770,35 @@ class BookFlowTest(unittest.TestCase):
             self.assertTrue(result.is_dir())
             self.assertEqual(sorted(p.suffix for p in result.iterdir()), [".png", ".png"])
             self.assertEqual(len(list(folder.glob("*.jpg"))), 2)
+
+    def test_no_archive_saves_pages_in_the_chosen_formats_and_png_is_extra(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            for i in range(2):
+                make_page(folder / f"p{i}.jpg", i)
+            plan = BookPlan(scan_folder(folder))
+            # Full size JPEG, reduced WebP, no archive: a folder of each.
+            options = ExportOptions("Book", format="jpeg", cbz=False, size_output="both", resize_pixels=60,
+                                    reduced_custom=True, reduced_settings={"format": "webp"}, workers=1,
+                                    comicinfo_xml="<ComicInfo/>")
+            result = export_book(plan, options)
+            self.assertEqual([p.name for p in result], ["Book - Full - JPEG pages", "Book - Reduced - WebP pages"])
+            self.assertEqual(sorted(p.name for p in result[0].iterdir()), ["01.jpg", "02.jpg", "ComicInfo.xml"])
+            self.assertEqual(sorted(p.name for p in result[1].iterdir()), ["01.webp", "02.webp", "ComicInfo.xml"])
+            self.assertFalse(any("PNG" in p.name for p in folder.iterdir()))
+            # Also keeping PNG pages adds a PNG folder for each size.
+            export_book(plan, replace(options, book_name="Book 2", keep_images=True))
+            self.assertEqual(sorted(p.name for p in folder.iterdir() if p.name.startswith("Book 2")),
+                             ["Book 2 - Full - JPEG pages", "Book 2 - Full - PNG pages",
+                              "Book 2 - Reduced - PNG pages", "Book 2 - Reduced - WebP pages"])
+            # PNG pages with no archive are already lossless: no second PNG folder.
+            result = export_book(plan, ExportOptions("Book 3", format="png", cbz=False, keep_images=True, workers=1))
+            self.assertEqual([p.name for p in folder.iterdir() if p.name.startswith("Book 3")], ["Book 3 - PNG pages"])
+            self.assertEqual(result.name, "Book 3 - PNG pages")
+            # With an archive, PNG pages are still extra.
+            export_book(plan, ExportOptions("Book 4", format="webp", keep_images=True, workers=1))
+            self.assertEqual(sorted(p.name for p in folder.iterdir() if p.name.startswith("Book 4")),
+                             ["Book 4 - PNG pages", "Book 4.cbz"])
 
     def test_overlaps_and_keep_originals(self):
         with tempfile.TemporaryDirectory() as tmp:

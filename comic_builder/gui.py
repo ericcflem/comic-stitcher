@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
 )
 
 from .backend import (
+    export_outputs, keeps_png,
     BookPlan, BoundaryOverrideRequired, ExportOptions, check_sources, export_book, planned_names,
     safe_book_name, scan_folder, scan_manual_folder, stitched_image, rotated_image,
     encoding_workers, POSSIBLE_MIN_SCORE, copy_encoding_options, ENCODER_FIELDS,
@@ -2571,16 +2572,7 @@ def export_queued_comic(job: QueuedComic, progress=None):
 def queued_outputs(plan: BookPlan, opt: ExportOptions) -> list[Path]:
     """All final destinations, including both sizes and retained loose pages."""
     folder = plan.scan.output_folder or plan.scan.folder
-    title = safe_book_name(opt.book_name)
-    kinds = ("full", "reduced") if opt.size_output == "both" else (opt.size_output,)
-    paths = []
-    for kind in kinds:
-        suffix = f" - {'Full' if kind == 'full' else 'Reduced'}" if len(kinds) == 2 else ""
-        if opt.cbz:
-            paths.append(folder / f"{title}{suffix}.{opt.archive_format}")
-        if opt.keep_images:
-            paths.append(folder / f"{title}{suffix} - PNG pages")
-    return paths
+    return [path for _size, _kind, path in export_outputs(folder, safe_book_name(opt.book_name), opt)]
 
 
 class ComicWindow(OutlinedWindow, QMainWindow):
@@ -3353,14 +3345,15 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                   "on each page. All three store the already-encoded images in reading order without "
                   "changing their quality. A PDF holds JPEG and PNG pages, so choosing it asks which to "
                   "use; it is kept until Comic Stitcher closes, then your usual archive format returns. "
-                  "Choose No archive if you want only a folder of processed images.")
+                  "Choose No archive to save the finished pages in a folder instead, in the "
+                  "format you chose (one folder for each size).")
         for index, description in enumerate(("Most widely supported comic archive; images stored inside ZIP.",
                                               "7z comic archive; verify that your comic reader supports CB7.",
                                               "A PDF with one page per image, in JPEG or PNG. "
                                               "ComicInfo.xml has no place in a PDF.",
-                                              "Do not create an archive; keep processed images instead.")):
+                                              "No archive: save the finished pages in a folder, in the chosen format.")):
             self.archive_format.setItemData(index, description, Qt.ToolTipRole)
-        self.keep_images = QCheckBox("Keep lossless PNG pages")
+        self.keep_images = QCheckBox("Also keep lossless PNG pages")
         self.keep_images.setChecked(self.settings.value("keep_images", False, type=bool))
         self.keep_images.stateChanged.connect(self.refresh_export)
         form.addRow("", self.keep_images)
@@ -3375,10 +3368,11 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         form.addRow("", self.front_to_back)
         self._archive_changed()
         form_hint(form, self.keep_images,
-                  "Keep lossless PNG copies of the final pages after joining, rotation, and any resizing, "
-                  "before JPEG/WebP encoding. Both sizes saves separate Full and Reduced PNG folders. "
-                  "PNG cannot recover detail already lost in a JPEG source. No archive saves only these PNG pages. "
-                  "")
+                  "Also save lossless PNG copies of the final pages, after joining, rotation, and any resizing "
+                  "but before JPEG/WebP encoding, in a folder beside the comic. Both sizes saves separate Full and "
+                  "Reduced PNG folders. PNG cannot recover detail already lost in a JPEG source. Unavailable when "
+                  "there's no archive and the pages are already being saved as PNG.")
+        self.keep_images_hint = self.keep_images.toolTip()
         self.include_comicinfo = QCheckBox("Include ComicInfo.xml")
         self.metadata_button = QPushButton("Edit metadata…")
         self.metadata_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
@@ -5279,12 +5273,18 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         elif choice != "pdf" and previous == "pdf":
             self._use_pdf_options(False)
         self.archive_previous = choice
-        if choice == "none":
-            self.keep_images.setChecked(True)
-        self.keep_images.setEnabled(choice != "none")
         if choice != "pdf":
             self.settings.setValue("archive_format", choice)
         self.refresh_export()
+
+    def _update_keep_images(self, opt):
+        """Gray out "Also keep lossless PNG pages" when, with no archive, every size's
+        pages are already being saved as PNG."""
+        sizes = ("full", "reduced") if opt.size_output == "both" else (opt.size_output,)
+        useful = any(keeps_png(replace(opt, keep_images=True), size) for size in sizes)
+        self.keep_images.setEnabled(useful)
+        self.keep_images.setToolTip(getattr(self, "keep_images_hint", "") if useful else tooltip_text(
+            "The pages are already being saved as PNG, in a folder, since there's no archive."))
 
     def options_from_screen(self):
         self.opt.comicinfo_xml = ((self.plan.comicinfo_xml or '<ComicInfo/>')
@@ -5328,6 +5328,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.front_to_back.setVisible(self.plan.scan.right_to_left)
         try:
             opt = self.options_from_screen()
+            self._update_keep_images(opt)
             self._update_naming_examples(opt)
             summary = [self._format_summary(copy_encoding_options(opt, opt.size_output == "reduced")),
                        {"full": "Full size", "reduced": "Reduced size", "both": "Both sizes"}[opt.size_output]]
@@ -5340,8 +5341,6 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                                         ("\n" + "  ·  ".join(summary[2:]) if len(summary) > 2 else ""))
             safe_book_name(opt.book_name)
             planned_names(self.plan, opt, reduced=opt.size_output == "reduced")
-            if not opt.cbz and not opt.keep_images:
-                raise ValueError("Choose an archive, processed images, or both.")
             self.export_hint.setText(EXPORT_HINT)
             self.create_button.setEnabled(True)
             if self.current_job is not None:
@@ -5397,7 +5396,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
     def _size_estimate_ready(self, generation, sizes, final=True):
         if generation != self.estimate_generation:
             return
-        what = " of PNG pages" if self.estimate_png_pages else ""
+        what = " of pages, in a folder" if self.estimate_png_pages else ""
         if len(sizes) == 1:
             text = f"About {readable_size(next(iter(sizes.values())))}{what}"
         else:
@@ -5527,8 +5526,6 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         planned_names(self.plan, opt, reduced=opt.size_output == "reduced")
         if opt.size_output == "both":
             planned_names(self.plan, opt, reduced=True)
-        if not opt.cbz and not opt.keep_images:
-            raise ValueError("Choose an archive, processed images, or both.")
         if not (self.current_job is not None and self.current_job.reimport_source is not None):
             check_sources(self.plan.scan)  # Re-imported pages are checked when they're imported.
         if opt.comicinfo_xml is not None:
@@ -5654,7 +5651,6 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             self.lossless_for_this_comic = (self._lossless_still_chosen(opt) and not (
                 saved[self.lossless_field] == "webp" and saved["webp_lossless"]))
         self._use_pdf_options(choice == "pdf")
-        self.keep_images.setEnabled(choice != "none")
         self.keep_images.setChecked(opt.keep_images)
         self.front_to_back.setChecked(opt.front_to_back)
         with QSignalBlocker(self.include_comicinfo):
@@ -5974,7 +5970,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         while True:
             candidate = f"{base} - Test {index}"
             names = (f"{candidate}{suffix}{ext}" for suffix in ("", " - Full", " - Reduced")
-                     for ext in (".cbz", ".cb7", " - PNG pages"))
+                     for ext in (".cbz", ".cb7", ".pdf", " - PNG pages", " - JPEG pages", " - WebP pages", " - Pages"))
             if not any((folder / name).exists() for name in names):
                 break
             index += 1
