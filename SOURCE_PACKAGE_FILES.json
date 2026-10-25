@@ -1,5 +1,5 @@
 {
-  "scope": "Comic Stitcher 0.9.0 source package. Library source archives and unrar.exe are unchanged since 0.6.38; cwebp.exe is libwebp 1.6.0.",
+  "scope": "Comic Stitcher 0.10.0 source package. Library source archives and unrar.exe are unchanged since 0.6.38; cwebp.exe is libwebp 1.6.0.",
   "files": [
     {
       "path": ".github/check_linux_install.py",
@@ -28,8 +28,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 12032,
-      "sha256": "c3e88f29d02d535b8e626ba46076d6e8dd36f8bef471af04fe38a5c8009a6fed"
+      "bytes": 12469,
+      "sha256": "f578b25fbd43c4726b0c7c49c2aadef8534d791352078f2de038fed66413de3a"
     },
     {
       "path": "assets/app/comic-stitcher.ico",
@@ -1303,8 +1303,8 @@
     },
     {
       "path": "build_release_windows.bat",
-      "bytes": 1075,
-      "sha256": "10f18acecc942253b1ae21839710823012f0d0cdedaca69ca70125a28c18d128"
+      "bytes": 1076,
+      "sha256": "6b475b337407b0054edebbfa05ea8761cb1ae68066b30c159fa930698e945ba5"
     },
     {
       "path": "build_runtime_installer_windows.bat",
@@ -1323,8 +1323,8 @@
     },
     {
       "path": "comic_builder/__init__.py",
-      "bytes": 106,
-      "sha256": "cb5032b720726b1b1660194425895a8f1aadee72b24a184cc3e3c82c64c6b886"
+      "bytes": 107,
+      "sha256": "6cc7650baad3ad5dd3518eaff6292dca4eb8d759b772b538a4ad2f98f567df57"
     },
     {
       "path": "comic_builder/__main__.py",
@@ -1333,18 +1333,23 @@
     },
     {
       "path": "comic_builder/archive_import.py",
-      "bytes": 13021,
-      "sha256": "1c22a22ce447f1d82e2f59c165181ff28c8f821cb18249ce747ac43afbe8eec2"
+      "bytes": 15279,
+      "sha256": "95b82deefed14640ea7e5d998e1c4ce65e5043f65b12ae9496e771ea1f9ea382"
     },
     {
       "path": "comic_builder/backend.py",
-      "bytes": 60153,
-      "sha256": "0e55a0a098dd751fb5cb7ad39d92f578cee77ec9324853dd3bfe6d9d14ff3b8a"
+      "bytes": 76346,
+      "sha256": "da200b20de43110e0ba85e2ccedef8e42e8da9306b7564d2e078a97adb67c4b0"
+    },
+    {
+      "path": "comic_builder/cmyk_profile.py",
+      "bytes": 12185,
+      "sha256": "6fbb36b7e0aa97facb2c14ea59d0ea598c665e77077bde917b12c313a8ae60fe"
     },
     {
       "path": "comic_builder/colour.py",
-      "bytes": 2495,
-      "sha256": "73e453ba56c46115540c9837335ccb6f7b61088554638c80098dab85af94fe9b"
+      "bytes": 2780,
+      "sha256": "8f0c836974e35d7447690dc4ec46a4519918647a13b70654d6dc3b38a4c139ea"
     },
     {
       "path": "comic_builder/comicinfo.py",
@@ -1362,9 +1367,14 @@
       "sha256": "e24906de4bca95cc676fb570c706688c9c1ff30487a6cf2356bb978254cc7260"
     },
     {
+      "path": "comic_builder/crop_summary.py",
+      "bytes": 5486,
+      "sha256": "cb09438468c0baa87c270b19702ac4986bcc292799ced1c372226f1bfd0823ae"
+    },
+    {
       "path": "comic_builder/detector.py",
-      "bytes": 16356,
-      "sha256": "1d232daa041a6b6588cc8460b8df424d4fd3b5e00d590c94fbcae079d3862330"
+      "bytes": 16480,
+      "sha256": "670237bffa2a10bbc022974efa299daa58c025630307748a3d488c016a3e75b4"
     },
     {
       "path": "comic_builder/diagnostics.py",
@@ -1383,8 +1393,8 @@
     },
     {
       "path": "comic_builder/gui.py",
-      "bytes": 275929,
-      "sha256": "d6312b5a4d0d7cbd6791abb45ae61c5320be1a22c3a17249fbbfaa22fcd2d93a"
+      "bytes": 305593,
+      "sha256": "e43573c61c48d52e3dbb275073691d3ecb2e7f21602f442c4527cafde71c27e5"
     },
     {
       "path": "comic_builder/icons_resource.py",
@@ -1423,13 +1433,13 @@
     },
     {
       "path": "comic_builder/review_report.py",
-      "bytes": 3986,
-      "sha256": "adeb333831c919b14680b9794dc69e41c93cb7a049f20cedd8b7ba1eb0f900c1"
+      "bytes": 5139,
+      "sha256": "1de7f2ea54a8dcf673f012758d2362de40bf39a63407a56245cbb6694fe06e82"
     },
     {
       "path": "comic_builder/screenshot_geometry.py",
-      "bytes": 24902,
-      "sha256": "ccf5824be21bba75dbe4a5c0191e5c2d4d3f7f99b19eea12f00d5e0f75a546dd"
+      "bytes": 39548,
+      "sha256": "e512db5abbe40b46fd7838d3b5e4de621d22fd5e854e8c12db5b3139e1859fb0"
     },
     {
       "path": "comic_builder/screenshot_import.py",
@@ -1438,8 +1448,8 @@
     },
     {
       "path": "comic_builder/session.py",
-      "bytes": 13471,
-      "sha256": "9c0b2a71852962e7adc08dbbf65dd464d733a31824f5abeba14a40a818a245a9"
+      "bytes": 14349,
+      "sha256": "f6af4cbbebfe9b7b7c53aa0246209c3d0e827b4ca2f6ef1380da5063d43a662c"
     },
     {
       "path": "comic_builder/sharp_webp.py",
@@ -1463,8 +1473,8 @@
     },
     {
       "path": "comic_builder/test_backend.py",
-      "bytes": 41316,
-      "sha256": "a98bc12da60c11b104b3b37393665f789aaf99ab004c2ce421f4810a596ff69c"
+      "bytes": 46965,
+      "sha256": "19f22f7d450cf1e57e24e4d1b52f169e1db8c3d3c534f439b014000a6286e148"
     },
     {
       "path": "comic_builder/test_case_names.py",
@@ -1473,8 +1483,8 @@
     },
     {
       "path": "comic_builder/test_colour.py",
-      "bytes": 5659,
-      "sha256": "327da5ffeda4cd37cb9fc08af1fb6b234e961037d3b30f14db3fa83e8f7cd857"
+      "bytes": 7149,
+      "sha256": "4db881aacfe85419f66b34c42a6a8f69d99e6c98b73218c056a4b6a7ecf0a61a"
     },
     {
       "path": "comic_builder/test_comicinfo.py",
@@ -1493,8 +1503,8 @@
     },
     {
       "path": "comic_builder/test_data/README.md",
-      "bytes": 311,
-      "sha256": "f58de30a67aebe460efe02eef9c3d3b333e9c76d2a2aac2e79251d743a6ad916"
+      "bytes": 406,
+      "sha256": "bc3bb3d4c7662d2fac888bcd407275f53cda872a53f80ecbfb238ac53b6ea0a6"
     },
     {
       "path": "comic_builder/test_detector_colours.py",
@@ -1518,8 +1528,8 @@
     },
     {
       "path": "comic_builder/test_gui.py",
-      "bytes": 145918,
-      "sha256": "ca3d691a83801f4d48385b2de8cc0f7367848cd79df77754a428781aeca68c0b"
+      "bytes": 170373,
+      "sha256": "e4c1092c5789f5f39d7cd50b1c15cee19c38bf81a65b1ab8f66a9d13d000d949"
     },
     {
       "path": "comic_builder/test_icons_resource.py",
@@ -1535,6 +1545,11 @@
       "path": "comic_builder/test_license_packaging.py",
       "bytes": 12614,
       "sha256": "beb7f6eee96200c5c6f7a99822d4fd024963e6ddd292a70820163789b087cd64"
+    },
+    {
+      "path": "comic_builder/test_lossless_hint.py",
+      "bytes": 4843,
+      "sha256": "4cdbbb415cfa598ced5bec418c4be78ad22ddd15eb1b1c8ae1683ce59d624248"
     },
     {
       "path": "comic_builder/test_page_edits.py",
@@ -1563,13 +1578,13 @@
     },
     {
       "path": "comic_builder/test_reading_direction.py",
-      "bytes": 10414,
-      "sha256": "4ad6e5313ca7fcc742c4f3dd1efbac4b1697cc47d30cc220df96b180815b4d17"
+      "bytes": 10486,
+      "sha256": "e82cef44b36cfb7011994a95622395defb3597119268b1f9ea9012a9aca233d6"
     },
     {
       "path": "comic_builder/test_screenshot_geometry.py",
-      "bytes": 16191,
-      "sha256": "3853f168ee01cb518307e15ce9eeb1f5d16d5c4a415868523db077561cdd5ad9"
+      "bytes": 30188,
+      "sha256": "e56a395f02e2772a2b142277927b6aa2438f3c41aafc85cccecdedbd6481b863"
     },
     {
       "path": "comic_builder/test_screenshot_import.py",
@@ -1592,6 +1607,11 @@
       "sha256": "6657005c412ee0788e1d7586f772b474a807bbe811f892792eff5c1c50cca433"
     },
     {
+      "path": "comic_builder/test_spread_overlap.py",
+      "bytes": 15054,
+      "sha256": "ebe6d5dcd5da501a72de25a284f25a5356b5b83023a0c3e5d4708bb97504cba7"
+    },
+    {
       "path": "comic_builder/test_startup_notice.py",
       "bytes": 4219,
       "sha256": "80a8128e212e4bccc76a1573c60d4eb5f164ca8ff0616de9915d7b9070a86b3c"
@@ -1608,43 +1628,43 @@
     },
     {
       "path": "compile_runtime_installer_windows.ps1",
-      "bytes": 4268,
-      "sha256": "d915f431c8d591953a3e1b12d3aa84fb4b66535b7bcb71332229f98757e28f4f"
+      "bytes": 4269,
+      "sha256": "fbf7cc908665bec9918b0dc63f6beccd879ef46539f6cd4f0ab51d9555aea99b"
     },
     {
       "path": "docs/BUILDING.md",
-      "bytes": 7867,
-      "sha256": "ee002623b0170b346faf97c2ef5356502091d7331e5244abe308ebf1a674a703"
+      "bytes": 7868,
+      "sha256": "b7c7d0c1c770cceee338601c64f1ceee9201073543d18310ff17552b62485bf8"
     },
     {
       "path": "docs/CHANGELOG.md",
-      "bytes": 10423,
-      "sha256": "9ce63a598ec19754b9f245487c795a452c87194220f94eab7d7cb4f1d2e21b5e"
+      "bytes": 15799,
+      "sha256": "e00295c3a4d9eba79d6a5b9378884d7b28010f6d0c5257bfd1aca68b877515bf"
     },
     {
       "path": "docs/NATIVE_SOURCE_REBUILD.md",
-      "bytes": 10768,
-      "sha256": "4dadb0ccb39f95c2ce4e2665621db03c541e4be838d69bf57c810f63176ae540"
+      "bytes": 10769,
+      "sha256": "fa773cc6044aa41ed920402c3a8fb6d85bae59c5cee44a64d34f660266cc96f8"
     },
     {
       "path": "docs/PROVENANCE.md",
-      "bytes": 2815,
-      "sha256": "125a73fa6c3c466ef3d581b1b1b9828d7a831be2d3e5ab5c83efcb7cf70c6acb"
+      "bytes": 3038,
+      "sha256": "d786d67a7dc8390dbb12315acd7440983d24b1e40b881e1056d37f5879af0628"
     },
     {
       "path": "docs/REBUILDING_AND_REPLACING_LIBRARIES.md",
-      "bytes": 8878,
-      "sha256": "1960c0900c0e874ce1921e4aa537f2225078638a7a73a459bb74002a47ce6f6b"
+      "bytes": 8879,
+      "sha256": "c27ac25b77336a057743650f825591ef1f8595f9e30a1a86feb3740b31f00077"
     },
     {
       "path": "docs/RELEASE_NOTES.md",
-      "bytes": 2714,
-      "sha256": "04de93ee7850978e9893e6b74b0e93444e72e77d45a8354d08600734d56de1bb"
+      "bytes": 2899,
+      "sha256": "e74a3b2bcf2a55f6465f07ff01582b9937ba37df4a44eb3d381623f8d99291ac"
     },
     {
       "path": "docs/SOURCE_ACCESS.md",
-      "bytes": 6039,
-      "sha256": "faf0a72206d6cb2fc4c921a1049190827579b1d84d2b77d4d1bea0fb163ecd56"
+      "bytes": 6045,
+      "sha256": "3aaae24c0f3586a79927fcaf086758f7fefc80073d45f4859d5b30e5f8149adc"
     },
     {
       "path": "docs/SOURCE_PACKAGE_CONTENTS.md",
@@ -1653,8 +1673,8 @@
     },
     {
       "path": "docs/START_HERE.md",
-      "bytes": 958,
-      "sha256": "ceeab19dbc470ebce9123f30176e6cf0c8518870fa17cb282e632b122611e65f"
+      "bytes": 959,
+      "sha256": "ef3c31e92254a7cc085ef6a6c0f000ae37f25d7b241efb5b7cc8ebc857a668d5"
     },
     {
       "path": "docs/THIRD_PARTY_ACKNOWLEDGEMENTS.md",
@@ -1697,6 +1717,11 @@
       "sha256": "0fc352586446d33f84bc74ba0a0c6a1b58787404ac8ac315a21b8793b66ea504"
     },
     {
+      "path": "installer/uninstall_settings.iss",
+      "bytes": 1187,
+      "sha256": "b1f6546edc3462aeec78d21c97ac7307c04ad0a6853d94f277766989e2906d34"
+    },
+    {
       "path": "installer_evidence.py",
       "bytes": 5372,
       "sha256": "49b99622d9d9f13bd98223a7595547db388582321fd4b0df9d7ff043b78d2b71"
@@ -1708,8 +1733,8 @@
     },
     {
       "path": "linux/install.sh",
-      "bytes": 19842,
-      "sha256": "a72547ba0452a74ca3c8b90783a982145aa9cfb36b9a9e393ff668e134f86b16"
+      "bytes": 20858,
+      "sha256": "3616b3dc793f10964699c9586752b8830770d1054990f365b1f657716f93fb65"
     },
     {
       "path": "linux/nautilus/comic-stitcher-folder-menu.py",
@@ -1818,8 +1843,8 @@
     },
     {
       "path": "setup_windows.iss",
-      "bytes": 8710,
-      "sha256": "76992ae7e8660ac7bc640ad63d175a2440dc30ebea19d2c0fdeae29fe0af8a69"
+      "bytes": 8755,
+      "sha256": "abe720ed77fb29c4fe08d023c9cd2842c2a785828e368e411405b90e58766f57"
     },
     {
       "path": "test_installed_runtime_verifier.py",

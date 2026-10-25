@@ -1,4 +1,4 @@
-# Comic Stitcher 0.9.0 — source package
+# Comic Stitcher 0.10.0 — source package
 
 For an introduction and normal use, read [README.md](../README.md).
 To build the Windows installer, follow [BUILDING.md](BUILDING.md).

@@ -35,7 +35,7 @@ for ($attempt = 1; $attempt -le $attempts; $attempt++) {
     Write-Host "Inno compilation failed (attempt $attempt of $attempts), often because antivirus was scanning the new installer. Trying again in 10 seconds..."
     Start-Sleep -Seconds 10
 }
-$installer = 'installer_dist\ComicStitcher-Setup-0.9.0.exe'
+$installer = 'installer_dist\ComicStitcher-Setup-0.10.0.exe'
 if (-not (Test-Path -LiteralPath $installer)) { throw 'Expected installer was not produced.' }
 & $python installer_evidence.py compare 'dist\ComicStitcher' --record 'runtime-integration\input-bundle.json' --output 'runtime-integration\input-unchanged-result.json'
 if ($LASTEXITCODE -ne 0) { throw 'Bundle changed during compilation.' }
