@@ -1,4 +1,4 @@
-# Comic Stitcher 0.9.0
+# Comic Stitcher 0.10.0
 
 Comic Stitcher prepares comic archives. Import PDFs, comic archives, image folders
 or centered screenshots; review suggested page pairs; join split spreads; and
@@ -6,23 +6,27 @@ check the finished comic before exporting. Original input files are preserved.
 
 ## What's new
 
-- **A simpler batch queue.** A comic joins the queue as soon as its Create your
-  comic screen opens, and changes made there update it. Drag comics to change
-  the export order, double-click one to change its settings, and view the queue
-  from the Create your comic screen at any time. A single comic still exports
-  straight away.
-- **Faster spread suggestions.** Large books are scanned on several processor
-  cores at once, several times faster, with identical suggestions.
-- **More pages that just work.** 16-bit greyscale scans no longer turn white,
-  CMYK pages convert with their own colour profile and can be saved as PNG, and
-  pages whose names differ only in capitalisation (`001.jpg` and `001.JPG`) are
-  kept in order instead of refused.
-- **WebP for every page.** Large, finely detailed pages no longer stop a WebP
-  export at the fastest compression efforts.
-- **One worker setting.** A single Worker processes count in Settings now covers
-  scanning, PDF rendering, screenshots and encoding.
-- **Tidier windows.** Buttons and drop-down lists have consistent heights, and
-  dialog buttons are in the Windows order on Linux too.
+- **Smarter screenshot crops.** Covers of a different size are cropped on their
+  own, black-bordered pages no longer create false page sizes, and a crop never
+  cuts off art the screenshot shows. Books with two page sizes place
+  black-bordered pages by their art, the pages around them and their borders.
+  A short summary says how many screenshots have pages of each size.
+- **Page sizes in crop review.** Choose a page size for one screenshot with
+  radio buttons, or for the whole book at once, or measure one screenshot again
+  on its own.
+- **Overlapping halves.** Spreads sliced with a repeated strip of art at the
+  seam are found and joined lined up, and the Seam tools line up any spread by
+  hand (I and O move the halves, Enter shows the seam line).
+- **Page folders in any format.** With no archive, pages are saved as JPEG,
+  WebP or PNG; lossless PNG folders can be added to any export.
+- **A lossless WebP suggestion** when it would make a comic much smaller, as
+  with clean black-and-white line art.
+- **Skip pair review** for comics whose pages are already complete, such as a
+  CBR to convert to CBZ.
+- **Truer colour** for CMYK pages without a colour profile, converted as printed
+  for North American comics (SWOP).
+- **RAR5 comics on Linux**, and on Windows, uninstalling can remove your settings
+  too.
 
 The full list is in [CHANGELOG.md](CHANGELOG.md).
 

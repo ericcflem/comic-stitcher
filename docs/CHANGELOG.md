@@ -1,128 +1,95 @@
 # Changelog
 
-## Unreleased
+## 0.10.0
 
-- Screenshot import: the measurements summary is short and specific: how many
-  screenshots have pages of each size (with its dimensions), how many of those
-  were measured from clear page edges and how many have black borders, the
-  covers measured at their own size, and a note when there's more than one
-  page size. No warning icon.
-- Screenshot import never crops off artwork the screenshot shows. A black-bordered
-  page takes a page size whose crop keeps all its visible art: the size of the
-  pages around it when they agree, otherwise the size measured on more pages,
-  then the narrower. A black-bordered single whose art fits only the larger size
-  now gets it instead of going to review. Only a few faint pixels of compression
-  blur may fall outside a crop (6 at most, where it used to grow with page size
-  to 8). In crop review, choosing a page size for one page or for all pages
-  leaves alone any page whose art that size would cut, and says which.
-- Screenshot import, books with two page sizes: black-bordered spreads where two
-  runs of sizes meet now get the right size more often. A black page whose art
-  proves its size counts as a neighbour for the pages around it, and a spread
-  still undecided takes the size whose outer black border matches that size's
-  other black-bordered spreads (Eric's idea). Eric's Fire Power test with five
-  2014 spreads at the end of a 2014 run: all five now 2014, where only one was.
-- Create your comic: No archive saves the finished pages in a folder in the
-  format you chose (JPEG, WebP or PNG; one folder for each size, such as "Book -
-  Full - JPEG pages" and "Book - Reduced - WebP pages"), instead of only lossless
-  PNG pages. "Also keep lossless PNG pages" now always adds PNG folders beside
-  whatever you make; it's grayed out when, with no archive, the pages are already
-  PNG.
-- Screenshot import: a single screenshot measured wider than the book's page
-  size (a 2063 × 3131 Marvel page scaled to 2014 beside 1988, say) no longer sets
-  the crop for every page. It's cropped at its own size and the summary names it
-  as possibly scaled down, to retake at full height. When a smaller page size
-  recurs, the summary lists its screenshot numbers.
-- Screenshot import, books with two page sizes: a black-bordered page takes the
-  page size of the clearly measured pages before and after it when they agree,
-  since sizes come in runs (an issue, a backup story). Before, it took the
-  smaller size whenever its artwork fit. The summary names these pages, so a
-  retake list includes them.
-- Screenshot import: the front and back covers no longer set the book's page
-  sizes. A cover a little narrower than the pages (1969 against 1988 px, say)
-  or wider (as in some DC collections) is cropped at its own size, and the rest
-  of the book is measured without it. Before, two such covers made a page size
-  of their own, and black-bordered pages were cropped to it.
-- Screenshot import: a black-bordered single page whose edges run into the
-  screenshot's black no longer needs review. When the book has one page size and
-  everything visible on the page fits inside it, the page is cropped at that
-  size. Books with two page sizes still ask, since the artwork can't tell which.
-- Screenshot crop review: the page size is chosen with radio buttons, each
-  showing how many screenshots measured at it. "Use this size for all pages"
-  crops the whole book at the chosen size (pages at their own size, such as
-  covers, and crops adjusted by hand keep theirs), and "This page's own size"
-  measures one screenshot again on its own. Black-bordered spreads whose panels
-  end in straight lines could measure as extra page sizes; one click undoes that.
-- Screenshot import: a page whose top or bottom rows are black has a black
-  border, so the sides measured on it belong to the artwork, not the page. It no
-  longer makes a page size of its own (Fire Power: 1909 and 1913 beside 1988);
-  it's cropped at the book's page size like other black-bordered pages.
-- CMYK pages without a colour profile are converted as printed for US coated
-  web offset (SWOP, CGATS TR 001), the usual conditions for North American
-  comics, instead of with the plain formula. On an untagged CMYK page whose
-  publisher also supplied an RGB version, this halved the colour difference
-  (average ΔE 8.5 to 4.4), correcting skin tones and colour casts. Pages with
-  their own profile still use it. PDFs that are rendered aren't affected (PDFium
-  converts their colours). The profile is public domain (CC0) and built in.
-- **Seam** always opens the line-up tools, showing the seam as the pages will be
-  joined, including a suggested overlap or covered border: in pair review
-  (**Use this alignment**, then Yes or No), on a spread in the final review, and
-  on two selected pages there (**Join as spread**). In the tools, I and O move
-  the halves a pixel together (in) or apart (out), ← and → choose
-  the page on top, Enter shows or hides a line where the page on top ends, Space
-  finishes and Esc cancels. The separate seam-only views are gone.
+**Screenshot import**
+
+- The measurements summary is short and specific: how many screenshots have
+  pages of each size (1988 × 3056, say), how many were measured from clear page
+  edges and how many have black borders, the covers measured at their own size,
+  and a note when there's more than one page size. No warning icon.
+- Covers are set apart: a first or last screenshot a little narrower than the
+  pages (1969 against 1988, say) or wider (some DC collections) is cropped at its
+  own size and doesn't set the book's page size.
+- Black-bordered pages, whose border is the same black as the screenshot, no
+  longer make page sizes of their own: a page whose top or bottom rows are black
+  is treated as black-bordered, whatever its sides measure (Fire Power's 1909 and
+  1913 beside 1988). A black-bordered page whose art fits the book's one page
+  size is cropped at it without review.
+- A crop never cuts off art the screenshot shows. In a book with two page sizes
+  (Marvel's 1988 × 3056 and 2063 × 3131 fitted as 2014, say), a black-bordered
+  page takes a size whose crop holds all its art: the one a visible edge shows;
+  the only one that fits; that of the clearly measured pages around it when they
+  agree (a page whose art proves its size counts); for spreads, the one whose
+  outer black border matches that size's other black-bordered spreads; else the
+  size measured on more pages. Compression blur past a crop is allowed up to 6
+  pixels.
+- A single screenshot measured wider than the book's page size is cropped at
+  its own size instead of setting every page's crop, and the summary notes that
+  it may have been scaled down.
+- In crop review, the page size is chosen with radio buttons, each showing how
+  many screenshots measured at it. **Use this size for all pages** crops the
+  whole book at the chosen size, and **This page's own size** measures one
+  screenshot again on its own. Pages at their own size (covers), crops adjusted
+  by hand and pages whose art the chosen size would cut keep their crop, and a
+  message says which.
+
+**Spreads and seams**
+
 - Overlapping halves are suggested: the import scan looks for a strip of art
-  repeated on both pages of each neighbouring pair it checks, even where the
-  edges don't match. Pair review offers such a pair as **Possible · overlapping
-  halves**, drawn lined up; **Yes** joins it over the repeated strip, and Seam in
-  the final review can still adjust it. Pairs whose edges are ruled out (a white
-  border on an inner edge, for example) are checked for a repeated strip too.
-  The left page is on top by default; in **Line up spread** a Left/Right switch
-  chooses it, or click a half of the seam to bring it to the front. A thin plain strip
-  (up to 8 px) on one inner edge only, such as a white border added to one
-  half, is covered by the other page when the pair is joined (pair review shows
-  **thin border at the seam covered**), and **Find overlap** covers one too when
-  there's no repeated strip. A pair whose border makes its edge look solid is
-  still scored with the border set aside. Each one found is noted in the
-  diagnostic log and in the pair review report (`overlapping_halves`), with what
-  was decided.
-- Spreads whose halves overlap: some books slice a spread from a page narrower
-  than two pages, so both halves repeat a strip of art at the seam. In the final
-  review, select the spread and choose **Seam** to line it up: **Find overlap**
-  measures the repeated strip (it runs as the window opens), **Apart** and
-  **Together** move the halves a pixel at a time, and **On top** chooses which
-  page covers the other, to hide a thin border. The joined spread is that much
-  narrower, and the overlap is kept with the spread for export, the size
-  estimate, saved reviews and undo.
-- Create your comic suggests lossless WebP when it would make the comic much
-  smaller. After the size estimate, the same sample pages are estimated as
-  lossless WebP; if that comes to three quarters of the size or less, a note
-  gives both sizes, with a **Use lossless WebP** button for that comic only (the
-  usual output settings aren't changed). Clean line art, such as
-  black-and-white strips rendered from a PDF, is often several times smaller
-  this way with no loss at all; scans and full-colour art usually aren't, and
-  then nothing is shown. A quick check of a few pages runs in the background
-  while the comic is reviewed, so the note is usually there as soon as Create
-  your comic opens (the sizes follow once estimated), and books it rules out
-  skip the lossless estimate altogether. It applies to CBZ and CB7 when pages are encoded as
-  JPEG or lossy WebP.
-- Windows: uninstalling now asks whether to remove your settings too: your
-  preferences, a remembered ComicVine API key, saved reviews, pair review
-  reports and logs. They are kept unless you choose Yes, as before.
-- Linux: CBR/RAR comics in the newer RAR5 format. unar, bsdtar, and 7-Zip
-  without its RAR support, can't read them fully, and the import failed with
-  "Failed the read enough data". Comic Stitcher now tries each installed
-  extractor in turn (UnRAR, unar, bsdtar, 7-Zip). If none can read the archive, or none is
-  installed, the message recommends UnRAR or 7-Zip's RAR support (`7zip-rar`)
-  instead of unar. `linux/install.sh` offers to install UnRAR.
-- Pair review can be skipped: choose **None — the pages are already complete**
-  for Pair review when importing. The pages are read without looking for
-  spreads, and the import goes straight to the final review, where pages can
-  still be joined, removed or rotated. Converting a CBR to CBZ, with copied pages
-  and optional ComicInfo.xml, takes an import, a look at the pages and an
-  export. The choice resets to Suggested pairs for each comic.
-- The import dialog's **Right-to-left page order** checkbox is now labelled
-  **Back-to-front page order (manga)**, which says what it expects: the front
-  cover is the last page of the source. It works as before.
+  repeated on both pages of a neighbouring pair, even where the edges don't
+  match. Pair review offers it as **Possible · overlapping halves**, drawn lined
+  up; **Yes** joins it over the repeated strip. A thin plain strip (up to 8 px)
+  on one inner edge only, such as a white border added to one half, is covered
+  by the other page when the pair is joined. Each one found is noted in the
+  diagnostic log and the pair review report (`overlapping_halves`).
+- **Seam** always opens the line-up tools, showing the seam as the pages will be
+  joined: in pair review (**Use this alignment**), on a spread in the final
+  review, and on two selected pages there (**Join as spread**). **Find overlap**
+  measures a repeated strip; I and O move the halves a pixel together or apart;
+  ← and → (or the Left/Right switch, or a click on a half) choose the page on
+  top; Enter shows or hides a line where that page ends; Space finishes and Esc
+  cancels. The overlap is kept with the spread for export, the size estimate,
+  saved reviews and undo.
+
+**Import**
+
+- Pair review can be skipped: **None — the pages are already complete** reads
+  the pages without looking for spreads and goes straight to the final review.
+  Converting a CBR to CBZ takes an import, a look at the pages and an export.
+  The choice resets to Suggested pairs for each comic.
+- The **Right-to-left page order** checkbox is now **Back-to-front page order
+  (manga)**, which says what it expects. It works as before.
+- Linux: CBR/RAR comics in the newer RAR5 format. Comic Stitcher tries each
+  installed extractor in turn (UnRAR, unar, bsdtar, 7-Zip), and if none can read
+  the archive, recommends UnRAR or 7-Zip's RAR support (`7zip-rar`).
+  `linux/install.sh` offers to install UnRAR.
+- CMYK pages without a colour profile are converted as printed for US coated web
+  offset (SWOP, CGATS TR 001), the usual conditions for North American comics,
+  instead of with the plain formula: skin tones and colour casts come out right
+  (on a test page, average ΔE 8.5 to 4.4 against the publisher's RGB version).
+  The profile is public domain (CC0) and built in.
+
+**Export**
+
+- No archive saves the finished pages in a folder in the format you chose (JPEG,
+  WebP or PNG; one folder for each size, such as "Book - Full - JPEG pages" and
+  "Book - Reduced - WebP pages"), instead of only lossless PNG pages. **Also keep
+  lossless PNG pages** adds PNG folders beside whatever you make; it's grayed out
+  when, with no archive, the pages are already PNG.
+- Create your comic suggests lossless WebP when it would make the comic three
+  quarters of the size or less, with a **Use lossless WebP** button for that
+  comic only. Clean line art, such as black-and-white strips rendered from a
+  PDF, is often several times smaller this way with no loss at all. A quick
+  check runs in the background during review, so the note is usually there when
+  Create your comic opens. It applies to CBZ and CB7 with JPEG or lossy WebP
+  pages.
+
+**Windows**
+
+- Uninstalling asks whether to remove your settings too: preferences, a
+  remembered ComicVine API key, saved reviews, pair review reports and logs.
+  They are kept unless you choose Yes.
 
 ## 0.9.0
 

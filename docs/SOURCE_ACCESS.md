@@ -1,10 +1,10 @@
-# Sources, licences and library replacement — 0.9.0
+# Sources, licences and library replacement — 0.10.0
 
 Repository: [ericcflem/comic-stitcher](https://github.com/ericcflem/comic-stitcher)
 
-Release/download location: [Version 0.9.0](https://github.com/ericcflem/comic-stitcher/releases/tag/v0.9.0)
+Release/download location: [Version 0.10.0](https://github.com/ericcflem/comic-stitcher/releases/tag/v0.10.0)
 
-Matching source asset: [ComicStitcher_Source_0.9.0.zip](https://github.com/ericcflem/comic-stitcher/releases/download/v0.9.0/ComicStitcher_Source_0.9.0.zip)
+Matching source asset: [ComicStitcher_Source_0.10.0.zip](https://github.com/ericcflem/comic-stitcher/releases/download/v0.10.0/ComicStitcher_Source_0.10.0.zip)
 
 The release page will provide the Windows installer and its matching source
 package as separate downloads, with SHA-256 checksums. The source package includes
