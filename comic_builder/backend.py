@@ -668,6 +668,8 @@ class ExportOptions:
     cbz: bool = True  # Whether to create an archive (see archive_format).
     archive_format: str = "cbz"  # cbz (ZIP), cb7 (7z) or pdf
     keep_images: bool = False
+    save_cover: bool = False  # Also save the front cover as an image beside the comic.
+    save_comicinfo: bool = False  # Also save ComicInfo.xml beside the archive.
     front_to_back: bool = False
     jpeg_progressive: bool = False
     jpeg_optimize: bool = True
@@ -1362,10 +1364,23 @@ def keeps_png(opt: ExportOptions, variant: str) -> bool:
     return opt.keep_images and (opt.cbz or _images_label(opt, variant) != "PNG pages")
 
 
-def export_outputs(folder: Path, title: str, opt: ExportOptions) -> list[tuple[str, str, Path]]:
+def saves_comicinfo(opt: ExportOptions) -> bool:
+    """ComicInfo.xml beside the archive: asked for, included, and not already in
+    a folder of pages (no archive)."""
+    return opt.save_comicinfo and opt.comicinfo_xml is not None and opt.cbz
+
+
+def _cover_name(plan: BookPlan, opt: ExportOptions, variant: str) -> str | None:
+    """The finished comic's front-cover file, as named in this size's export."""
+    from .comicinfo import front_cover_output
+    cover = front_cover_output(plan, export_entries(plan, opt))
+    return None if cover is None else planned_names(plan, opt, reduced=variant == "reduced")[cover]
+
+
+def export_outputs(plan: BookPlan, folder: Path, title: str, opt: ExportOptions) -> list[tuple[str, str, Path]]:
     """Every (size, kind, path) an export makes: the archive, or with no archive a
     folder of the finished pages in the chosen format; plus, when asked, a folder
-    of lossless PNG pages."""
+    of lossless PNG pages, the front cover as an image, and ComicInfo.xml."""
     variants = ("full", "reduced") if opt.size_output == "both" else (opt.size_output,)
     outputs = []
     for variant in variants:
@@ -1376,6 +1391,10 @@ def export_outputs(folder: Path, title: str, opt: ExportOptions) -> list[tuple[s
             outputs.append((variant, "images", folder / f"{title}{suffix} - {_images_label(opt, variant)}"))
         if keeps_png(opt, variant):
             outputs.append((variant, "png", folder / f"{title}{suffix} - PNG pages"))
+        if opt.save_cover and (cover := _cover_name(plan, opt, variant)) is not None:
+            outputs.append((variant, "cover", folder / f"{title}{suffix} - Cover{Path(cover).suffix}"))
+        if saves_comicinfo(opt):
+            outputs.append((variant, "comicinfo", folder / f"{title}{suffix} - ComicInfo.xml"))
     return outputs
 
 
@@ -1406,11 +1425,11 @@ def export_book(plan: BookPlan, opt: ExportOptions,
     title = safe_book_name(opt.book_name)
     folder = plan.scan.output_folder or plan.scan.folder
     variants = ("full", "reduced") if opt.size_output == "both" else (opt.size_output,)
-    outputs = export_outputs(folder, title, opt)
+    outputs = export_outputs(plan, folder, title, opt)
 
     def destination(variant: str, kind: str | None = None) -> Path:
         return next(path for size, what, path in outputs
-                    if size == variant and (what == kind if kind else what != "png"))
+                    if size == variant and (what == kind if kind else what in ("archive", "images")))
 
     for _variant, _kind, output in outputs:
         if output.exists():
@@ -1486,13 +1505,18 @@ def export_book(plan: BookPlan, opt: ExportOptions,
                             future.cancel()
                         raise
             check_sources(plan.scan)
+            if opt.save_cover and (cover := _cover_name(plan, opt, variant)) is not None:
+                # The cover exactly as it is in the comic.
+                shutil.copyfile(variant_work / cover, work / f"{variant}-cover{Path(cover).suffix}")
             archive_names = list(variant_names)
             if opt.comicinfo_xml is not None:
                 from .comicinfo import export_xml
+                data = export_xml(opt.comicinfo_xml, plan, entries, [variant_work / name for name in variant_names])
                 if not opt.cbz or opt.archive_format != "pdf":  # A PDF has no place for it.
-                    data = export_xml(opt.comicinfo_xml, plan, entries, [variant_work / name for name in variant_names])
                     (variant_work / "ComicInfo.xml").write_bytes(data)
                     archive_names.append("ComicInfo.xml")
+                if saves_comicinfo(opt):
+                    (work / f"{variant}-ComicInfo.xml").write_bytes(data)
                 if keep_png:
                     png_paths = [png_work / (Path(name).stem + ".png") for name in variant_names]
                     (png_work / "ComicInfo.xml").write_bytes(export_xml(opt.comicinfo_xml, plan, entries, png_paths))
@@ -1531,6 +1555,12 @@ def export_book(plan: BookPlan, opt: ExportOptions,
             if keeps_png(opt, variant):
                 out = destination(variant, "png")
                 (work / f"{variant}-png").rename(out)
+                published.append(out)
+            for kind, temporary in (("cover", None), ("comicinfo", work / f"{variant}-ComicInfo.xml")):
+                out = next((path for size, what, path in outputs if size == variant and what == kind), None)
+                if out is None:
+                    continue
+                (temporary or work / f"{variant}-cover{out.suffix}").rename(out)
                 published.append(out)
         try:
             shutil.rmtree(work)

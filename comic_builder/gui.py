@@ -2587,7 +2587,7 @@ def export_queued_comic(job: QueuedComic, progress=None):
 def queued_outputs(plan: BookPlan, opt: ExportOptions) -> list[Path]:
     """All final destinations, including both sizes and retained loose pages."""
     folder = plan.scan.output_folder or plan.scan.folder
-    return [path for _size, _kind, path in export_outputs(folder, safe_book_name(opt.book_name), opt)]
+    return [path for _size, _kind, path in export_outputs(plan, folder, safe_book_name(opt.book_name), opt)]
 
 
 class ComicWindow(OutlinedWindow, QMainWindow):
@@ -3388,6 +3388,13 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                   "Reduced PNG folders. PNG cannot recover detail already lost in a JPEG source. Unavailable when "
                   "there's no archive and the pages are already being saved as PNG.")
         self.keep_images_hint = self.keep_images.toolTip()
+        self.save_cover = QCheckBox("Also save cover image")
+        self.save_cover.setChecked(self.settings.value("save_cover", False, type=bool))
+        self.save_cover.toggled.connect(self.refresh_export)
+        form.addRow("", self.save_cover)
+        form_hint(form, self.save_cover,
+                  "Also save the front cover, exactly as it is in the comic, as an image beside it "
+                  "(Book - Cover.jpg). Both sizes saves a cover for each.")
         self.include_comicinfo = QCheckBox("Include ComicInfo.xml")
         self.metadata_button = QPushButton("Edit metadata…")
         self.metadata_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
@@ -3400,6 +3407,14 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         metadata_row.addWidget(self.metadata_button)
         metadata_row.addStretch()
         form.addRow("", metadata_row)
+        self.save_comicinfo = QCheckBox("Also save ComicInfo.xml")
+        self.save_comicinfo.setChecked(self.settings.value("save_comicinfo", False, type=bool))
+        self.save_comicinfo.toggled.connect(self.refresh_export)
+        form.addRow("", self.save_comicinfo)
+        self.save_comicinfo_hint = tooltip_text(
+            "Also save the comic's ComicInfo.xml as a file beside it (Book - ComicInfo.xml), as well as "
+            "inside the archive. Beside a PDF, which has no place for it, it's the only copy.")
+        self.save_comicinfo.setToolTip(self.save_comicinfo_hint)
         self.output_options_button = QPushButton("Output options…")
         self.output_options_button.clicked.connect(self.show_output_options)
         form.addRow("", self.output_options_button)
@@ -5232,6 +5247,14 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             self.settings.setValue("archive_format", choice)
         self.refresh_export()
 
+    def _update_save_comicinfo(self, opt):
+        """Shown with Include ComicInfo.xml; grayed out with no archive, whose
+        page folders hold the file already."""
+        self.save_comicinfo.setVisible(opt.comicinfo_xml is not None)
+        self.save_comicinfo.setEnabled(opt.cbz)
+        self.save_comicinfo.setToolTip(self.save_comicinfo_hint if opt.cbz else tooltip_text(
+            "With no archive, ComicInfo.xml is already saved in each folder of pages."))
+
     def _update_keep_images(self, opt):
         """Gray out "Also keep lossless PNG pages" when, with no archive, every size's
         pages are already being saved as PNG."""
@@ -5253,6 +5276,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.opt.cbz = self._archive_choice() != "none"
         self.opt.archive_format = self._archive_choice() if self.opt.cbz else "cbz"
         self.opt.keep_images = self.keep_images.isChecked()
+        self.opt.save_cover = self.save_cover.isChecked()
+        self.opt.save_comicinfo = self.save_comicinfo.isChecked()
         self.opt.front_to_back = self.front_to_back.isChecked() if self.plan and self.plan.scan.right_to_left else True
         self.opt.workers = self.worker_count()
         values = self.custom_resize_values
@@ -5284,6 +5309,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         try:
             opt = self.options_from_screen()
             self._update_keep_images(opt)
+            self._update_save_comicinfo(opt)
             self._update_naming_examples(opt)
             summary = [self._format_summary(copy_encoding_options(opt, opt.size_output == "reduced")),
                        {"full": "Full size", "reduced": "Reduced size", "both": "Both sizes"}[opt.size_output]]
@@ -5517,6 +5543,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.settings.setValue("number_padding", opt.padding)
         self.settings.setValue("image_handling", self.handling.currentIndex())
         self.settings.setValue("keep_images", self.keep_images.isChecked())
+        self.settings.setValue("save_cover", self.save_cover.isChecked())
+        self.settings.setValue("save_comicinfo", self.save_comicinfo.isChecked())
         if self.plan is not None and self.plan.scan.right_to_left:
             self.settings.setValue("front_to_back", opt.front_to_back)
         self.settings.sync()
@@ -5607,6 +5635,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                 saved[self.lossless_field] == "webp" and saved["webp_lossless"]))
         self._use_pdf_options(choice == "pdf")
         self.keep_images.setChecked(opt.keep_images)
+        self.save_cover.setChecked(opt.save_cover)
+        self.save_comicinfo.setChecked(opt.save_comicinfo)
         self.front_to_back.setChecked(opt.front_to_back)
         with QSignalBlocker(self.include_comicinfo):
             self.include_comicinfo.setChecked(opt.comicinfo_xml is not None)
@@ -5907,7 +5937,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         outputs = list(destination if isinstance(destination, tuple) else (destination,))
         if self.plan is not None:
             for path in queued_outputs(self.plan, self.opt):
-                if path.is_dir() and path not in outputs:
+                if path.exists() and path not in outputs:  # Folders, cover and ComicInfo.xml too.
                     outputs.append(path)
         self.progress_label.setText("Created:\n" + "\n".join(path.name for path in outputs))
         self.progress_source.clear()
@@ -5925,7 +5955,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         while True:
             candidate = f"{base} - Test {index}"
             names = (f"{candidate}{suffix}{ext}" for suffix in ("", " - Full", " - Reduced")
-                     for ext in (".cbz", ".cb7", ".pdf", " - PNG pages", " - JPEG pages", " - WebP pages", " - Pages"))
+                     for ext in (".cbz", ".cb7", ".pdf", " - PNG pages", " - JPEG pages", " - WebP pages", " - Pages",
+                                 " - Cover.jpg", " - Cover.webp", " - Cover.png", " - ComicInfo.xml"))
             if not any((folder / name).exists() for name in names):
                 break
             index += 1

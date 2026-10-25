@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Create your comic: **Also save cover image** saves the front cover, exactly as
+  it is in the comic, beside it ("Book - Cover.jpg"; one for each size), and
+  **Also save ComicInfo.xml** saves the comic's ComicInfo.xml beside the archive
+  as well as inside it. Beside a PDF, which has no place for it, that's the only
+  copy; with no archive, the page folders already hold it.
+
 ## 0.10.0
 
 **Screenshot import**
