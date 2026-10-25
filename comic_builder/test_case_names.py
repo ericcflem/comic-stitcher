@@ -131,3 +131,50 @@ class ArchiveTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PageNoteTests(unittest.TestCase):
+    """Notes from page names: a gap in the numbering (a page may be missing) and
+    names differing only in capitalisation, by their page in reading order."""
+
+    def test_numbering_gaps_are_found_only_in_plainly_numbered_books(self):
+        from .backend import missing_numbers
+        self.assertEqual(missing_numbers(["014.jpg", "015.jpg", "017.jpg", "018.jpg"]), [(2, 1)])
+        self.assertEqual(missing_numbers(["Book 01.jpg", "Book 02-03.jpg", "Book 04.jpg", "Book 07.jpg"]), [(3, 2)])
+        for names in (["001.jpg", "002.jpg", "003.jpg"],          # Complete.
+                      ["cover.jpg", "001.jpg", "003.jpg"],       # Not every name numbered.
+                      ["a01.jpg", "b03.jpg"],                    # Different prefixes.
+                      ["001.jpg", "003.jpg", "005.jpg", "007.jpg", "009.jpg"]):  # Numbered by twos.
+            self.assertEqual(missing_numbers(names), [], names)
+
+    def test_notes_name_pages_in_reading_order(self):
+        from .backend import describe_page_notes
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            names = ["001.jpg", "002.jpg", "004.jpg", "005.jpg"]
+            files = [folder / name for name in names]
+            for index, path in enumerate(files):
+                page(path, index * 40)
+            self.assertEqual(describe_page_notes(names, files),
+                             [((1, 2), "File numbers jump from 002.jpg to 004.jpg: a page may be missing between them")])
+            # Back to front: the same files, read from the last.
+            self.assertEqual(describe_page_notes(names, files, right_to_left=True)[0][0], (1, 2))
+            self.assertEqual(describe_page_notes(names[:3] + ["007.jpg"], files)[1][1],
+                             "File numbers jump from 004.jpg to 007.jpg: 2 pages may be missing between them")
+
+    def test_folder_and_archive_imports_note_a_missing_page(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory) / "pages"
+            folder.mkdir()
+            names = ["Book 01.jpg", "Book 02.jpg", "Book 04.jpg"]
+            for index, name in enumerate(names):
+                page(folder / name, index * 60)
+            scan = scan_manual_folder(folder)
+            self.assertEqual(scan.page_notes,
+                             [((1, 2), "File numbers jump from Book 02.jpg to Book 04.jpg: a page may be missing between them")])
+            archive = Path(directory) / "Book.cbz"
+            with zipfile.ZipFile(archive, "w") as zf:
+                for name in names:
+                    zf.write(folder / name, f"Book/{name}")
+            staged = import_archive(archive, Path(directory) / "stage", manual=True)
+            self.assertEqual(staged.page_notes, scan.page_notes)  # By the names in the archive.

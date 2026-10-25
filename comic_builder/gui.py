@@ -2625,6 +2625,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.queue_results: list[Path] = []
         self.screenshot_source: Path | None = None
         self.screenshot_flagged_pages: set[int] = set()
+        self.page_notes: dict[int, list[str]] = {}  # Page index: notes from its file name.
         self.inferred_notice_shown = False
         self.screenshot_stage_dir: Path | None = None
         self.possible_review_started = False
@@ -2951,7 +2952,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                             ("Left", lambda: self._review_key("left")),
                             ("Right", lambda: self._review_key("right")),
                             ("Escape", lambda: self._review_key("escape")),
-                            ("B", lambda: self._review_key("boss"))):
+                            ("B", lambda: self._review_key("boss")),
+                            ("M", lambda: self._review_key("marked"))):
             shortcut = QShortcut(QKeySequence(key), self)
             shortcut.setContext(Qt.WindowShortcut)
             shortcut.activated.connect(action)
@@ -2961,7 +2963,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         current = self.pages.currentWidget()
         for key, shortcut in self.shortcuts.items():
             shortcut.setEnabled(current == self.review or
-                                (current == self.preview and key in ("Left", "Right", "Space", "Escape")) or
+                                (current == self.preview and key in ("Left", "Right", "Space", "Escape", "M")) or
                                 (current == self.boss_page and key == "B"))
         if current == self.review:
             # The scan/progress page may still own keyboard focus while Qt is
@@ -2983,6 +2985,9 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         if screen == self.preview:
             if action == "seam":
                 self.preview_seam()
+                return
+            if action == "marked":
+                self.next_marked_page()
                 return
         if screen == self.preview and action in ("left", "right"):
             self.navigate((1 if action == "left" else -1) if self.plan.scan.right_to_left
@@ -4148,33 +4153,30 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                         pdf_dpi=int(self.settings.value("pdf_dpi", 300)) if extract else None,
                         manual_mode=manual_mode, pdf_smooth_images=smooth_images)
 
-    def _show_case_twins_notice(self, twins):
-        """Pages whose names differ only in capitalisation: say so once, before review."""
-        names, _ = twins[0]
-        # Archive pages are named with their folder inside the archive, which is
-        # the same for both; just the file names say which pages these are.
-        short = [name.replace("\\", "/").rsplit("/", 1)[-1] for name in names]
-        if len(set(short)) == len(short):
-            names = short
-        copies = sum(identical for _, identical in twins)
-        diagnostics.note("Names differing only in capitalisation: %d sets (%d identical); first: %s",
-                         len(twins), copies, " / ".join(names))
-        text = ("Some pages have names that differ only in capitalisation"
-                if len(twins) > 1 else "Two pages have names that differ only in capitalisation")
-        notice = QMessageBox(QMessageBox.Information, "Page names differ only in capitalisation",
-                             f"{text}, such as “{names[0]}” and “{names[1]}”"
-                             + (f" ({len(twins)} sets)." if len(twins) > 1 else "."), QMessageBox.Ok, self)
-        details = ("They are kept in the order Linux file managers show them: capitalisation is ignored, "
-                   "and lowercase comes first. Check their order in review.")
-        if copies:
-            which = ("These pages are" if len(twins) == 1 else "In every set, the pages are"
-                     if copies == len(twins) else f"In {copies} of these sets, the pages are")
-            details += (f"\n\n{which} identical copies of the same image. If the extra copies "
-                        "aren't meant to be there, remove them in review.")
+    def _show_page_notes(self, notes):
+        """Pages worth a look, from their file names: say so once, before review."""
+        def pages(indexes):
+            numbers = [str(i + 1) for i in indexes]
+            return ("Page " + numbers[0] if len(numbers) == 1 else
+                    "Pages " + ", ".join(numbers[:-1]) + " and " + numbers[-1])
+        for indexes, text in notes:
+            diagnostics.note("Page note: %s: %s", pages(indexes), text)
+        shown = [f"• {pages(indexes)}: {text}." for indexes, text in notes[:12]]
+        if len(notes) > 12:
+            shown.append(f"• …and {len(notes) - 12} more.")
+        details = "\n".join(shown)
+        if any(text.startswith("Names differ only in capitalisation") for _, text in notes):
+            details += ("\n\nPages whose names differ only in capitalisation are kept in the order Linux file "
+                        "managers show them (lowercase first): check their order. If identical copies "
+                        "aren't meant to be there, remove them.")
+        details += "\n\nIn the final review they're marked with a pink !. Press M there to go from one to the next."
+        notice = QMessageBox(QMessageBox.Information, "Pages to check",
+                             "One place in this comic is worth a look" if len(notes) == 1 else
+                             f"{len(notes)} places in this comic are worth a look", QMessageBox.Ok, self)
         notice.setInformativeText(details)
         notice.setAttribute(Qt.WA_DeleteOnClose)
         notice.open()  # Doesn't hold up the review.
-        self.case_twins_notice = notice
+        self.page_notes_notice = notice
 
     def scan_done(self, scan):
         # Folder-based imports publish beside the input folder. File imports
@@ -4253,8 +4255,12 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                                      c.left + 1, c.right + 1, c.metrics["overlap"],
                                      " (edges also match)" if c.likely or c.continuity >= POSSIBLE_MIN_SCORE else "")
             self.statusBar().showMessage(f"{len(scan.pages)} pages; {suggested} suggested pairs")
-        if scan.case_twins and not resumed:
-            self._show_case_twins_notice(scan.case_twins)
+        self.page_notes = {}
+        for indexes, text in scan.page_notes:
+            for index in indexes:
+                self.page_notes.setdefault(index, []).append(text)
+        if scan.page_notes and not resumed:
+            self._show_page_notes(scan.page_notes)
         if resumed and resumed.get("stage") in ("preview", "export"):
             self.preview_index = max(0, int(resumed.get("preview_index", 0)))
             self.enter_preview()
@@ -4608,6 +4614,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             button.setFixedSize(105, 112)
             marked = a in self.screenshot_flagged_pages or (
                 b is not None and b in self.screenshot_flagged_pages)
+            notes = self.page_notes.get(a, []) + (self.page_notes.get(b, []) if b is not None else [])
             pix = self.thumb_cache.get(self.thumb_keys[index])
             if pix is not None:
                 button.setIcon(pix)
@@ -4615,8 +4622,9 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                 button.setText("")
             button.setToolTip(f"Final page {index + 1}" + (" (spread)" if b is not None else "") +
                               (" — check unusual-width screenshot" if marked else "") +
+                              "".join(f"\n{note}." for note in dict.fromkeys(notes)) +
                               "\nDrag to the left or right half of a thumbnail; the pink dotted line shows the insertion position. Shift-click a neighboring thumbnail to compare or swap.")
-            if marked:
+            if marked or notes:
                 button.setStyleSheet("border:4px solid #ed3c9b;")
                 badge = QLabel("!", button)
                 badge.setAlignment(Qt.AlignCenter)
@@ -4933,6 +4941,30 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self._save_review_report()
         self.rebuild_thumbnails()
         self.show_preview()
+
+    def marked_entries(self):
+        """Final pages marked with a pink !: unusual-width screenshots and
+        pages with notes from their file names."""
+        marked = self.screenshot_flagged_pages | set(self.page_notes)
+        return [index for index, (a, b) in enumerate(self.plan.entries())
+                if a in marked or (b is not None and b in marked)]
+
+    def next_marked_page(self):
+        """M in the final review: the next marked page, round to the first."""
+        if self.plan is None:
+            return
+        marked = self.marked_entries()
+        if not marked:
+            self.statusBar().showMessage("No pages are marked.", 4000)
+            return
+        target = next((i for i in marked if i > self.preview_index), marked[0])
+        self.comparing = None
+        self.preview_index = self.selected_first = target
+        self.show_preview(follow=True)
+        a, b = self.plan.entries()[target]
+        notes = self.page_notes.get(a, []) + (self.page_notes.get(b, []) if b is not None else [])
+        self.statusBar().showMessage(f"Marked page {marked.index(target) + 1} of {len(marked)}"
+                                     + "".join(f" · {note}" for note in dict.fromkeys(notes)), 8000)
 
     def navigate(self, delta):
         self.comparing = None

@@ -680,24 +680,40 @@ class ThumbnailTest(unittest.TestCase):
         finally:
             second.close()
 
-    def test_case_twins_notice_names_the_pages_and_flags_copies(self):
+    def test_page_notes_listed_marked_and_found_with_m(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            for i, number in enumerate((1, 2, 4, 5, 6, 7, 8)):  # 003 is missing.
+                Image.new("RGB", (60, 80), (30 + i * 25, 20, 10)).save(folder / f"Book {number:03d}.png")
+            window = ComicWindow()
+            try:
+                window.show(); window.scan_done(scan_manual_folder(folder))
+                notice = window.page_notes_notice
+                self.assertEqual(notice.text(), "One place in this comic is worth a look")
+                self.assertIn("• Pages 2 and 3: File numbers jump from Book 002.png to Book 004.png: "
+                              "a page may be missing between them.", notice.informativeText())
+                self.assertIn("Press M there", notice.informativeText())
+                self.assertNotIn("capitalisation", notice.informativeText())
+                notice.close()
+                window.enter_preview()
+                self.wait_for(lambda: len(getattr(window, "thumb_buttons", [])) == 7)
+                marked = [i for i, b in enumerate(window.thumb_buttons) if "ed3c9b" in b.styleSheet()]
+                self.assertEqual(marked, [1, 2])
+                self.assertIn("a page may be missing", window.thumb_buttons[1].toolTip())
+                window.preview_index = 4
+                window._review_key("marked")
+                self.assertEqual(window.preview_index, 1)  # Round to the first.
+                window._review_key("marked")
+                self.assertEqual(window.preview_index, 2)
+                self.assertIn("Marked page 2 of 2", window.statusBar().currentMessage())
+            finally:
+                window.close()
+        # Twins' note explains their order.
         window = ComicWindow()
         self.addCleanup(window.close)
-        window._show_case_twins_notice([(("comic - 001.jpg", "comic - 001.JPG"), False),
-                                        (("comic - 002.jpg", "comic - 002.JPG"), True)])
-        notice = window.case_twins_notice
-        self.assertIn("“comic - 001.jpg” and “comic - 001.JPG” (2 sets)", notice.text())
-        self.assertIn("lowercase comes first", notice.informativeText())
-        self.assertIn("In 1 of these sets, the pages are identical copies", notice.informativeText())
-        notice.close()
-        # Pages from an archive are shown by file name, without their folder in the archive.
-        window._show_case_twins_notice([(("Fire Power/comic - 001.jpg", "Fire Power/comic - 001.JPG"), False)])
-        self.assertIn("“comic - 001.jpg” and “comic - 001.JPG”.", window.case_twins_notice.text())
-        window.case_twins_notice.close()
-        # Unless only the folders' capitalisation differs: then the folders tell them apart.
-        window._show_case_twins_notice([(("Part A/001.jpg", "part a/001.jpg"), False)])
-        self.assertIn("“Part A/001.jpg”", window.case_twins_notice.text())
-        window.case_twins_notice.close()
+        window._show_page_notes([((0, 1), "Names differ only in capitalisation: comic - 001.jpg, comic - 001.JPG")])
+        self.assertIn("lowercase first", window.page_notes_notice.informativeText())
+        window.page_notes_notice.close()
 
     def test_sharp_yuv_option_is_per_size_and_needs_lossy_webp_and_cwebp(self):
         window = ComicWindow()

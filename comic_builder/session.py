@@ -102,7 +102,8 @@ def save_session(source: Path, app_folder: Path, plan: BookPlan, *,
             "manual_mode": scan.manual_mode,
             "right_to_left": scan.right_to_left,
             "screenshot_stage": str(scan.folder) if scan.screenshot_source else None,
-            "flagged_pages": sorted(scan.flagged_pages)}
+            "flagged_pages": sorted(scan.flagged_pages),
+            "page_notes": [[list(pages), text] for pages, text in scan.page_notes]}
         _write_json(target.with_suffix(".scan.json"), scan_data)
     _write_json(target, data)
 
@@ -143,7 +144,10 @@ def cached_folder_scan(source: Path, data: dict) -> Scan:
                 manual_mode=bool(cache.get("manual_mode", False)),
                 screenshot_source=source if cache.get("screenshot_stage") else None,
                 flagged_pages=set(cache.get("flagged_pages", [])),
-                right_to_left=bool(data.get("right_to_left", False)))
+                right_to_left=bool(data.get("right_to_left", False)),
+                page_notes=[(tuple(int(i) for i in noted), str(text))
+                            for noted, text in cache.get("page_notes", [])
+                            if all(0 <= int(i) < len(pages) for i in noted)])
 
 
 def restore_plan(scan: Scan, data: dict, *, restore_undo: bool = True) -> BookPlan:
