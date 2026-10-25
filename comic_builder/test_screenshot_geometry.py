@@ -158,6 +158,35 @@ class ScreenshotGeometryTest(unittest.TestCase):
             self.assertEqual((proposals[6].page_width, proposals[6].by_position), (1300, False))
             self.assertFalse(any(p.by_position for i, p in enumerate(proposals) if i not in (10, 11, 12)))
 
+    def test_black_spreads_where_two_runs_meet_take_their_size_from_art_and_borders(self):
+        # Eric's Fire Power test: black-bordered 2014 spreads at the end of a 2014 run,
+        # just before 1988 pages (670 and 650 here). Neighbours disagree; one spread's
+        # art proves it's 2014 and counts as a neighbour; the rest match the outer
+        # black border of the other 2014 black spreads.
+        def spread(directory, index, width, black=None):
+            image = Image.new("RGB", (1400, 1000), "black")
+            x = (1400 - 2 * width) // 2
+            draw = ImageDraw.Draw(image)
+            if black is None:
+                image.paste("white", (x, 0, x + 2 * width, 1000))
+                draw.rectangle((x + 30, 40, x + 2 * width - 30, 960), fill=(180, 60, 60))
+            else:
+                outer_left, outer_right = black  # Art's distance from the page's outer edges.
+                for top in (60, 360, 660):
+                    draw.rectangle((x + outer_left, top, 700 - 25, top + 260), fill=(60, 120, 200))
+                    draw.rectangle((700 + 25, top, x + 2 * width - outer_right - 1, top + 260), fill=(200, 90, 40))
+            path = Path(directory) / f"{index:03d}.png"
+            image.save(path)
+            return path
+        with tempfile.TemporaryDirectory() as directory:
+            plan = ([(650,)] * 4 + [(670,)] * 3 + [(670, (30, 30)), (670, (0, 30)), (670, (32, 28)), (670, (29, 31))] +
+                    [(650,)] * 3 + [(650, (30, 30))] * 3 + [(650,)] * 2)
+            proposals = propose_crops([spread(directory, i, *item) for i, item in enumerate(plan)])
+            self.assertEqual(proposals[0].family_widths, (650, 670))
+            self.assertEqual([(p.page_width, p.by_position, p.by_margins) for p in proposals[7:11]],
+                             [(1340, True, False), (1340, False, False), (1340, False, True), (1340, False, True)])
+            self.assertEqual({(p.page_width, p.by_position) for p in proposals[14:17]}, {(1300, True)})
+
     def test_black_pages_with_two_page_sizes_never_lose_artwork(self):
         # Two real sizes (Marvel 1988 and 2063 fitted as 2014; 650 and 690 here).
         # A black-bordered page takes a size whose crop keeps all its visible art:

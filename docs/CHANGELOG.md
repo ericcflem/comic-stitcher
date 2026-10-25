@@ -10,6 +10,12 @@
   blur may fall outside a crop (6 at most, where it used to grow with page size
   to 8). In crop review, choosing a page size for one page or for all pages
   leaves alone any page whose art that size would cut, and says which.
+- Screenshot import, books with two page sizes: black-bordered spreads where two
+  runs of sizes meet now get the right size more often. A black page whose art
+  proves its size counts as a neighbour for the pages around it, and a spread
+  still undecided takes the size whose outer black border matches that size's
+  other black-bordered spreads (Eric's idea). Eric's Fire Power test with five
+  2014 spreads at the end of a 2014 run: all five now 2014, where only one was.
 - Create your comic: No archive saves the finished pages in a folder in the
   format you chose (JPEG, WebP or PNG; one folder for each size, such as "Book -
   Full - JPEG pages" and "Book - Reduced - WebP pages"), instead of only lossless

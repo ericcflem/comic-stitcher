@@ -39,6 +39,9 @@ class CropProposal:
     # pages before and after it, which agree (sizes come in runs: an issue, a
     # backup story).
     by_position: bool = False
+    # Its edges are hidden; its outer black border matched that size's other
+    # black-bordered spreads far better than the other size's.
+    by_margins: bool = False
 
     @property
     def page_width(self) -> int | None:
@@ -246,6 +249,8 @@ def propose_crops(paths: Iterable[Path], single_size: tuple[int, int] | None = N
             for anchor in anchors:
                 family_at[next(i for i, o in enumerate(observations) if o is anchor)] = (canvas, width)
     result = []
+    pending = {}   # Black-bordered pages more than one size could hold: {index: {width: proposal}}
+    settled = {}   # Black-bordered pages whose size their art or a visible edge settled.
     for index, observation in enumerate(observations):
         path, canvas, edges, kind, sparse, hard, error = observation
         if index in covers and (cover := _apart(observation, wider.get(index))) is not None:
@@ -289,19 +294,19 @@ def propose_crops(paths: Iterable[Path], single_size: tuple[int, int] | None = N
                     fits[width] = CropProposal(path, canvas, "single", box, extent, "suggested",
                                                family_widths=widths, family_width=width)
             anchored = [p for p in fits.values() if p.source == "profile"]
-            neighbours = _neighbour_family(family_at, index, canvas)
             if len(anchored) == 1:
                 usable = anchored  # One page edge shows, matching that size.
             elif len(fits) == 1:
-                usable = list(fits.values())
-            elif neighbours in fits:
-                usable = [replace(fits[neighbours], by_position=True)]
+                usable = list(fits.values())  # Only one size keeps all its art.
             elif fits:
-                # Otherwise the size measured on the most pages, then the
-                # narrower (less black added).
-                usable = [max(fits.values(), key=lambda p: (evidence[(canvas, p.family_width)], -p.page_width))]
+                # Settled below, once the pages around it are known.
+                pending[index] = fits
+                result.append(None)
+                continue
             else:
                 usable = []
+            if len(usable) == 1:
+                settled[index] = (canvas, usable[0].family_width)
         if len(usable) == 1:
             result.append(usable[0])
         else:
@@ -309,7 +314,60 @@ def propose_crops(paths: Iterable[Path], single_size: tuple[int, int] | None = N
             result.append(CropProposal(path, canvas, "uncertain", None, extent, "review", error,
                                       review_reason="Multiple page-size families fit; choose the family and crop type.",
                                       family_widths=widths))
+    if pending:
+        _settle_pending(observations, result, pending, settled, family_at, evidence)
     return result
+
+
+# A size wins on margins only when its fit is at least this much closer (px).
+MARGIN_LEAD = 8
+
+
+def _outer_margins(observation, box) -> list[int]:
+    """The black border between a spread's art and the crop's outer edges,
+    leaving out a side whose art runs to the edge (bleed)."""
+    left, right = observation[2]
+    return [margin for margin in (left - box[0], box[2] - right) if margin >= 10]
+
+
+def _settle_pending(observations, result, pending, settled, family_at, evidence):
+    """Black-bordered pages that more than one size could hold, in order of
+    the evidence: the size of the pages around them when those agree (pages
+    whose art proved their size count too); for spreads, the size whose outer
+    black border matches that size's other black-bordered spreads; then the
+    size measured on the most pages, and the narrower."""
+    known = {**family_at, **settled}
+    chosen = {}
+    for index, fits in pending.items():
+        canvas = observations[index][1]
+        neighbours = _neighbour_family(known, index, canvas)
+        if neighbours in fits:
+            chosen[index] = replace(fits[neighbours], by_position=True)
+    # Each size's usual outer border on black-bordered spreads, from those settled.
+    learned = {}
+    for index, family in list(settled.items()) + [(i, (observations[i][1], p.family_width)) for i, p in chosen.items()]:
+        proposal = result[index] if index in settled else chosen[index]
+        if proposal.kind == "double":
+            learned.setdefault(family, []).extend(_outer_margins(observations[index], proposal.box))
+    for index, fits in pending.items():
+        if index in chosen:
+            continue
+        canvas = observations[index][1]
+        scores = {}
+        for width, proposal in fits.items():
+            samples = learned.get((canvas, width))
+            margins = _outer_margins(observations[index], proposal.box)
+            if proposal.kind == "double" and samples and margins:
+                usual = sorted(samples)[len(samples) // 2]
+                scores[width] = sum(abs(m - usual) for m in margins) / len(margins)
+        if len(scores) == len(fits) >= 2:
+            ranked = sorted(scores, key=scores.get)
+            if scores[ranked[1]] - scores[ranked[0]] >= MARGIN_LEAD:
+                chosen[index] = replace(fits[ranked[0]], by_margins=True)
+                continue
+        chosen[index] = max(fits.values(), key=lambda p: (evidence[(canvas, p.family_width)], -p.page_width))
+    for index, proposal in chosen.items():
+        result[index] = proposal
 
 
 def _clear_width(observation) -> float | None:
