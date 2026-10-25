@@ -158,24 +158,69 @@ class ScreenshotGeometryTest(unittest.TestCase):
             self.assertEqual((proposals[6].page_width, proposals[6].by_position), (1300, False))
             self.assertFalse(any(p.by_position for i, p in enumerate(proposals) if i not in (10, 11, 12)))
 
-    def test_hidden_edge_single_with_two_page_sizes_still_goes_to_review(self):
-        # Two real page sizes (Marvel 1988 and 2063, say): which one a black page
-        # belongs to can't be told from its artwork, so it's left for review.
-        with tempfile.TemporaryDirectory() as directory:
-            paths = []
-            for index, width in enumerate((650, 650, 650, 690, 690, 690)):
-                image = Image.new("RGB", (1400, 1000), "black")
-                left = (1400 - width) // 2
-                image.paste("white", (left, 0, left + width, 1000))
-                paths.append(Path(directory) / f"{index}.png")
-                image.save(paths[-1])
+    def test_black_spreads_where_two_runs_meet_take_their_size_from_art_and_borders(self):
+        # Eric's Fire Power test: black-bordered 2014 spreads at the end of a 2014 run,
+        # just before 1988 pages (670 and 650 here). Neighbours disagree; one spread's
+        # art proves it's 2014 and counts as a neighbour; the rest match the outer
+        # black border of the other 2014 black spreads.
+        def spread(directory, index, width, black=None):
             image = Image.new("RGB", (1400, 1000), "black")
-            ImageDraw.Draw(image).rectangle((460, 100, 930, 900), fill=(200, 90, 40))
-            paths.append(Path(directory) / "black.png")
-            image.save(paths[-1])
-            black = propose_crops(paths)[-1]
-            self.assertEqual(black.source, "review")
-            self.assertIsNone(black.box)
+            x = (1400 - 2 * width) // 2
+            draw = ImageDraw.Draw(image)
+            if black is None:
+                image.paste("white", (x, 0, x + 2 * width, 1000))
+                draw.rectangle((x + 30, 40, x + 2 * width - 30, 960), fill=(180, 60, 60))
+            else:
+                outer_left, outer_right = black  # Art's distance from the page's outer edges.
+                for top in (60, 360, 660):
+                    draw.rectangle((x + outer_left, top, 700 - 25, top + 260), fill=(60, 120, 200))
+                    draw.rectangle((700 + 25, top, x + 2 * width - outer_right - 1, top + 260), fill=(200, 90, 40))
+            path = Path(directory) / f"{index:03d}.png"
+            image.save(path)
+            return path
+        with tempfile.TemporaryDirectory() as directory:
+            plan = ([(650,)] * 4 + [(670,)] * 3 + [(670, (30, 30)), (670, (0, 30)), (670, (32, 28)), (670, (29, 31))] +
+                    [(650,)] * 3 + [(650, (30, 30))] * 3 + [(650,)] * 2)
+            proposals = propose_crops([spread(directory, i, *item) for i, item in enumerate(plan)])
+            self.assertEqual(proposals[0].family_widths, (650, 670))
+            self.assertEqual([(p.page_width, p.by_position, p.by_margins) for p in proposals[7:11]],
+                             [(1340, True, False), (1340, False, False), (1340, False, True), (1340, False, True)])
+            self.assertEqual({(p.page_width, p.by_position) for p in proposals[14:17]}, {(1300, True)})
+
+    def test_black_pages_with_two_page_sizes_never_lose_artwork(self):
+        # Two real sizes (Marvel 1988 and 2063 fitted as 2014; 650 and 690 here).
+        # A black-bordered page takes a size whose crop keeps all its visible art:
+        # the neighbours' size when they agree, else the size measured on more
+        # pages, else the narrower. Art the screenshot shows is never cut.
+        def book(directory, widths, black):
+            paths = []
+            for index, width in enumerate(widths):
+                image = Image.new("RGB", (1400, 1000), "black")
+                if index in black:
+                    art = black[index]
+                    left = (1400 - art) // 2
+                    draw = ImageDraw.Draw(image)
+                    for top in (60, 360, 660):  # Panels inside a black border.
+                        draw.rectangle((left, top, left + art - 1, top + 260), fill=(60, 120, 200))
+                else:
+                    left = (1400 - width) // 2
+                    image.paste("white", (left, 0, left + width, 1000))
+                paths.append(Path(directory) / f"{index:03d}.png")
+                image.save(paths[-1])
+            return propose_crops(paths)
+        with tempfile.TemporaryDirectory() as directory:
+            widths = [650] * 5 + [690, 690, 0, 690, 0, 0] + [650] * 2
+            # 7: fits both, among 690s; 9: too wide for 650; 10: fits both, between 690s and 650s.
+            proposals = book(directory, widths, {7: 600, 9: 670, 10: 600})
+            self.assertEqual([(p.kind, p.page_width) for p in (proposals[7], proposals[9], proposals[10])],
+                             [("single", 690), ("single", 690), ("single", 650)])
+            self.assertTrue(proposals[7].by_position)
+            self.assertFalse(proposals[9].by_position)  # Only one size holds its art.
+            self.assertFalse(proposals[10].by_position)  # Neighbours disagree: 650 has more pages.
+        with tempfile.TemporaryDirectory() as directory:
+            # A spread's art 20 px wider than the 650 double, among 650s: the 690 double.
+            proposals = book(directory, [650] * 4 + [690] * 2 + [650] * 2 + [0] + [650] * 2, {8: 1320})
+            self.assertEqual((proposals[8].kind, proposals[8].page_width), ("double", 1380))
 
     def test_different_capture_heights_keep_separate_profiles(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -446,6 +491,29 @@ class ScreenshotGeometryTest(unittest.TestCase):
             self.assertEqual(items[hidden_both].box, (110, 0, 309, 306))
             self.assertEqual(items[hidden_both].source, "suggested")
             self.assertEqual(items[taller].box, (3, 0, 437, 326))
+
+
+class CropSummaryTest(unittest.TestCase):
+    def test_names_each_page_size_and_how_it_was_found(self):
+        from dataclasses import replace
+        from .crop_summary import crop_summary, screenshot_numbers
+        from .screenshot_geometry import CropProposal
+        self.assertEqual(screenshot_numbers([23, 24, 25, 26, 30, 32, 33]), "24–27, 31, 33, 34")
+        self.assertEqual(screenshot_numbers([0, 83]), "1 and 84")
+        canvas = (4200, 3056)
+        cover = CropProposal(Path("c.png"), canvas, "single", (1115, 0, 3084, 3056), None, "measured")
+        page = CropProposal(Path("p.png"), canvas, "single", (1106, 0, 3094, 3056), None, "measured")
+        spread = CropProposal(Path("s.png"), canvas, "double", (112, 0, 4088, 3056), None, "measured")
+        black = replace(spread, source="suggested")
+        review = CropProposal(Path("r.png"), canvas, "uncertain", None, None, "review")
+        heading, lines = crop_summary([cover, page, spread, spread, black, review, cover], [5])
+        self.assertEqual(heading, "7 screenshots measured")
+        self.assertEqual(lines, [
+            "4 screenshots have pages measuring 1988 × 3056\n"
+            "\u2003\u20033 were measured from clear page edges\n"
+            "\u2003\u20031 has black borders but fits in this page size",
+            "2 screenshots were individually measured at 1969 × 3056",
+            "1 screenshot needs your choice in the next step: 6."])
 
 
 if __name__ == "__main__":

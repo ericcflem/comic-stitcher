@@ -254,15 +254,18 @@ class ThumbnailTest(unittest.TestCase):
             for i in (1, 3):
                 mixed[i] = replace(mixed[i], box=(1093, 0, 3107, 3056), family_width=2014)
             mixed[3] = replace(mixed[3], source="suggested", by_position=True)
-            for proposals, expected in ((stray, "Screenshot 3 measured wider (2014 × 3056 per page) than the book's pages (1988 × 3056)"),
-                                        (mixed, "single widths 1988 (3 screenshots), 2014 (2 screenshots: 2, 4) pixels")):
+            for proposals, expected in ((stray, "1 screenshot was individually measured at 2014 × 3056"),
+                                        (mixed, "2 screenshots have pages measuring 2014 × 3056")):
                 shown = []
-                with patch.object(QMessageBox, "exec", lambda box: shown.append((box.text(), box.informativeText()))):
+                with patch.object(QMessageBox, "exec", lambda box: shown.append((box.text(), box.informativeText(), box.icon()))):
                     summary(window, proposals, [])
-                self.assertEqual(shown[0][0], "These pages may have been reduced during capture")
+                self.assertEqual(shown[0][0], "Ready to crop 5 screenshots" if proposals is mixed else "Ready to crop 4 screenshots")
+                self.assertEqual(shown[0][2], QMessageBox.NoIcon)  # Not an error.
                 self.assertIn(expected, shown[0][1])
-            self.assertIn("Screenshot 4 has black borders hiding the page edges; given 2014 because the pages "
-                          "before and after are.", shown[0][1])  # The two-size book, shown last.
+            self.assertIn("3 screenshots have pages measuring 1988 × 3056", shown[0][1])
+            self.assertIn("1 has black borders but was placed here because of nearby 2014 × 3056 screenshots "
+                          "and its border widths", shown[0][1])
+            self.assertIn("Note: Multiple page sizes may mean", shown[0][1])
         finally:
             window.close()
 
@@ -830,6 +833,37 @@ class ThumbnailTest(unittest.TestCase):
                 self.assertEqual((dialog.choices[3], dialog.family_selection[3]), (before, 195))
             finally:
                 dialog.close()
+
+    def test_choosing_a_page_size_never_cuts_off_artwork(self):
+        from .screenshot_geometry import CropProposal
+        canvas, families = (4200, 3056), (1988, 2014)
+        proposals = [
+            CropProposal(Path("a.png"), canvas, "single", (1106, 0, 3094, 3056), (1106, 0, 3094, 3056),
+                         "measured", family_widths=families, family_width=1988),
+            CropProposal(Path("b.png"), canvas, "single", (1093, 0, 3107, 3056), (1093, 0, 3107, 3056),
+                         "measured", family_widths=families, family_width=2014),
+            # A black-bordered spread whose artwork is 4000 wide: only the 2014 double holds it.
+            CropProposal(Path("c.png"), canvas, "double", (86, 0, 4114, 3056), (100, 0, 4100, 3056),
+                         "suggested", family_widths=families, family_width=2014),
+        ]
+        dialog = ScreenshotCropDialog(proposals)
+        try:
+            dialog.list.setCurrentRow(0)
+            with patch.object(QMessageBox, "information") as told:
+                dialog.all_pages.setChecked(True)
+            # The page measured at 2014 keeps it too: 1988 would cut its edges.
+            self.assertIn("Screenshots 2, 3 kept their crop: the artwork is wider than a 1988 × 3056 page",
+                          told.call_args.args[2])
+            self.assertEqual([c.box for c in dialog.choices],
+                             [(1106, 0, 3094, 3056), (1093, 0, 3107, 3056), (86, 0, 4114, 3056)])
+            self.assertEqual(dialog.family_selection[2], 2014)
+            dialog.list.setCurrentRow(2)
+            with patch.object(QMessageBox, "information") as told:
+                dialog._select_family(1988)
+            told.assert_called_once()
+            self.assertEqual((dialog.choices[2].box, dialog.family_selection[2]), ((86, 0, 4114, 3056), 2014))
+        finally:
+            dialog.close()
 
     def test_one_page_size_for_all_reaches_pages_that_needed_no_review(self):
         from .screenshot_geometry import CropProposal
