@@ -509,10 +509,10 @@ class CropSummaryTest(unittest.TestCase):
         heading, lines = crop_summary([cover, page, spread, spread, black, review, cover], [5])
         self.assertEqual(heading, "7 screenshots measured")
         self.assertEqual(lines, [
-            "1988 × 3056 pages: 4 screenshots, 1 single page and 3 two-page spreads at 3976 × 3056\n"
-            "• 3 measured from clear page edges\n"
-            "• 1 with black borders hiding the edges, fitted to this size",
-            "Covers and other pages measured at their own size: screenshots 1 and 7 at 1969 × 3056.",
+            "4 screenshots have pages measuring 1988 × 3056\n"
+            "\u2003\u20033 were measured from clear page edges\n"
+            "\u2003\u20031 has black borders but fits in this page size",
+            "2 screenshots were individually measured at 1969 × 3056",
             "1 screenshot needs your choice in the next step: 6."])
 
 

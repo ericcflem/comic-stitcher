@@ -64,53 +64,40 @@ def crop_summary(proposals, attention) -> tuple[str, list[str]]:
             width = proposal.family_width or min(families, key=lambda w: abs(w - _per_page(proposal)))
             groups.setdefault((proposal.canvas, width), []).append(index)
 
+    def were(count, plural="were", singular="was"):
+        return f"{count} {singular if count == 1 else plural}"
+
+    indent = "\u2003\u2003"  # Em spaces: kept as they are in the window's text.
     lines = []
-    smaller = []  # Screenshots of a page size other than their screenshot size's main one.
+    several = False
     for (canvas, width), indexes in sorted(groups.items(), key=lambda item: (item[0][0], -len(item[1]))):
         main = max(len(members) for (c, _), members in groups.items() if c == canvas)
-        singles = sum(proposals[i].kind == "single" for i in indexes)
-        spreads = len(indexes) - singles
-        spread_size = f"{width * 2} × {canvas[1]}"
-        if not spreads:
-            kinds = "all single pages" if singles > 1 else "a single page"
-        elif not singles:
-            kinds = f"all two-page spreads at {spread_size}" if spreads > 1 else f"a two-page spread at {spread_size}"
-        else:
-            kinds = f"{_plural(singles, 'single page')} and {_plural(spreads, 'two-page spread')} at {spread_size}"
-        heading = f"{width} × {canvas[1]} pages: {_plural(len(indexes), 'screenshot')}, {kinds}"
-        if len(indexes) < main:
-            smaller.extend(indexes)
-            heading += f": screenshots {screenshot_numbers(indexes)}"
+        several = several or len(indexes) < main
+        size = f"{width} × {canvas[1]}"
         measured = sum(proposals[i].source == "measured" for i in indexes)
-        hidden = len(indexes) - measured
-        how = []
+        placed = [i for i in indexes if len(indexes) < main and proposals[i].source != "measured" and
+                  (getattr(proposals[i], "by_position", False) or getattr(proposals[i], "by_margins", False))]
+        fitted = len(indexes) - measured - len(placed)
+        rows = [f"{_plural(len(indexes), 'screenshot')} {'has' if len(indexes) == 1 else 'have'} pages measuring {size}"]
         if measured:
-            how.append(f"{measured} measured from clear page edges")
-        if hidden:
-            how.append(f"{hidden} with black borders hiding the edges, fitted to this size")
-        placed = [i for i in indexes if getattr(proposals[i], "by_position", False) or
-                  getattr(proposals[i], "by_margins", False)]
-        detail = "• " + "\n• ".join(how)
-        if placed and len(indexes) < main:
-            detail += (f" ({screenshot_numbers(placed)} going by the pages around "
-                       f"{'it' if len(placed) == 1 else 'them'} and their black borders)")
-        lines.append(f"{heading}\n{detail}")
+            rows.append(f"{indent}{were(measured)} measured from clear page edges")
+        if fitted:
+            rows.append(f"{indent}{were(fitted, 'have', 'has')} black borders but "
+                        f"{'fit' if fitted > 1 else 'fits'} in this page size")
+        if placed:
+            rows.append(f"{indent}{were(len(placed), 'have', 'has')} black borders but "
+                        f"{'were' if len(placed) > 1 else 'was'} placed here because of nearby {size} "
+                        f"screenshots and {'their' if len(placed) > 1 else 'its'} border widths")
+        lines.append("\n".join(rows))
 
-    if own:
-        parts = [f"{'screenshot' if len(indexes) == 1 else 'screenshots'} {screenshot_numbers(indexes)} at {w} × {h}"
-                 for (w, h), indexes in sorted(own.items(), key=lambda item: item[1][0])]
-        lines.append("Covers and other pages measured at their own size: " + "; ".join(parts) + ".")
-    for index in wider:
-        proposal = proposals[index]
-        lines.append(f"Screenshot {index + 1} is wider ({_per_page(proposal)} × {proposal.canvas[1]}) than the "
-                     f"book's {proposal.wider_than} × {proposal.canvas[1]} pages, so it may have been scaled down "
-                     "to fit the screen. It keeps its own size; retaking it at its full height would give a "
-                     "sharper page.")
-    if smaller:
-        lines.append(f"Two page sizes often means some pages were scaled down to fit the screen. If screenshots "
-                     f"{screenshot_numbers(smaller)} were, retaking them at their full height would give sharper "
-                     "pages. Otherwise each size is cropped as shown; in Review crop previews you can choose the "
-                     "page size for any screenshot, or one size for all.")
+    for (w, h), indexes in sorted({**own, **{(_per_page(proposals[i]), proposals[i].canvas[1]): []
+                                             for i in wider}}.items()):
+        members = sorted(indexes + [i for i in wider if (_per_page(proposals[i]), proposals[i].canvas[1]) == (w, h)])
+        lines.append(f"{_plural(len(members), 'screenshot')} {'was' if len(members) == 1 else 'were'} "
+                     f"individually measured at {w} × {h}")
+    if several or wider:
+        lines.append("Note: Multiple page sizes may mean some pages were scaled down to fit the screen "
+                     "where the screenshots were taken.")
     if attention:
         lines.append(f"{_plural(len(attention), 'screenshot')} need{'s' if len(attention) == 1 else ''} your "
                      f"choice in the next step: {screenshot_numbers(attention)}.")

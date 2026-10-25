@@ -2,12 +2,11 @@
 
 ## Unreleased
 
-- Screenshot import: the measurements summary is plain and specific. It lists
-  each page size with its dimensions, how many screenshots use it (single pages,
-  and spreads with their size), how many were measured from clear page edges and
-  how many have black borders fitted to that size; then covers at their own
-  size, any second page size's screenshot numbers with a short note on
-  retaking, and what still needs a choice. It no longer shows a warning icon.
+- Screenshot import: the measurements summary is short and specific: how many
+  screenshots have pages of each size (with its dimensions), how many of those
+  were measured from clear page edges and how many have black borders, the
+  covers measured at their own size, and a note when there's more than one
+  page size. No warning icon.
 - Screenshot import never crops off artwork the screenshot shows. A black-bordered
   page takes a page size whose crop keeps all its visible art: the size of the
   pages around it when they agree, otherwise the size measured on more pages,
