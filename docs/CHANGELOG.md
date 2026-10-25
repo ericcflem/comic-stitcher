@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Screenshot import never crops off artwork the screenshot shows. A black-bordered
+  page takes a page size whose crop keeps all its visible art: the size of the
+  pages around it when they agree, otherwise the size measured on more pages,
+  then the narrower. A black-bordered single whose art fits only the larger size
+  now gets it instead of going to review. Only a few faint pixels of compression
+  blur may fall outside a crop (6 at most, where it used to grow with page size
+  to 8). In crop review, choosing a page size for one page or for all pages
+  leaves alone any page whose art that size would cut, and says which.
 - Create your comic: No archive saves the finished pages in a folder in the
   format you chose (JPEG, WebP or PNG; one folder for each size, such as "Book -
   Full - JPEG pages" and "Book - Reduced - WebP pages"), instead of only lossless

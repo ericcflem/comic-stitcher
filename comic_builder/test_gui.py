@@ -831,6 +831,36 @@ class ThumbnailTest(unittest.TestCase):
             finally:
                 dialog.close()
 
+    def test_choosing_a_page_size_never_cuts_off_artwork(self):
+        from .screenshot_geometry import CropProposal
+        canvas, families = (4200, 3056), (1988, 2014)
+        proposals = [
+            CropProposal(Path("a.png"), canvas, "single", (1106, 0, 3094, 3056), (1106, 0, 3094, 3056),
+                         "measured", family_widths=families, family_width=1988),
+            CropProposal(Path("b.png"), canvas, "single", (1093, 0, 3107, 3056), (1093, 0, 3107, 3056),
+                         "measured", family_widths=families, family_width=2014),
+            # A black-bordered spread whose artwork is 4000 wide: only the 2014 double holds it.
+            CropProposal(Path("c.png"), canvas, "double", (86, 0, 4114, 3056), (100, 0, 4100, 3056),
+                         "suggested", family_widths=families, family_width=2014),
+        ]
+        dialog = ScreenshotCropDialog(proposals)
+        try:
+            dialog.list.setCurrentRow(0)
+            with patch.object(QMessageBox, "information") as told:
+                dialog.all_pages.setChecked(True)
+            self.assertIn("Screenshot 3 kept its crop: the artwork is wider than a 1988 × 3056 page",
+                          told.call_args.args[2])
+            self.assertEqual([c.box for c in dialog.choices],
+                             [(1106, 0, 3094, 3056), (1106, 0, 3094, 3056), (86, 0, 4114, 3056)])
+            self.assertEqual(dialog.family_selection[2], 2014)
+            dialog.list.setCurrentRow(2)
+            with patch.object(QMessageBox, "information") as told:
+                dialog._select_family(1988)
+            told.assert_called_once()
+            self.assertEqual((dialog.choices[2].box, dialog.family_selection[2]), ((86, 0, 4114, 3056), 2014))
+        finally:
+            dialog.close()
+
     def test_one_page_size_for_all_reaches_pages_that_needed_no_review(self):
         from .screenshot_geometry import CropProposal
         window = ComicWindow()

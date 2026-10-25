@@ -236,10 +236,13 @@ def propose_crops(paths: Iterable[Path], single_size: tuple[int, int] | None = N
         proposals = _propose_observations(observations, single_size, pages)
         return [_apart(o, wider.get(index)) or p if index in covers else p
                 for index, (o, p) in enumerate(zip(observations, proposals, strict=True))]
-    # Which family each clearly measured screenshot belongs to, by position.
+    # Which family each clearly measured screenshot belongs to, by position, and
+    # how many screenshots measured at each: the more, the surer the size.
     family_at = {}
+    evidence = {}
     for canvas, entries in families.items():
         for width, anchors in entries:
+            evidence[(canvas, width)] = len(anchors)
             for anchor in anchors:
                 family_at[next(i for i, o in enumerate(observations) if o is anchor)] = (canvas, width)
     result = []
@@ -268,19 +271,6 @@ def propose_crops(paths: Iterable[Path], single_size: tuple[int, int] | None = N
                              if p.path == path)
             candidates.append(replace(candidate, family_widths=widths, family_width=width))
         measured = [p for p in candidates if p.source == "measured"]
-        neighbours = _neighbour_family(family_at, index, canvas)
-        if not measured and neighbours is not None and edges is not None:
-            by_position = next(p for p in candidates if p.family_width == neighbours)
-            if by_position.box is None:
-                # A black-bordered single: everything visible fits that page size.
-                box = family_box(canvas, "single", neighbours)
-                if box is not None and _contains(box[0], box[2], *edges):
-                    by_position = replace(by_position, kind="single", box=box,
-                                          measured_box=(edges[0], 0, edges[1], canvas[1]),
-                                          source="suggested", review_reason=None)
-            if by_position.box is not None:
-                result.append(replace(by_position, by_position=True))
-                continue
         if measured:
             # A clearly exposed boundary wins over containment in another
             # family's larger rectangle. Resolve rounding overlap by distance.
@@ -288,15 +278,28 @@ def propose_crops(paths: Iterable[Path], single_size: tuple[int, int] | None = N
             usable = [min(measured, key=lambda p: abs(raw - p.family_width *
                                                      (2 if p.kind == "double" else 1)))]
         else:
-            viable = [p for p in candidates if p.box is not None]
-            anchored = [p for p in viable if p.source == "profile"]
+            # The sizes whose crop keeps all the visible artwork; art the
+            # screenshot shows is on the page, so a size that cuts it is wrong.
+            extent = (edges[0], 0, edges[1], canvas[1]) if edges else None
+            fits = {p.family_width: p for p in candidates if p.box is not None and holds_art(p.box, extent)}
+            for width in widths:
+                box = family_box(canvas, "single", width)
+                if width not in fits and edges is not None and box is not None and holds_art(box, extent):
+                    # A black-bordered single that fits this size's single page.
+                    fits[width] = CropProposal(path, canvas, "single", box, extent, "suggested",
+                                               family_widths=widths, family_width=width)
+            anchored = [p for p in fits.values() if p.source == "profile"]
+            neighbours = _neighbour_family(family_at, index, canvas)
             if len(anchored) == 1:
-                usable = anchored
-            elif viable and len({p.kind for p in viable}) == 1:
-                # Hidden black borders do not justify adding the larger
-                # family. Prefer the narrowest established rectangle that
-                # contains all measured content; optional previews remain.
-                usable = [min(viable, key=lambda p: p.page_width)]
+                usable = anchored  # One page edge shows, matching that size.
+            elif len(fits) == 1:
+                usable = list(fits.values())
+            elif neighbours in fits:
+                usable = [replace(fits[neighbours], by_position=True)]
+            elif fits:
+                # Otherwise the size measured on the most pages, then the
+                # narrower (less black added).
+                usable = [max(fits.values(), key=lambda p: (evidence[(canvas, p.family_width)], -p.page_width))]
             else:
                 usable = []
         if len(usable) == 1:
@@ -409,10 +412,21 @@ def _cover_proposal(observation) -> CropProposal | None:
     return CropProposal(path, canvas, kind, box, box, "measured")
 
 
+# Visible content may run this far past a crop: compression ringing beside a
+# sharp edge, a few faint pixels whatever the page size (up to 5 in low-quality
+# WebP screenshots). Anything more is artwork, and a crop never cuts artwork the
+# screenshot shows.
+ART_SLACK = 6
+
+
 def _contains(x: int, end: int, left: int, right: int) -> bool:
     """Visible content inside a crop, allowing a few pixels of compression ringing."""
-    tolerance = max(3, round((end - x) * .002))
-    return x - tolerance <= left and right <= end + tolerance
+    return x - ART_SLACK <= left and right <= end + ART_SLACK
+
+
+def holds_art(box, extent) -> bool:
+    """Whether a crop keeps everything visible on the screenshot."""
+    return extent is None or box is not None and _contains(box[0], box[2], extent[0], extent[2])
 
 
 def _hidden_single(left: int, right: int, canvas: tuple[int, int],
@@ -424,8 +438,7 @@ def _hidden_single(left: int, right: int, canvas: tuple[int, int],
         return None
     single = known["single"]
     x = (canvas[0] - single) // 2
-    tolerance = max(3, round(single * .002))
-    if x - tolerance <= left and right <= x + single + tolerance:
+    if _contains(x, x + single, left, right):
         return (x, 0, x + single, canvas[1])
     return None
 
@@ -531,7 +544,8 @@ def _propose_observations(observations, single_size=None, calibration=None,
             for candidate, bounds in templates.get(canvas, {}).items():
                 for x, end in bounds:
                     tolerance = max(3, round((end - x) * .002))
-                    if abs(left - x) <= tolerance and abs(right - end) <= tolerance:
+                    if (abs(left - x) <= tolerance and abs(right - end) <= tolerance and
+                            _contains(x, end, left, right)):
                         matches.append((candidate, x, end))
             if len({candidate for candidate, _, _ in matches}) == 1:
                 candidate, x, end = matches[0]
@@ -606,8 +620,7 @@ def _propose_observations(observations, single_size=None, calibration=None,
                 # One edge still exposes the actual page boundary; the other
                 # disappears into black artwork. If neither is visible, ask.
                 edge_distance = min(abs(left - x), abs(right - end))
-                if (left >= x - tolerance and right <= end + tolerance and
-                        edge_distance <= tolerance):
+                if _contains(x, end, left, right) and edge_distance <= tolerance:
                     anchored.append((candidate, x, end, edge_distance))
         if anchored and len({candidate for candidate, *_ in anchored}) == 1:
             candidate, x, end, _ = min(anchored, key=lambda item:

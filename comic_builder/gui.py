@@ -56,7 +56,7 @@ from .session import (cached_folder_scan, clear_session, read_session, restore_p
                       save_session, session_path)
 from .screenshot_import import (CropChoice, StagedScreenshots, analyze_screenshots,
                                 looks_like_screenshot_folder, stage_screenshots)
-from .screenshot_geometry import family_box, kind_for_extent, own_size, remeasure
+from .screenshot_geometry import family_box, holds_art, kind_for_extent, own_size, remeasure
 
 
 def compact_filename_range(names):
@@ -2120,27 +2120,39 @@ class ScreenshotCropDialog(OutlinedWindow, QDialog):
         return (index not in self.replaced and
                 (kind == "sideways" or reason is not None and "middle width" in reason))
 
-    def _refit(self, index):
-        """Redraw this page's crop at its selected page size, keeping single or
-        double; a page still to review gets the kind its content suggests."""
+    def _extent(self, index):
+        """What's visible on the screenshot, as measured (None once replaced)."""
+        return None if index in self.replaced else getattr(self.proposals[index], "measured_box", None)
+
+    def _refit(self, index, width):
+        """Crop this page at a page size, keeping single or double; a page still
+        to review gets the kind its content suggests. Returns False, changing
+        nothing, when that size would cut off artwork the screenshot shows."""
         choice = self.choices[index]
         if choice is not None and choice.custom:
-            return
-        if choice is not None:
-            kind = choice.kind
-        else:
-            width = self.family_selection.get(index)
-            extent = None if index in self.replaced else getattr(self.proposals[index], "measured_box", None)
-            kind = kind_for_extent(extent, width) if isinstance(width, int) else None
-            if kind is None:
-                return
-        box = self._guide(kind, index)
-        if box is None:
-            return
-        self.choices[index] = CropChoice(self.sources[index], kind, box,
-                                         choice.inferred if choice and choice.box == box else True,
-                                         flagged=choice.flagged if choice else self._flagged(index, kind))
-        self._label_item(index)
+            return True
+        kind = choice.kind if choice is not None else kind_for_extent(self._extent(index), width)
+        previous = self.family_selection.get(index)
+        self.family_selection[index] = width
+        box = self._guide(kind, index) if kind is not None else None
+        if box is not None and not holds_art(box, self._extent(index)):
+            self.family_selection[index] = previous
+            return False
+        if box is not None:
+            self.choices[index] = CropChoice(self.sources[index], kind, box,
+                                             choice.inferred if choice and choice.box == box else True,
+                                             flagged=choice.flagged if choice else self._flagged(index, kind))
+            self._label_item(index)
+        return True
+
+    def _art_kept(self, indexes, width, canvas):
+        if indexes:
+            QMessageBox.information(
+                self, "Artwork kept",
+                f"{'Screenshot' if len(indexes) == 1 else 'Screenshots'} "
+                f"{', '.join(str(i + 1) for i in indexes[:15])}{', …' if len(indexes) > 15 else ''} "
+                f"kept {'its' if len(indexes) == 1 else 'their'} crop: the artwork is wider than a "
+                f"{width} × {canvas[1]} page, so that size would cut it off.")
 
     def _select_family(self, value):
         index = self.list.currentRow()
@@ -2158,21 +2170,23 @@ class ScreenshotCropDialog(OutlinedWindow, QDialog):
             self.choices[index] = CropChoice(self.sources[index], found.kind, found.box)
             self._label_item(index)
         else:
-            self.family_selection[index] = value
-            self._refit(index)
-            if self.all_pages.isChecked():
+            if not self._refit(index, value):
+                self._art_kept([index], value, self.canvases[index])
+            elif self.all_pages.isChecked():
                 self._apply_family(self.canvases[index], value)
         self.show_page(index)
 
     def _apply_family(self, canvas, width):
         self.book_family = (canvas, width)
+        kept = []
         for index in range(len(self.sources)):
             choice = self.choices[index]
             if (self.canvases[index] != canvas or self.family_selection.get(index) == "own" or
                     choice is not None and choice.custom):
                 continue
-            self.family_selection[index] = width
-            self._refit(index)
+            if not self._refit(index, width):
+                kept.append(index)
+        self._art_kept(kept, width, canvas)
 
     def _use_for_all(self, checked):
         index = self.list.currentRow()
@@ -3968,7 +3982,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                         item.kind not in ("single", "double")):
                     continue
                 box = family_box(canvas, item.kind, width)
-                if box is not None and box != item.box:
+                if box is not None and box != item.box and holds_art(box, getattr(item, "measured_box", None)):
                     choices[index] = CropChoice(item.path, item.kind, box, True)
         self._stage_approved_screenshots(choices)
 
