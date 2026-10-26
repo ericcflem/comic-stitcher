@@ -305,3 +305,10 @@ class DropMarker(QWidget):
         painter = QPainter(self)
         painter.setPen(QPen(QColor("#ed3c9b"), 3, Qt.DotLine))
         painter.drawLine(self.width() // 2, 4, self.width() // 2, self.height() - 4)
+
+
+EXPORT_HINT = "This comic is in the queue with these settings; any change you make here updates it."
+
+# The start screen's size, and the progress screen's width (its height fits its contents).
+START_SIZE = QSize(640, 420)
+PROGRESS_WIDTH = 580
