@@ -1285,6 +1285,31 @@ class ThumbnailTest(unittest.TestCase):
         finally:
             window.close()
 
+    def test_finished_export_buttons_leave_with_the_next_job(self):
+        # Eric: after an export, measuring a second screenshot folder still showed
+        # "Process another comic", which went back to the start screen while the
+        # measuring went on unseen.
+        window = ComicWindow()
+        try:
+            window.show()
+            window.pages.setCurrentWidget(window.progress_page)
+            window.done_button.show(); window.repeat_button.show()  # A finished export.
+            with tempfile.TemporaryDirectory() as directory, \
+                 patch.object(window, "_run_worker") as run:
+                window._start_screenshot_import(Path(directory))
+                run.assert_called_once()
+                self.assertEqual(window.progress_label.text(), "Measuring screenshots…")
+                self.assertTrue(window.done_button.isHidden())
+                self.assertTrue(window.repeat_button.isHidden())
+            # And while work runs, the buttons do nothing even if reached.
+            with patch.object(window, "worker") as worker:
+                worker.isRunning.return_value = True
+                window.pages.setCurrentWidget(window.progress_page)
+                window.new_comic()
+                self.assertIs(window.pages.currentWidget(), window.progress_page)
+        finally:
+            window.close()
+
     def test_interface_icons_load(self):
         # The icons come from a compiled Qt resource imported by ui/common.py; a
         # wrong import path there would quietly leave every button without its icon.

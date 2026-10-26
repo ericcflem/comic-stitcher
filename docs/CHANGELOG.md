@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Fixed: after an export, measuring a screenshot folder (or checking a PDF's
+  images) still showed **Process another comic** and **Export this comic
+  again**. The first went back to the start screen while the work went on
+  unseen. Those buttons are now cleared whenever new work starts, and do nothing
+  while work is running.
 - Tighter windows. The start screen drops the large "Comic Stitcher" heading
   (the title bar names it) and the queue text; the settings gear sits at the
   bottom left with the queue buttons, and the window is smaller. Settings, and
