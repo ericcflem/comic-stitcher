@@ -23,7 +23,8 @@ from .screenshot_geometry import propose_crops
 from .screenshot_import import CropChoice, stage_screenshots
 from .session import clear_session
 from . import diagnostics
-from .gui import (ComicWindow, ui_app_style, ImportChoiceDialog, OutputOptionsDialog, PdfImportDialog,
+from .window_outline import OutlinedDialog
+from .gui import (START_SIZE, ComicWindow, ui_app_style, ImportChoiceDialog, OutputOptionsDialog, PdfImportDialog,
                   ScreenshotCropDialog, Worker, tooltip_text,
                   QueuedComic, export_queued_comic, queued_outputs)
 
@@ -1208,7 +1209,7 @@ class ThumbnailTest(unittest.TestCase):
                              patch.object(PdfImportDialog, 'exec', cancel_render):
                             window.start_scan(source, manual_mode=True)
                             self.wait_for(lambda window=window: window.pages.currentIndex() == 0)
-                        self.assertEqual(window.size(), window.compact_size)
+                        self.assertEqual(window.size(), window._compact_target_size())
                         self.assertIsNone(window.plan)
                     finally:
                         window.close()
@@ -1280,7 +1281,47 @@ class ThumbnailTest(unittest.TestCase):
             window.pages.setCurrentIndex(0)
             window._compact_window()
             self.app.processEvents()
-            self.assertGreaterEqual(window.height(), 500)
+            self.assertGreaterEqual(window.height(), START_SIZE.height())
+        finally:
+            window.close()
+
+    def test_compact_windows_are_as_large_as_their_contents(self):
+        from PySide6.QtWidgets import QPushButton
+        window = ComicWindow()
+        try:
+            window.show(); self.app.processEvents()
+            # Start: no heading (the title bar names the program), the gear with
+            # the queue buttons, and no queue text.
+            self.assertFalse([label for label in window.start_page.findChildren(QLabel)
+                              if label.text() == "Comic Stitcher"])
+            self.assertFalse(hasattr(window, "queue_status"))
+            self.assertLess(abs(window.settings_button.geometry().center().y() -
+                                window.queue_view_button.geometry().center().y()), 6)
+            self.assertLess(window.settings_button.x(), window.queue_view_button.x())
+            # Progress: just the messages, bar and caption.
+            window.progress_source.setText("Avengers By Jed MacKay v06 - The Grail.pdf")
+            window.progress_label.setText("Rendering PDF pages: 64 of 172…")
+            window.pages.setCurrentWidget(window.progress_page)
+            window._compact_window(); self.app.processEvents()
+            needed = window.progress_page.minimumSizeHint().height()
+            self.assertLessEqual(window.pages.height(), needed + 4)
+            # Create your comic can't be dragged narrower than its fields.
+            window.pages.setCurrentWidget(window.export_page)
+            window._compact_window(); self.app.processEvents()
+            window.resize(300, window.height()); self.app.processEvents()
+            book = window.book_scroll.widget()
+            self.assertGreaterEqual(window.book_scroll.viewport().width(), book.minimumSizeHint().width())
+        finally:
+            window.close()
+        # Settings: as tall as its contents, no gaps between them.
+        def check(dialog):
+            layout = dialog.layout()
+            self.assertLessEqual(dialog.height(), layout.totalHeightForWidth(dialog.width()) + 2)
+            return QDialog.Rejected
+        window = ComicWindow()
+        try:
+            with patch.object(OutlinedDialog, "exec", check):
+                window.show_settings()
         finally:
             window.close()
 
@@ -3019,7 +3060,7 @@ class ThumbnailTest(unittest.TestCase):
             try:
                 window.show()
                 self.app.processEvents()
-                self.assertEqual((window.width(), window.height()), (750, 500))
+                self.assertEqual(window.size(), START_SIZE.expandedTo(window.start_page.minimumSizeHint()))
                 window.scan_done(scan_folder(folder))
                 self.wait_for(lambda: len(getattr(window, "thumb_buttons", [])) == 24)
                 self.assertTrue(window.isMaximized())

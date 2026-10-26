@@ -70,6 +70,16 @@ def compact_filename_range(names):
     return f"{first.stem}...{final_number}{suffix}"
 
 
+def fit_height(window, width):
+    """Size a window to this width and just the height its contents need there
+    (wrapped text included), with no spare space between them."""
+    layout = window.layout()
+    window.ensurePolished()
+    layout.activate()
+    height = layout.totalHeightForWidth(width) if layout.hasHeightForWidth() else -1
+    window.resize(width, max(height, layout.totalMinimumSize().height(), window.minimumSizeHint().height()))
+
+
 def ui_heading(text, size=24):
     label = QLabel(text)
     label.setWordWrap(True)
@@ -947,6 +957,11 @@ DRAG_SCROLL_ZONE = 64
 DRAG_SCROLL_MIN = 6
 DRAG_SCROLL_MAX = 48
 DRAG_SCROLL_INTERVAL = 30
+
+
+# The start screen's size, and the progress screen's width (its height fits its contents).
+START_SIZE = QSize(640, 420)
+PROGRESS_WIDTH = 580
 
 
 class ThumbnailStrip(QWidget):
@@ -2612,7 +2627,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.setWindowIcon(icon)
         QApplication.instance().setWindowIcon(icon)
         self.compact_size = QSize(750, 500)
-        self.resize(self.compact_size)
+        self.resize(START_SIZE)
         self.setAcceptDrops(True)
         self.settings = QSettings("ComicStitcher", "Comic Stitcher")
         self._merge_worker_settings()
@@ -2785,7 +2800,6 @@ class ComicWindow(OutlinedWindow, QMainWindow):
     def show_settings(self):
         dialog = OutlinedDialog(self)
         dialog.setWindowTitle("Settings")
-        dialog.resize(540, 510)
         layout = QVBoxLayout(dialog)
         layout.addWidget(ui_heading("Processing resources"))
         hint = QLabel("More workers can finish sooner, but use more memory and leave less capacity for other programs.")
@@ -2845,6 +2859,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         cancel = QPushButton("Cancel"); cancel.clicked.connect(dialog.reject)
         okay = QPushButton("OK"); okay.clicked.connect(dialog.accept); ui_primary(okay)
         row.addStretch(); row.addWidget(cancel); row.addWidget(okay); layout.addLayout(row)
+        fit_height(dialog, 540)
         if dialog.exec() == QDialog.Accepted:
             entered_key = api_key.text().strip()
             if any(character.isspace() for character in entered_key):
@@ -2886,7 +2901,14 @@ class ComicWindow(OutlinedWindow, QMainWindow):
     def _compact_target_size(self):
         progress = hasattr(self, "progress_page") and self.pages.currentWidget() is self.progress_page
         finished = progress and not self.done_button.isHidden()
-        size = QSize(580, 240) if progress and not finished else self.compact_size
+        if progress:
+            # Just as large as the messages, bar and any buttons need.
+            minimum = self._progress_minimum()
+            size = QSize(max(PROGRESS_WIDTH, minimum.width()), minimum.height())
+        elif hasattr(self, "start_page") and self.pages.currentWidget() is self.start_page:
+            size = START_SIZE.expandedTo(self.start_page.minimumSizeHint())
+        else:
+            size = self.compact_size
         if hasattr(self, "export_page") and self.pages.currentWidget() is self.export_page:
             size = QSize(max(800, self.export_page.minimumSizeHint().width()), 560)
             margins = self.export_page.layout().contentsMargins()
@@ -3018,24 +3040,19 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         box = QVBoxLayout(start)
         box.setContentsMargins(20, 16, 20, 16)
         box.setSpacing(16)
-        title = QLabel("Comic Stitcher")
-        title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("font-size: 34px; font-weight: 700; color: #203c55;")
-        title_row = QHBoxLayout()
-        title_row.addSpacing(44)
-        title_row.addWidget(title, 1)
+        # The title bar names the program; the settings gear sits with the queue buttons.
         gear = QPushButton("⚙")
-        gear.setFixedSize(44, 44)
+        gear.setFlat(True)
+        gear.setFixedSize(40, 40)
         gear.setIcon(interface_icon("settings"))
         if not gear.icon().isNull():
             gear.setText("")
-            gear.setIconSize(QSize(32, 32))
-        gear.setStyleSheet("QPushButton { font-size:28px; } QToolTip { font-size:12px; }")
+            gear.setIconSize(QSize(30, 30))
+        gear.setStyleSheet("QPushButton { font-size:26px; } QToolTip { font-size:12px; }")
         gear.setToolTip("Settings")
         gear.setAccessibleName("Settings")
         gear.clicked.connect(self.show_settings)
-        title_row.addWidget(gear)
-        box.addLayout(title_row)
+        self.settings_button = gear
         # Retain these state controls for the later workflow, but choose them
         # in the confirmation dialog instead of crowding the opening screen.
         self.review_mode = QComboBox(start)
@@ -3052,8 +3069,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.import_zone.dropped.connect(self._dropped_import)
         box.addWidget(self.import_zone, 1)
         queue_row = QHBoxLayout()
-        self.queue_status = QLabel("Queue empty")
-        queue_row.addWidget(self.queue_status)
+        queue_row.addWidget(gear)
         queue_row.addStretch()
         self.queue_view_button = QPushButton("View queue…")
         self.queue_view_button.clicked.connect(self.show_queue)
@@ -4701,6 +4717,15 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         past the screen.
         """
         content = self.export_scroll.widget()
+        # Neither scroll area scrolls sideways, so hold them to their contents'
+        # width: dragged narrower, the window would cut the fields off.
+        book = self.book_scroll.widget()
+        book_width = book.minimumSizeHint().width() + self.book_scroll.verticalScrollBar().sizeHint().width()
+        if book_width != self.book_scroll.minimumWidth():
+            self.book_scroll.setMinimumWidth(book_width)
+        content_width = content.minimumSizeHint().width() + self.export_scroll.verticalScrollBar().sizeHint().width()
+        if content_width != self.export_scroll.minimumWidth():
+            self.export_scroll.setMinimumWidth(content_width)
         width = width or self.export_scroll.viewport().width()
         if width <= 0:
             return
@@ -5768,11 +5793,6 @@ class ComicWindow(OutlinedWindow, QMainWindow):
     def _refresh_queue_status(self):
         count = len(self.queue_jobs)
         waiting = len(self.pending_imports)
-        text = (f"{count} comic{'s' if count != 1 else ''} ready to export"
-                if count else "Queue empty")
-        if waiting:
-            text += f" · {waiting} waiting for review"
-        self.queue_status.setText(text)
         self.queue_view_button.setEnabled(bool(count))
         if hasattr(self, "export_queue_button"):
             self.export_queue_button.setText(f"View queue ({count})…")
