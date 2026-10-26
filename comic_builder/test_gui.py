@@ -2186,6 +2186,36 @@ class ThumbnailTest(unittest.TestCase):
                 with patch.object(QMessageBox, "question", return_value=QMessageBox.Yes):
                     window.close()
 
+    def test_cover_and_comicinfo_files_beside_the_comic(self):
+        from .gui import ARCHIVE_CHOICES
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory) / "pages"
+            folder.mkdir()
+            for i in range(2):
+                Image.new("RGB", (60, 80), (40 * i, 20, 10)).save(folder / f"{i:03d}.png")
+            window = ComicWindow()
+            try:
+                window.show()
+                window.scan_done(scan_manual_folder(folder)); window.show_export()
+                window.book_name.setText("Book")
+                window.opt.format = "jpeg"
+                window.save_cover.setChecked(True)
+                window.include_comicinfo.setChecked(False)
+                window.refresh_export()
+                self.assertTrue(window.save_comicinfo.isHidden())  # Only with Include ComicInfo.xml.
+                window.include_comicinfo.setChecked(True)
+                window.save_comicinfo.setChecked(True)
+                self.assertFalse(window.save_comicinfo.isHidden())
+                self.assertTrue(window.save_comicinfo.isEnabled())
+                self.assertEqual([p.name for p in window._preflight_export(window.options_from_screen())],
+                                 ["Book.cbz", "Book - Cover.jpg", "Book - ComicInfo.xml"])
+                window.archive_format.setCurrentIndex(ARCHIVE_CHOICES.index("none"))
+                self.assertFalse(window.save_comicinfo.isEnabled())  # The page folder holds it.
+                self.assertEqual([p.name for p in window._preflight_export(window.options_from_screen())],
+                                 ["Book - JPEG pages", "Book - Cover.jpg"])
+            finally:
+                window.close()
+
     def test_lossless_png_checkbox_is_extra_and_grayed_when_pages_are_png_already(self):
         from .gui import ARCHIVE_CHOICES
         with tempfile.TemporaryDirectory() as directory:

@@ -800,6 +800,36 @@ class BookFlowTest(unittest.TestCase):
             self.assertEqual(sorted(p.name for p in folder.iterdir() if p.name.startswith("Book 4")),
                              ["Book 4 - PNG pages", "Book 4.cbz"])
 
+    def test_cover_image_and_comicinfo_saved_beside_the_comic(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            for i in range(3):
+                make_page(folder / f"p{i}.jpg", i)
+            plan = BookPlan(scan_folder(folder))
+            options = ExportOptions("Book", format="webp", size_output="both", resize_pixels=60, workers=1,
+                                    comicinfo_xml="<ComicInfo/>", save_cover=True, save_comicinfo=True)
+            export_book(plan, options)
+            for size in ("Full", "Reduced"):
+                with zipfile.ZipFile(folder / f"Book - {size}.cbz") as archive:
+                    self.assertEqual((folder / f"Book - {size} - Cover.webp").read_bytes(), archive.read("01.webp"))
+                    self.assertEqual((folder / f"Book - {size} - ComicInfo.xml").read_bytes(),
+                                     archive.read("ComicInfo.xml"))
+            # Back to front (manga saved with the back cover first): the cover is the front cover.
+            plan.scan.right_to_left = True
+            export_book(plan, ExportOptions("Manga", format="jpeg", workers=1, save_cover=True))
+            with zipfile.ZipFile(folder / "Manga.cbz") as archive:
+                self.assertEqual((folder / "Manga - Cover.jpg").read_bytes(), archive.read("03.jpg"))
+            self.assertFalse((folder / "Manga - ComicInfo.xml").exists())  # Not asked for.
+            # A PDF has no place for ComicInfo.xml: beside it, it's the only copy.
+            export_book(plan, ExportOptions("Paper", format="jpeg", archive_format="pdf", workers=1,
+                                            comicinfo_xml="<ComicInfo/>", save_comicinfo=True))
+            self.assertIn(b"<PageCount>3</PageCount>", (folder / "Paper - ComicInfo.xml").read_bytes())
+            # No archive: the page folders hold ComicInfo.xml already, so none is saved beside them.
+            export_book(plan, ExportOptions("Pages", format="jpeg", cbz=False, workers=1,
+                                            comicinfo_xml="<ComicInfo/>", save_comicinfo=True, save_cover=True))
+            self.assertEqual(sorted(p.name for p in folder.iterdir() if p.name.startswith("Pages")),
+                             ["Pages - Cover.jpg", "Pages - JPEG pages"])
+
     def test_overlaps_and_keep_originals(self):
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp)

@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+- Pages worth a look are pointed out after import: where the file numbering
+  skips ("File numbers jump from 014.jpg to 016.jpg: a page may be missing
+  between them"), and names that differ only in capitalisation, each with its
+  page numbers and what to do about it. In the final review those pages are
+  marked with a pink !, with the note in their tooltip, and **M** goes from one
+  marked page to the next (unusual-width screenshots too). Books numbered in
+  other ways (by twos, or with unnumbered pages) say nothing.
+- Final review: dragging a page to either end of the thumbnail strip keeps it
+  scrolling, faster the closer to the end, so a page can go from the front of a
+  long book to the back in one drag.
+- Create your comic: **Also save cover image** saves the front cover, exactly as
+  it is in the comic, beside it ("Book - Cover.jpg"; one for each size), and
+  **Also save ComicInfo.xml** saves the comic's ComicInfo.xml beside the archive
+  as well as inside it. Beside a PDF, which has no place for it, that's the only
+  copy; with no archive, the page folders already hold it.
+
 ## 0.10.0
 
 **Screenshot import**
