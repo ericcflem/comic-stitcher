@@ -4167,8 +4167,9 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         details = "\n".join(shown)
         if any(text.startswith("Names differ only in capitalisation") for _, text in notes):
             details += ("\n\nPages whose names differ only in capitalisation are kept in the order Linux file "
-                        "managers show them (lowercase first): check their order. If identical copies "
-                        "aren't meant to be there, remove them.")
+                        "managers show them (lowercase first), so check their order. If one is a duplicate, "
+                        "remove it in the final review. If they all belong in the comic, keep them: the "
+                        "finished comic numbers every page, so their names won't clash.")
         details += "\n\nIn the final review they're marked with a pink !. Press M there to go from one to the next."
         notice = QMessageBox(QMessageBox.Information, "Pages to check",
                              "One place in this comic is worth a look" if len(notes) == 1 else

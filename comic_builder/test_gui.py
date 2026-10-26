@@ -713,6 +713,8 @@ class ThumbnailTest(unittest.TestCase):
         self.addCleanup(window.close)
         window._show_page_notes([((0, 1), "Names differ only in capitalisation: comic - 001.jpg, comic - 001.JPG")])
         self.assertIn("lowercase first", window.page_notes_notice.informativeText())
+        self.assertIn("If one is a duplicate, remove it in the final review", window.page_notes_notice.informativeText())
+        self.assertIn("their names won't clash", window.page_notes_notice.informativeText())
         window.page_notes_notice.close()
 
     def test_sharp_yuv_option_is_per_size_and_needs_lossy_webp_and_cwebp(self):
