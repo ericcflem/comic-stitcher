@@ -1285,6 +1285,19 @@ class ThumbnailTest(unittest.TestCase):
         finally:
             window.close()
 
+    def test_interface_icons_load(self):
+        # The icons come from a compiled Qt resource imported by ui/common.py; a
+        # wrong import path there would quietly leave every button without its icon.
+        from .ui import common
+        self.assertIsNotNone(common.icons_resource)
+        for name in ("settings", "left-caret", "right-caret"):
+            self.assertFalse(common.interface_icon(name).isNull(), name)
+        window = ComicWindow()
+        try:
+            self.assertFalse(window.settings_button.icon().isNull())
+        finally:
+            window.close()
+
     def test_compact_windows_are_as_large_as_their_contents(self):
         from PySide6.QtWidgets import QPushButton
         window = ComicWindow()
