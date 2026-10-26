@@ -1281,11 +1281,10 @@ class ThumbnailTest(unittest.TestCase):
             window.pages.setCurrentIndex(0)
             window._compact_window()
             self.app.processEvents()
-            self.assertGreaterEqual(window.height(), 500)
+            self.assertGreaterEqual(window.height(), START_SIZE.height())
         finally:
             window.close()
 
-    @unittest.skipIf(sys.platform == "win32", "Windows applies window sizes immediately")
     def test_compact_windows_are_as_large_as_their_contents(self):
         from PySide6.QtWidgets import QPushButton
         window = ComicWindow()
@@ -1326,6 +1325,7 @@ class ThumbnailTest(unittest.TestCase):
         finally:
             window.close()
 
+    @unittest.skipIf(sys.platform == "win32", "Windows applies window sizes immediately")
     def test_compact_size_survives_a_window_manager_restoring_the_old_size(self):
         window = ComicWindow()
         try:
