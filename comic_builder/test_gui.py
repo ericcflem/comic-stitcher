@@ -278,7 +278,7 @@ class ThumbnailTest(unittest.TestCase):
             proposals = [SimpleNamespace(path=Path("wide.png"), kind="double", source="suggested", box=(112, 0, 4088, 3056))]
             choice = CropChoice(Path("wide.png"), "double", (112, 0, 4088, 3056))
             with patch.object(window, "screenshot_crop_summary", return_value=True), \
-                 patch("comic_builder.gui.ScreenshotCropDialog") as dialog, \
+                 patch("comic_builder.ui.screenshot_flow.ScreenshotCropDialog") as dialog, \
                  patch.object(window, "_stage_approved_screenshots") as stage:
                 dialog.return_value.exec.return_value = QDialog.Accepted
                 dialog.return_value.approved_choices.return_value = [choice]
@@ -900,7 +900,7 @@ class ThumbnailTest(unittest.TestCase):
             ]
             choice = CropChoice(Path("review.png"), "double", (112, 0, 4088, 3056), True)
             with patch.object(window, "screenshot_crop_summary", return_value=False), \
-                 patch("comic_builder.gui.ScreenshotCropDialog") as dialog, \
+                 patch("comic_builder.ui.screenshot_flow.ScreenshotCropDialog") as dialog, \
                  patch.object(window, "_stage_approved_screenshots") as stage:
                 dialog.return_value.exec.return_value = QDialog.Accepted
                 dialog.return_value.approved_choices.return_value = [choice]
@@ -991,7 +991,7 @@ class ThumbnailTest(unittest.TestCase):
                     dialog.folder_type.setCurrentIndex(0)
                     dialog.review_mode.setCurrentIndex(1)
                     return QDialog.Accepted
-                with patch("comic_builder.gui.looks_like_screenshot_folder", return_value=(True, 1)), \
+                with patch("comic_builder.ui.import_flow.looks_like_screenshot_folder", return_value=(True, 1)), \
                      patch.object(ImportChoiceDialog, "exec", choose_manual_pages), \
                      patch.object(window, "start_scan") as start:
                     window._prepare_import(folder)
@@ -1260,7 +1260,7 @@ class ThumbnailTest(unittest.TestCase):
                     return dialog.result()
                 with patch.object(ImportChoiceDialog, "exec", choose_unsmoothed), \
                      patch.object(PdfImportDialog, "exec", check_render_settings), \
-                     patch("comic_builder.gui.check_pdf_jpegs", return_value=(None, "Page 1: the JPEG is CMYK.")):
+                     patch("comic_builder.ui.import_flow.check_pdf_jpegs", return_value=(None, "Page 1: the JPEG is CMYK.")):
                     window._prepare_import(source)
                     self.wait_for(lambda window=window: window.pages.currentIndex() == 0)
             finally:
@@ -1555,7 +1555,7 @@ class ThumbnailTest(unittest.TestCase):
                 window.opt = ExportOptions("Finished", workers=1)
                 window.session_source = root
                 destination = root / "Finished.cbz"
-                with patch("comic_builder.gui.clear_session", side_effect=PermissionError("locked")), patch(
+                with patch("comic_builder.ui.queue_flow.clear_session", side_effect=PermissionError("locked")), patch(
                         "comic_builder.gui.diagnostics.exception") as logged:
                     window.export_done(destination)
                     self.assertFalse(window.done_button.isHidden())
@@ -1569,7 +1569,7 @@ class ThumbnailTest(unittest.TestCase):
                     window.active_queue_job = job
                     with patch("comic_builder.gui.shutil.rmtree", side_effect=PermissionError("locked crops")), patch(
                             "comic_builder.gui.QTimer.singleShot") as advance, patch(
-                            "comic_builder.gui.queued_outputs", return_value=[destination]):
+                            "comic_builder.ui.queue_flow.queued_outputs", return_value=[destination]):
                         window._queued_export_done(destination)
                         self.assertEqual(window.queue_completed, 1)
                         self.assertFalse(window.queue_jobs)
@@ -1773,7 +1773,7 @@ class ThumbnailTest(unittest.TestCase):
             yes_no.close()
 
     def test_no_pair_review_goes_straight_to_the_final_review(self):
-        from .gui import NO_PAIR_REVIEW
+        from .ui.import_dialogs import NO_PAIR_REVIEW
         with tempfile.TemporaryDirectory() as directory:
             folder = self.make_book(Path(directory), "complete")
             Image.new("RGB", (60, 80), "white").save(folder / "002.png")
@@ -1797,7 +1797,7 @@ class ThumbnailTest(unittest.TestCase):
                 window.close()
 
     def test_import_dialog_offers_no_pair_review(self):
-        from .gui import NO_PAIR_REVIEW
+        from .ui.import_dialogs import NO_PAIR_REVIEW
         dialog = ImportChoiceDialog(Path("book.cbr"), folder=False)
         try:
             self.assertEqual(dialog.review_mode.itemText(NO_PAIR_REVIEW), "None — the pages are already complete")
@@ -2360,7 +2360,7 @@ class ThumbnailTest(unittest.TestCase):
                 window.close()
 
     def test_final_review_swap_drag_join_and_component_rotations(self):
-        from .gui import PageThumbnail
+        from .ui.thumbnails import PageThumbnail
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory)
             for i in range(3):
@@ -2762,7 +2762,7 @@ class ThumbnailTest(unittest.TestCase):
                              if button.text() == "Resume review").click()
                         return dialog.result()
                     with patch.object(QMessageBox, "exec", resume), \
-                         patch("comic_builder.gui.scan_folder", side_effect=AssertionError("Rescanned")):
+                         patch("comic_builder.ui.import_flow.scan_folder", side_effect=AssertionError("Rescanned")):
                         second.start_scan(folder)
                     self.assertIn(0, second.plan.manual_pairs)
                     self.assertEqual(len(second.plan.scan.pages), 3)
