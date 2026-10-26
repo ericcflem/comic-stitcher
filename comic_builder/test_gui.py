@@ -1773,7 +1773,7 @@ class ThumbnailTest(unittest.TestCase):
             yes_no.close()
 
     def test_no_pair_review_goes_straight_to_the_final_review(self):
-        from .gui import NO_PAIR_REVIEW
+        from .ui.import_dialogs import NO_PAIR_REVIEW
         with tempfile.TemporaryDirectory() as directory:
             folder = self.make_book(Path(directory), "complete")
             Image.new("RGB", (60, 80), "white").save(folder / "002.png")
@@ -1797,7 +1797,7 @@ class ThumbnailTest(unittest.TestCase):
                 window.close()
 
     def test_import_dialog_offers_no_pair_review(self):
-        from .gui import NO_PAIR_REVIEW
+        from .ui.import_dialogs import NO_PAIR_REVIEW
         dialog = ImportChoiceDialog(Path("book.cbr"), folder=False)
         try:
             self.assertEqual(dialog.review_mode.itemText(NO_PAIR_REVIEW), "None — the pages are already complete")
@@ -2360,7 +2360,7 @@ class ThumbnailTest(unittest.TestCase):
                 window.close()
 
     def test_final_review_swap_drag_join_and_component_rotations(self):
-        from .gui import PageThumbnail
+        from .ui.thumbnails import PageThumbnail
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory)
             for i in range(3):
