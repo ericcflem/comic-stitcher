@@ -3627,7 +3627,17 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.progress_page.installEventFilter(self)
         self.pages.addWidget(self.progress_page)
 
+    def _show_progress_page(self):
+        """Show the progress screen for new work. The buttons from a finished
+        export (Process another comic, Export this comic again) belong to that
+        export only; left showing, they would leave this work running unseen."""
+        self.done_button.hide()
+        self.repeat_button.hide()
+        self.pages.setCurrentWidget(self.progress_page)
+
     def new_comic(self):
+        if self.worker and self.worker.isRunning():
+            return  # Work is still under way; its own screen follows when it finishes.
         self._end_lossless_for_this_comic()
         self._stop_lossless_checks()
         if self.current_job is not None:  # Leaving a comic that was never settled: drop it.
@@ -3897,7 +3907,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.session_source = None
         self.progress_label.setText("Measuring screenshots…")
         self.progress_bar.setValue(0)
-        self.pages.setCurrentWidget(self.progress_page)
+        self._show_progress_page()
         self._compact_window()
         diagnostics.note("Screenshot analysis started: %s", folder)
         self._run_worker(analyze_screenshots, (folder, self.screenshot_single_size,
@@ -4103,7 +4113,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         if folder.is_file() and folder.suffix.lower() == ".pdf" and pdf_dpi is None and not pdf_checked:
             self.progress_label.setText("Checking PDF page images…")
             self.progress_bar.setValue(0)
-            self.pages.setCurrentWidget(self.progress_page)
+            self._show_progress_page()
             self._compact_window()
             self._run_worker(check_pdf_jpegs, (folder,),
                              lambda result: self._pdf_images_checked(folder, *result, manual_mode, pdf_smooth_images))
@@ -4135,8 +4145,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.progress_label.setText(f"{'Reading pages in' if manual_mode else 'Scanning'} {folder.name}…")
         diagnostics.note("%s import started: %s", "Manual" if manual_mode else "Suggested", folder)
         self.progress_bar.setValue(0)
-        self.done_button.hide()
-        self.pages.setCurrentWidget(self.progress_page)
+        self._show_progress_page()
         self._compact_window()
         if folder.is_file() and folder.suffix.lower() in ARCHIVE_EXTS | {".pdf"}:
             self.import_work = tempfile.TemporaryDirectory(prefix="ComicStitcher_import_")
@@ -5784,9 +5793,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.size_worker.release()  # Export needs the processor.
         self.progress_label.setText("Creating comic…")
         self.progress_bar.setValue(0)
-        self.done_button.hide()
-        self.repeat_button.hide()
-        self.pages.setCurrentWidget(self.progress_page)
+        self._show_progress_page()
         self._compact_window()
         self._run_worker(export_book, (self.plan, opt), self.export_done)
 
@@ -5953,9 +5960,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.batch_import_active = False
         self.queue_completed = 0
         self.queue_results.clear()
-        self.done_button.hide()
-        self.repeat_button.hide()
-        self.pages.setCurrentWidget(self.progress_page)
+        self._show_progress_page()
         self._compact_window()
         self._start_next_queued_export()
 
@@ -6061,7 +6066,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
 
     def repeat_export(self):
         """Keep the reviewed book and settings; suggest an unused test name."""
-        if self.plan is None:
+        if self.plan is None or (self.worker and self.worker.isRunning()):
             return
         folder = self.plan.scan.output_folder or self.plan.scan.folder
         base = safe_book_name(self.replay_base_name or self.book_name.text())
