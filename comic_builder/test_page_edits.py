@@ -5,7 +5,8 @@ import unittest
 import zipfile
 from pathlib import Path
 from PIL import Image
-from .backend import BookPlan, ExportOptions, export_book, scan_manual_folder
+from .backend import BookPlan, scan_manual_folder
+from .export import ExportOptions, export_book
 from .session import save_session, read_session, restore_plan, cached_folder_scan
 
 

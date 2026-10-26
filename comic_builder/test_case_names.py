@@ -10,7 +10,8 @@ from pathlib import Path
 from PIL import Image
 
 from .archive_import import import_archive
-from .backend import BookPlan, ExportOptions, planned_names, scan_manual_folder
+from .backend import BookPlan, scan_manual_folder
+from .export import ExportOptions, planned_names
 from .detector import name_sort_key
 
 TWINS = [f"comic - {n:03d}.{ext}" for n in range(1, 6) for ext in ("jpg", "JPG")]  # Eric's test set.

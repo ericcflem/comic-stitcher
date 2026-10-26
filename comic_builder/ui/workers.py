@@ -9,8 +9,8 @@ from pathlib import Path
 from threading import Condition
 from PIL import Image, ImageOps
 from PySide6.QtCore import QThread, Signal
-from ..backend import (stitched_image, rotated_image, encoding_workers, estimate_export_size,
-    ESTIMATE_SAMPLES, lossless_alternative, lossless_check)
+from ..backend import stitched_image, rotated_image, encoding_workers
+from ..export import estimate_export_size, ESTIMATE_SAMPLES, lossless_alternative, lossless_check
 from .. import diagnostics
 from ..pdf_import import measure_pdf_pages, suggest_from_pages
 from .common import pixels_from_pil

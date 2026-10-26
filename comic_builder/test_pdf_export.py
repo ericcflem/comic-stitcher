@@ -8,7 +8,8 @@ import pypdfium2 as pdfium
 from PIL import Image, ImageOps
 from pypdf import PdfReader
 
-from .backend import BookPlan, ExportOptions, estimate_export_size, export_book, scan_folder
+from .backend import BookPlan, scan_folder
+from .export import ExportOptions, estimate_export_size, export_book
 from .pdf_export import PNG_SIGNATURE, _png_chunks, verify_pdf, write_pdf
 
 

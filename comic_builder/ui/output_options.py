@@ -5,7 +5,7 @@ from dataclasses import replace
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QFormLayout, QFrame, QHBoxLayout,
     QLabel, QPushButton, QScrollArea, QSpinBox, QStackedWidget, QTabWidget, QVBoxLayout, QWidget)
-from ..backend import ExportOptions, copy_encoding_options, ENCODER_FIELDS
+from ..export import ExportOptions, copy_encoding_options, ENCODER_FIELDS
 from ..sharp_webp import sharp_yuv_available
 from ..window_outline import OutlinedWindow
 from .common import form_hint, tooltip_text

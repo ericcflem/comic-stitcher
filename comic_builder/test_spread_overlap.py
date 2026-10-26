@@ -8,8 +8,9 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
-from .backend import (BookPlan, ExportOptions, _entry_size, export_book, join_layout, measure_overlap,
-                      offered, scan_folder, stitched_image, thin_border, thin_border_between)
+from .backend import (BookPlan, join_layout, measure_overlap, offered, scan_folder, stitched_image,
+    thin_border, thin_border_between)
+from .export import ExportOptions, _entry_size, export_book
 from .review_report import report_data
 from .session import read_session, restore_plan, save_session
 

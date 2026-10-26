@@ -13,7 +13,8 @@ import py7zr
 from PIL import Image, ImageDraw, ImageFile
 import numpy as np
 
-from .backend import BoundaryOverrideRequired, BookPlan, Candidate, ExportOptions, _save_image, encoding_workers, export_book, resized_image, scan_folder
+from .backend import BoundaryOverrideRequired, BookPlan, Candidate, encoding_workers, scan_folder
+from .export import ExportOptions, _save_image, export_book, resized_image
 from .detector import classify_page, load_edge_rgb, load_rgb, seam_score, strip_stats
 from .review_report import report_data, save_report
 from .archive_import import import_archive
@@ -49,7 +50,7 @@ class BookFlowTest(unittest.TestCase):
                     self.assertEqual(archive.namelist(), [f"{opt.custom_prefix} - {i:03d}{extension}" for i in range(2)])
                 self.assertEqual(sorted(p.name for p in (folder / f"Superhero v01 - {copy} - PNG pages").iterdir()),
                                  [f"{opt.custom_prefix} - {i:03d}.png" for i in range(2)])
-            from .backend import planned_names
+            from .export import planned_names
             opt.custom_prefix = "   "
             with self.assertRaisesRegex(ValueError, "custom page prefix"):
                 planned_names(plan, opt)

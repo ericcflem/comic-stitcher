@@ -16,7 +16,8 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QFil
     QFormLayout, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox, QProgressBar,
     QPushButton, QSizePolicy, QSpinBox, QVBoxLayout, QWidget, QGroupBox)
 
-from .backend import BookPlan, ExportOptions, encoding_workers
+from .backend import BookPlan, encoding_workers
+from .export import ExportOptions
 from . import __version__, diagnostics
 from .startup_notice import finish_startup, take_startup_id
 from .single_instance import LaunchBroker

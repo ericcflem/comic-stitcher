@@ -6,7 +6,8 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageFilter
 
-from .backend import BookPlan, ExportOptions, estimate_export_size, export_book, scan_folder
+from .backend import BookPlan, scan_folder
+from .export import ExportOptions, estimate_export_size, export_book
 
 
 def make_pages(folder, count, seed=1):

@@ -121,7 +121,8 @@ class PdfJpegTests(unittest.TestCase):
     def test_full_page_clip_and_indirect_icc_keep_jpeg_payload(self):
         from PIL import ImageCms
         from io import BytesIO
-        from .backend import stitched_image, _encode_entry, ExportOptions
+        from .backend import stitched_image
+        from .export import _encode_entry, ExportOptions
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             source = root / 'book.pdf'

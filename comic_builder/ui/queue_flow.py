@@ -6,7 +6,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (QFileDialog, QHBoxLayout, QLabel, QListWidgetItem, QMessageBox,
     QPushButton, QVBoxLayout)
-from ..backend import copy_encoding_options
+from ..export import copy_encoding_options
 from .. import diagnostics
 from ..window_outline import OutlinedDialog
 from ..session import clear_session

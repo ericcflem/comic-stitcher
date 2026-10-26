@@ -6,8 +6,9 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw
 
-from .backend import (BookPlan, ExportOptions, LOSSLESS_CHECK_SKIP_SHARE, LOSSLESS_HINT_SHARE,
-                      estimate_export_size, lossless_alternative, lossless_check, scan_folder)
+from .backend import BookPlan, scan_folder
+from .export import (ExportOptions, LOSSLESS_CHECK_SKIP_SHARE, LOSSLESS_HINT_SHARE,
+    estimate_export_size, lossless_alternative, lossless_check)
 
 
 def line_art(path: Path, seed: int):

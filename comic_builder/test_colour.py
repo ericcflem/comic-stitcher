@@ -9,7 +9,7 @@ from unittest.mock import patch
 import numpy as np
 from PIL import Image, ImageCms
 
-from .backend import ExportOptions, _encode_entry
+from .export import ExportOptions, _encode_entry
 from .cmyk_profile import SWOP_PROFILE, SWOP_PROFILE_SHA256
 from .colour import standard_mode
 from .detector import classify_page
