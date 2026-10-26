@@ -126,7 +126,7 @@ class AuditFixTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d); plan = self.pages(root)
             with patch('comic_builder.export.shutil.rmtree', side_effect=PermissionError('locked')), patch(
-                    'comic_builder.backend.logging.exception') as logged:
+                    'comic_builder.export.logging.exception') as logged:
                 archive = export_book(plan, ExportOptions('Completed', format='png', workers=1))
                 logged.assert_called_once()
             with zipfile.ZipFile(archive) as z:
