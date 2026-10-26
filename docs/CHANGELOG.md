@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Tighter windows. The start screen drops the large "Comic Stitcher" heading
+  (the title bar names it) and the queue text; the settings gear sits at the
+  bottom left with the queue buttons, and the window is smaller. Settings, and
+  the progress screens for importing, rendering and creating a comic, are just
+  as tall as their contents. Create your comic can no longer be dragged so
+  narrow that it cuts off its fields.
 - Pages worth a look are pointed out after import: where the file numbering
   skips ("File numbers jump from 014.jpg to 016.jpg: a page may be missing
   between them"), and names that differ only in capitalisation, each with its
