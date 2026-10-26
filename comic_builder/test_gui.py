@@ -721,7 +721,7 @@ class ThumbnailTest(unittest.TestCase):
     def test_sharp_yuv_option_is_per_size_and_needs_lossy_webp_and_cwebp(self):
         window = ComicWindow()
         self.addCleanup(window.close)
-        with patch("comic_builder.gui.sharp_yuv_available", return_value=True):
+        with patch("comic_builder.ui.output_options.sharp_yuv_available", return_value=True):
             dialog = OutputOptionsDialog(ExportOptions("Book", format="webp"), window.custom_resize_values)
             try:
                 full, reduced = dialog.advanced, dialog.reduced_advanced
@@ -736,7 +736,7 @@ class ThumbnailTest(unittest.TestCase):
                 self.assertTrue(opt.reduced_settings["webp_sharp_yuv"])
             finally:
                 dialog.close()
-        with patch("comic_builder.gui.sharp_yuv_available", return_value=False):
+        with patch("comic_builder.ui.output_options.sharp_yuv_available", return_value=False):
             dialog = OutputOptionsDialog(ExportOptions("Book", format="webp", webp_sharp_yuv=True),
                                          window.custom_resize_values)
             try:
@@ -1310,6 +1310,19 @@ class ThumbnailTest(unittest.TestCase):
         finally:
             window.close()
 
+    def test_interface_icons_load(self):
+        # The icons come from a compiled Qt resource imported by ui/common.py; a
+        # wrong import path there would quietly leave every button without its icon.
+        from .ui import common
+        self.assertIsNotNone(common.icons_resource)
+        for name in ("settings", "left-caret", "right-caret"):
+            self.assertFalse(common.interface_icon(name).isNull(), name)
+        window = ComicWindow()
+        try:
+            self.assertFalse(window.settings_button.icon().isNull())
+        finally:
+            window.close()
+
     def test_compact_windows_are_as_large_as_their_contents(self):
         from PySide6.QtWidgets import QPushButton
         window = ComicWindow()
@@ -1524,8 +1537,8 @@ class ThumbnailTest(unittest.TestCase):
             stat = source.stat()
             job = QueuedComic(plan, ExportOptions("Test", workers=1), source, None, None, source,
                               (stat.st_size, stat.st_mtime_ns), {"dpi": 200})
-            with patch("comic_builder.gui.import_pdf", return_value=scan_manual_folder(pages)), patch(
-                    "comic_builder.gui.export_book") as exporter:
+            with patch("comic_builder.ui.queue.import_pdf", return_value=scan_manual_folder(pages)), patch(
+                    "comic_builder.ui.queue.export_book") as exporter:
                 export_queued_comic(job)
                 restored = exporter.call_args.args[0]
                 self.assertEqual(restored.entries(), [(1, None), (0, 2), (3, None)])
@@ -2194,8 +2207,8 @@ class ThumbnailTest(unittest.TestCase):
                               (stat.st_size, stat.st_mtime_ns),
                               {"dpi": 300, "workers": 2, "smooth_images": False})
             captured = []
-            with patch("comic_builder.gui.import_pdf", return_value=scan) as importer, \
-                 patch("comic_builder.gui.export_book", side_effect=lambda p, o, **kw: captured.append(p)):
+            with patch("comic_builder.ui.queue.import_pdf", return_value=scan) as importer, \
+                 patch("comic_builder.ui.queue.export_book", side_effect=lambda p, o, **kw: captured.append(p)):
                 export_queued_comic(job)
             self.assertEqual(importer.call_args.kwargs["dpi"], 300)
             self.assertFalse(importer.call_args.kwargs["smooth_images"])

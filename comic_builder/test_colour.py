@@ -126,7 +126,7 @@ class EncodingTests(unittest.TestCase):
     def test_thumbnails_and_previews_show_sixteen_bit_grey(self):
         # The thumbnail strip showed "Image error": Pillow can't shrink 16-bit grey.
         try:
-            from .gui import pixels_from_pil
+            from .ui.common import pixels_from_pil
         except ImportError:
             self.skipTest("Qt is not installed")
         data, width, height = pixels_from_pil(grey16(257 * 117, (400, 600)), (100, 84))
