@@ -2293,6 +2293,53 @@ class ThumbnailTest(unittest.TestCase):
             finally:
                 window.close()
 
+    def test_dragging_a_page_to_an_end_of_the_strip_keeps_scrolling(self):
+        # Eric moved a back cover from page 2 to the end of a 140-page book by
+        # dragging, scrolling and dragging again; holding at the end now scrolls.
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            for i in range(40):
+                Image.new('RGB', (60, 80), (30 + i * 5, 20, 10)).save(folder / f'{i:03d}.png')
+            window = ComicWindow()
+            try:
+                window.resize(900, 700)
+                window.show(); window.scan_done(scan_manual_folder(folder)); window.enter_preview()
+                self.wait_for(lambda: len(getattr(window, 'thumb_buttons', [])) == 40)
+                self.app.processEvents(); window._resize_thumbnail_strip(); self.app.processEvents()
+                bar = window.thumb_area.horizontalScrollBar()
+                bar.setValue(0)
+                self.assertGreater(bar.maximum(), 0)
+                source = window.thumb_buttons[1]
+                width = window.thumb_area.viewport().width()
+                # Away from the ends: no scrolling.
+                self.assertTrue(window.update_page_drop(source, width // 2))
+                self.assertFalse(window.drag_scroll_timer.isActive())
+                # At the right end: the strip scrolls on its own, and the drop point follows.
+                window.update_page_drop(source, width - 5)
+                self.assertTrue(window.drag_scroll_timer.isActive())
+                for _ in range(400):
+                    window._drag_scroll_tick()
+                    if not window.drag_scroll_timer.isActive():
+                        break
+                self.assertEqual(bar.value(), bar.maximum())
+                self.assertFalse(window.drag_scroll_timer.isActive())  # Stops at the end.
+                self.assertEqual(window.page_drop_boundary, 40)
+                window.finish_page_drop(source, width - 5 + bar.value())
+                self.wait_for(lambda: window.plan.entries()[-1] == (1, None))
+                # And back the other way, from the left end.
+                source = window.thumb_buttons[-1]
+                bar.setValue(bar.maximum())
+                window.update_page_drop(source, bar.value() + 3)
+                for _ in range(400):
+                    window._drag_scroll_tick()
+                    if not window.drag_scroll_timer.isActive():
+                        break
+                self.assertEqual((bar.value(), window.page_drop_boundary), (0, 0))
+                window.clear_page_drop()
+                self.assertIsNone(window.drag_scroll)
+            finally:
+                window.close()
+
     def test_drag_insertion_marker_near_edge_does_not_move_far_edge_moves_and_undoes(self):
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory)
