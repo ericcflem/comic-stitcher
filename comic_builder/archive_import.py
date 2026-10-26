@@ -11,7 +11,7 @@ from pathlib import Path, PurePosixPath
 import py7zr
 import rarfile
 
-from .backend import describe_case_twins, scan_folder
+from .backend import describe_case_twins, describe_page_notes, scan_folder
 from .comicinfo import MAX_XML_BYTES
 from .detector import IMAGE_EXTS, name_sort_key
 
@@ -296,4 +296,6 @@ def import_archive(source: Path, destination: Path, manual: bool = False, progre
     names = [PurePosixPath(name.replace("\\", "/")).as_posix() for name, _ in pages]
     staged = [destination / f"{index:06d}{Path(name).suffix.lower()}" for index, (name, _) in enumerate(pages, 1)]
     scan.case_twins = describe_case_twins(names, staged)
+    # And note numbering gaps by the archive's names too (the copies are numbered in order).
+    scan.page_notes = describe_page_notes(names, staged, right_to_left)
     return scan

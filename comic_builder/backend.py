@@ -76,6 +76,8 @@ class Scan:
     # Pages whose names differ only in capitalisation: (their names, whether
     # the files are identical). Possible on Linux and inside archives.
     case_twins: list[tuple[tuple[str, ...], bool]] = field(default_factory=list)
+    # Pages worth a look, from their file names: (page indexes, what to check).
+    page_notes: list[tuple[tuple[int, ...], str]] = field(default_factory=list)
 
 
 def describe_case_twins(names: list[str], files: list[Path]) -> list[tuple[tuple[str, ...], bool]]:
@@ -84,6 +86,60 @@ def describe_case_twins(names: list[str], files: list[Path]) -> list[tuple[tuple
     return [(tuple(names[i] for i in group),
              all(filecmp.cmp(files[group[0]], files[i], shallow=False) for i in group[1:]))
             for group in case_twin_groups(names)]
+
+
+# A page name's number, or a range for a two-page file ("Book 012-013.jpg").
+_NUMBERED_NAME = re.compile(r"(.*?)(\d+)(?:\s*[-_]\s*(\d+))?")
+
+
+def missing_numbers(names: list[str]) -> list[tuple[int, int]]:
+    """Places where the file numbering skips: (index of the name after the
+    gap, how many numbers are missing). Only when every name is the same prefix
+    and a number (or range) going up, and the skips are few; books numbered some
+    other way say nothing."""
+    parts = []
+    for name in names:
+        match = _NUMBERED_NAME.fullmatch(Path(name.replace("\\", "/").rsplit("/", 1)[-1]).stem)
+        if match is None:
+            return []
+        start = int(match.group(2))
+        end = int(match.group(3) or start)
+        if end < start:
+            return []
+        parts.append((match.group(1).casefold(), start, end))
+    if len({prefix for prefix, _, _ in parts}) != 1:
+        return []
+    steps = [after[1] - before[2] for before, after in zip(parts, parts[1:])]
+    if any(step < 1 for step in steps):
+        return []
+    gaps = [(index + 1, step - 1) for index, step in enumerate(steps) if step > 1]
+    return gaps if len(gaps) <= max(2, len(names) // 10) else []
+
+
+def describe_page_notes(names: list[str], files: list[Path], right_to_left: bool = False
+                        ) -> list[tuple[tuple[int, ...], str]]:
+    """Notes on pages worth a look, from their names in file order: names that
+    differ only in capitalisation, and numbering that skips (a page may be
+    missing). Pages are given by their index in reading order."""
+    import filecmp
+    count = len(names)
+
+    def page(index):
+        return count - 1 - index if right_to_left else index
+    short = [name.replace("\\", "/").rsplit("/", 1)[-1] for name in names]
+    if len(set(short)) != len(short):
+        short = [name.replace("\\", "/") for name in names]
+    notes = []
+    for group in case_twin_groups(names):
+        identical = all(filecmp.cmp(files[group[0]], files[i], shallow=False) for i in group[1:])
+        notes.append((tuple(sorted(page(i) for i in group)),
+                      "Names differ only in capitalisation: " + ", ".join(short[i] for i in group) +
+                      (" (identical copies)" if identical else "")))
+    for after, missing in missing_numbers(names):
+        notes.append((tuple(sorted((page(after - 1), page(after)))),
+                      f"File numbers jump from {short[after - 1]} to {short[after]}: "
+                      f"{'a page' if missing == 1 else f'{missing} pages'} may be missing between them"))
+    return sorted(notes)
 
 
 class BoundaryOverrideRequired(ValueError):
@@ -253,6 +309,8 @@ def scan_folder(folder: Path, progress: Callable[[int, int], None] | None = None
     # Names differing only in capitalisation are kept, in the order Linux file
     # managers show them (see name_sort_key); the import notes them for review.
     case_twins = describe_case_twins([p.name for p in paths], paths)
+    in_file_order = paths[::-1] if right_to_left else paths
+    page_notes = describe_page_notes([p.name for p in in_file_order], in_file_order, right_to_left)
 
     if manual:
         pages = []
@@ -271,7 +329,7 @@ def scan_folder(folder: Path, progress: Callable[[int, int], None] | None = None
         # Every neighbor is reviewable, regardless of the edge art or page numbers.
         candidates = [Candidate(i, i + 1, 0.0, True) for i in range(len(pages) - 1)]
         return Scan(folder, pages, candidates, manual_mode=True, right_to_left=right_to_left,
-                    case_twins=case_twins)
+                    case_twins=case_twins, page_notes=page_notes)
 
     # Only infer numbering gaps if every name follows the same prefix + digits pattern.
     matches = [re.fullmatch(r"(.*?)(\d+)", p.stem) for p in paths]
@@ -328,7 +386,7 @@ def scan_folder(folder: Path, progress: Callable[[int, int], None] | None = None
     if progress:
         progress(2 * len(paths), 2 * len(paths))
     return Scan(folder, pages, candidates, gaps, numbers is None, right_to_left=right_to_left,
-                case_twins=case_twins)
+                case_twins=case_twins, page_notes=page_notes)
 
 
 def scan_manual_folder(folder: Path, progress: Callable[[int, int], None] | None = None, *, right_to_left=False,

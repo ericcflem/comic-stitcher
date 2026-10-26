@@ -680,24 +680,42 @@ class ThumbnailTest(unittest.TestCase):
         finally:
             second.close()
 
-    def test_case_twins_notice_names_the_pages_and_flags_copies(self):
+    def test_page_notes_listed_marked_and_found_with_m(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            for i, number in enumerate((1, 2, 4, 5, 6, 7, 8)):  # 003 is missing.
+                Image.new("RGB", (60, 80), (30 + i * 25, 20, 10)).save(folder / f"Book {number:03d}.png")
+            window = ComicWindow()
+            try:
+                window.show(); window.scan_done(scan_manual_folder(folder))
+                notice = window.page_notes_notice
+                self.assertEqual(notice.text(), "One place in this comic is worth a look")
+                self.assertIn("• Pages 2 and 3: File numbers jump from Book 002.png to Book 004.png: "
+                              "a page may be missing between them.", notice.informativeText())
+                self.assertIn("Press M there", notice.informativeText())
+                self.assertNotIn("capitalisation", notice.informativeText())
+                notice.close()
+                window.enter_preview()
+                self.wait_for(lambda: len(getattr(window, "thumb_buttons", [])) == 7)
+                marked = [i for i, b in enumerate(window.thumb_buttons) if "ed3c9b" in b.styleSheet()]
+                self.assertEqual(marked, [1, 2])
+                self.assertIn("a page may be missing", window.thumb_buttons[1].toolTip())
+                window.preview_index = 4
+                window._review_key("marked")
+                self.assertEqual(window.preview_index, 1)  # Round to the first.
+                window._review_key("marked")
+                self.assertEqual(window.preview_index, 2)
+                self.assertIn("Marked page 2 of 2", window.statusBar().currentMessage())
+            finally:
+                window.close()
+        # Twins' note explains their order.
         window = ComicWindow()
         self.addCleanup(window.close)
-        window._show_case_twins_notice([(("comic - 001.jpg", "comic - 001.JPG"), False),
-                                        (("comic - 002.jpg", "comic - 002.JPG"), True)])
-        notice = window.case_twins_notice
-        self.assertIn("“comic - 001.jpg” and “comic - 001.JPG” (2 sets)", notice.text())
-        self.assertIn("lowercase comes first", notice.informativeText())
-        self.assertIn("In 1 of these sets, the pages are identical copies", notice.informativeText())
-        notice.close()
-        # Pages from an archive are shown by file name, without their folder in the archive.
-        window._show_case_twins_notice([(("Fire Power/comic - 001.jpg", "Fire Power/comic - 001.JPG"), False)])
-        self.assertIn("“comic - 001.jpg” and “comic - 001.JPG”.", window.case_twins_notice.text())
-        window.case_twins_notice.close()
-        # Unless only the folders' capitalisation differs: then the folders tell them apart.
-        window._show_case_twins_notice([(("Part A/001.jpg", "part a/001.jpg"), False)])
-        self.assertIn("“Part A/001.jpg”", window.case_twins_notice.text())
-        window.case_twins_notice.close()
+        window._show_page_notes([((0, 1), "Names differ only in capitalisation: comic - 001.jpg, comic - 001.JPG")])
+        self.assertIn("lowercase first", window.page_notes_notice.informativeText())
+        self.assertIn("If one is a duplicate, remove it in the final review", window.page_notes_notice.informativeText())
+        self.assertIn("their names won't clash", window.page_notes_notice.informativeText())
+        window.page_notes_notice.close()
 
     def test_sharp_yuv_option_is_per_size_and_needs_lossy_webp_and_cwebp(self):
         window = ComicWindow()
@@ -2302,6 +2320,53 @@ class ThumbnailTest(unittest.TestCase):
                 window.split_selected()
                 self.assertEqual(window.plan.entries(), [(2, None), (1, None), (0, None)])
                 self.assertEqual(window.plan.rotations, {1: 180, 0: 180})
+            finally:
+                window.close()
+
+    def test_dragging_a_page_to_an_end_of_the_strip_keeps_scrolling(self):
+        # Eric moved a back cover from page 2 to the end of a 140-page book by
+        # dragging, scrolling and dragging again; holding at the end now scrolls.
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            for i in range(40):
+                Image.new('RGB', (60, 80), (30 + i * 5, 20, 10)).save(folder / f'{i:03d}.png')
+            window = ComicWindow()
+            try:
+                window.resize(900, 700)
+                window.show(); window.scan_done(scan_manual_folder(folder)); window.enter_preview()
+                self.wait_for(lambda: len(getattr(window, 'thumb_buttons', [])) == 40)
+                self.app.processEvents(); window._resize_thumbnail_strip(); self.app.processEvents()
+                bar = window.thumb_area.horizontalScrollBar()
+                bar.setValue(0)
+                self.assertGreater(bar.maximum(), 0)
+                source = window.thumb_buttons[1]
+                width = window.thumb_area.viewport().width()
+                # Away from the ends: no scrolling.
+                self.assertTrue(window.update_page_drop(source, width // 2))
+                self.assertFalse(window.drag_scroll_timer.isActive())
+                # At the right end: the strip scrolls on its own, and the drop point follows.
+                window.update_page_drop(source, width - 5)
+                self.assertTrue(window.drag_scroll_timer.isActive())
+                for _ in range(400):
+                    window._drag_scroll_tick()
+                    if not window.drag_scroll_timer.isActive():
+                        break
+                self.assertEqual(bar.value(), bar.maximum())
+                self.assertFalse(window.drag_scroll_timer.isActive())  # Stops at the end.
+                self.assertEqual(window.page_drop_boundary, 40)
+                window.finish_page_drop(source, width - 5 + bar.value())
+                self.wait_for(lambda: window.plan.entries()[-1] == (1, None))
+                # And back the other way, from the left end.
+                source = window.thumb_buttons[-1]
+                bar.setValue(bar.maximum())
+                window.update_page_drop(source, bar.value() + 3)
+                for _ in range(400):
+                    window._drag_scroll_tick()
+                    if not window.drag_scroll_timer.isActive():
+                        break
+                self.assertEqual((bar.value(), window.page_drop_boundary), (0, 0))
+                window.clear_page_drop()
+                self.assertIsNone(window.drag_scroll)
             finally:
                 window.close()
 

@@ -19,7 +19,7 @@ from uuid import uuid4
 
 from PIL import Image, ImageOps
 from PySide6.QtCore import QFile, QEvent, QObject, QSettings, QSize, Qt, QThread, QTimer, Signal, QUrl, QRectF, QSignalBlocker, QMimeData
-from PySide6.QtGui import QFontMetrics, QDesktopServices, QImage, QPixmap, QShortcut, QKeySequence, QPainter, QColor, QPen, QDrag, QIcon
+from PySide6.QtGui import QCursor, QFontMetrics, QDesktopServices, QImage, QPixmap, QShortcut, QKeySequence, QPainter, QColor, QPen, QDrag, QIcon
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout,
     QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox,
@@ -940,6 +940,15 @@ class QueueList(QListWidget):
         super().keyPressEvent(event)
 
 
+# Dragging a page within this many pixels of either end of the thumbnail strip
+# scrolls it, from DRAG_SCROLL_MIN up to DRAG_SCROLL_MAX pixels every
+# DRAG_SCROLL_INTERVAL milliseconds, faster the closer to the end.
+DRAG_SCROLL_ZONE = 64
+DRAG_SCROLL_MIN = 6
+DRAG_SCROLL_MAX = 48
+DRAG_SCROLL_INTERVAL = 30
+
+
 class ThumbnailStrip(QWidget):
     def __init__(self, owner):
         super().__init__()
@@ -955,7 +964,7 @@ class ThumbnailStrip(QWidget):
         else: event.ignore()
 
     def dragLeaveEvent(self, event):
-        self.owner.clear_page_drop()
+        self.owner.page_drag_left()
         event.accept()
 
     def dropEvent(self, event):
@@ -999,7 +1008,7 @@ class PageThumbnail(QPushButton):
         else: event.ignore()
 
     def dragLeaveEvent(self, event):
-        self.owner.clear_page_drop()
+        self.owner.page_drag_left()
         event.accept()
 
     def dropEvent(self, event):
@@ -2625,6 +2634,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.queue_results: list[Path] = []
         self.screenshot_source: Path | None = None
         self.screenshot_flagged_pages: set[int] = set()
+        self.page_notes: dict[int, list[str]] = {}  # Page index: notes from its file name.
         self.inferred_notice_shown = False
         self.screenshot_stage_dir: Path | None = None
         self.possible_review_started = False
@@ -2951,7 +2961,8 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                             ("Left", lambda: self._review_key("left")),
                             ("Right", lambda: self._review_key("right")),
                             ("Escape", lambda: self._review_key("escape")),
-                            ("B", lambda: self._review_key("boss"))):
+                            ("B", lambda: self._review_key("boss")),
+                            ("M", lambda: self._review_key("marked"))):
             shortcut = QShortcut(QKeySequence(key), self)
             shortcut.setContext(Qt.WindowShortcut)
             shortcut.activated.connect(action)
@@ -2961,7 +2972,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         current = self.pages.currentWidget()
         for key, shortcut in self.shortcuts.items():
             shortcut.setEnabled(current == self.review or
-                                (current == self.preview and key in ("Left", "Right", "Space", "Escape")) or
+                                (current == self.preview and key in ("Left", "Right", "Space", "Escape", "M")) or
                                 (current == self.boss_page and key == "B"))
         if current == self.review:
             # The scan/progress page may still own keyboard focus while Qt is
@@ -2983,6 +2994,9 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         if screen == self.preview:
             if action == "seam":
                 self.preview_seam()
+                return
+            if action == "marked":
+                self.next_marked_page()
                 return
         if screen == self.preview and action in ("left", "right"):
             self.navigate((1 if action == "left" else -1) if self.plan.scan.right_to_left
@@ -3183,6 +3197,11 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.thumb_content = ThumbnailStrip(self)
         self.page_drop_marker = DropMarker(self.thumb_content)
         self.page_drop_boundary = None
+        # Holding a dragged page near either end of the strip keeps scrolling it.
+        self.drag_scroll = None  # (dragged thumbnail, x in the visible strip)
+        self.drag_scroll_timer = QTimer(self)
+        self.drag_scroll_timer.setInterval(DRAG_SCROLL_INTERVAL)
+        self.drag_scroll_timer.timeout.connect(self._drag_scroll_tick)
         self.thumb_row = QHBoxLayout(self.thumb_content)
         self.thumb_row.setContentsMargins(4, 4, 4, 4)
         self.thumb_area.setWidget(self.thumb_content)
@@ -4163,33 +4182,31 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                         pdf_dpi=int(self.settings.value("pdf_dpi", 300)) if extract else None,
                         manual_mode=manual_mode, pdf_smooth_images=smooth_images)
 
-    def _show_case_twins_notice(self, twins):
-        """Pages whose names differ only in capitalisation: say so once, before review."""
-        names, _ = twins[0]
-        # Archive pages are named with their folder inside the archive, which is
-        # the same for both; just the file names say which pages these are.
-        short = [name.replace("\\", "/").rsplit("/", 1)[-1] for name in names]
-        if len(set(short)) == len(short):
-            names = short
-        copies = sum(identical for _, identical in twins)
-        diagnostics.note("Names differing only in capitalisation: %d sets (%d identical); first: %s",
-                         len(twins), copies, " / ".join(names))
-        text = ("Some pages have names that differ only in capitalisation"
-                if len(twins) > 1 else "Two pages have names that differ only in capitalisation")
-        notice = QMessageBox(QMessageBox.Information, "Page names differ only in capitalisation",
-                             f"{text}, such as “{names[0]}” and “{names[1]}”"
-                             + (f" ({len(twins)} sets)." if len(twins) > 1 else "."), QMessageBox.Ok, self)
-        details = ("They are kept in the order Linux file managers show them: capitalisation is ignored, "
-                   "and lowercase comes first. Check their order in review.")
-        if copies:
-            which = ("These pages are" if len(twins) == 1 else "In every set, the pages are"
-                     if copies == len(twins) else f"In {copies} of these sets, the pages are")
-            details += (f"\n\n{which} identical copies of the same image. If the extra copies "
-                        "aren't meant to be there, remove them in review.")
+    def _show_page_notes(self, notes):
+        """Pages worth a look, from their file names: say so once, before review."""
+        def pages(indexes):
+            numbers = [str(i + 1) for i in indexes]
+            return ("Page " + numbers[0] if len(numbers) == 1 else
+                    "Pages " + ", ".join(numbers[:-1]) + " and " + numbers[-1])
+        for indexes, text in notes:
+            diagnostics.note("Page note: %s: %s", pages(indexes), text)
+        shown = [f"• {pages(indexes)}: {text}." for indexes, text in notes[:12]]
+        if len(notes) > 12:
+            shown.append(f"• …and {len(notes) - 12} more.")
+        details = "\n".join(shown)
+        if any(text.startswith("Names differ only in capitalisation") for _, text in notes):
+            details += ("\n\nPages whose names differ only in capitalisation are kept in the order Linux file "
+                        "managers show them (lowercase first), so check their order. If one is a duplicate, "
+                        "remove it in the final review. If they all belong in the comic, keep them: the "
+                        "finished comic numbers every page, so their names won't clash.")
+        details += "\n\nIn the final review they're marked with a pink !. Press M there to go from one to the next."
+        notice = QMessageBox(QMessageBox.Information, "Pages to check",
+                             "One place in this comic is worth a look" if len(notes) == 1 else
+                             f"{len(notes)} places in this comic are worth a look", QMessageBox.Ok, self)
         notice.setInformativeText(details)
         notice.setAttribute(Qt.WA_DeleteOnClose)
         notice.open()  # Doesn't hold up the review.
-        self.case_twins_notice = notice
+        self.page_notes_notice = notice
 
     def scan_done(self, scan):
         # Folder-based imports publish beside the input folder. File imports
@@ -4268,8 +4285,12 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                                      c.left + 1, c.right + 1, c.metrics["overlap"],
                                      " (edges also match)" if c.likely or c.continuity >= POSSIBLE_MIN_SCORE else "")
             self.statusBar().showMessage(f"{len(scan.pages)} pages; {suggested} suggested pairs")
-        if scan.case_twins and not resumed:
-            self._show_case_twins_notice(scan.case_twins)
+        self.page_notes = {}
+        for indexes, text in scan.page_notes:
+            for index in indexes:
+                self.page_notes.setdefault(index, []).append(text)
+        if scan.page_notes and not resumed:
+            self._show_page_notes(scan.page_notes)
         if resumed and resumed.get("stage") in ("preview", "export"):
             self.preview_index = max(0, int(resumed.get("preview_index", 0)))
             self.enter_preview()
@@ -4623,6 +4644,7 @@ class ComicWindow(OutlinedWindow, QMainWindow):
             button.setFixedSize(105, 112)
             marked = a in self.screenshot_flagged_pages or (
                 b is not None and b in self.screenshot_flagged_pages)
+            notes = self.page_notes.get(a, []) + (self.page_notes.get(b, []) if b is not None else [])
             pix = self.thumb_cache.get(self.thumb_keys[index])
             if pix is not None:
                 button.setIcon(pix)
@@ -4630,8 +4652,9 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                 button.setText("")
             button.setToolTip(f"Final page {index + 1}" + (" (spread)" if b is not None else "") +
                               (" — check unusual-width screenshot" if marked else "") +
+                              "".join(f"\n{note}." for note in dict.fromkeys(notes)) +
                               "\nDrag to the left or right half of a thumbnail; the pink dotted line shows the insertion position. Shift-click a neighboring thumbnail to compare or swap.")
-            if marked:
+            if marked or notes:
                 button.setStyleSheet("border:4px solid #ed3c9b;")
                 badge = QLabel("!", button)
                 badge.setAlignment(Qt.AlignCenter)
@@ -4949,6 +4972,30 @@ class ComicWindow(OutlinedWindow, QMainWindow):
         self.rebuild_thumbnails()
         self.show_preview()
 
+    def marked_entries(self):
+        """Final pages marked with a pink !: unusual-width screenshots and
+        pages with notes from their file names."""
+        marked = self.screenshot_flagged_pages | set(self.page_notes)
+        return [index for index, (a, b) in enumerate(self.plan.entries())
+                if a in marked or (b is not None and b in marked)]
+
+    def next_marked_page(self):
+        """M in the final review: the next marked page, round to the first."""
+        if self.plan is None:
+            return
+        marked = self.marked_entries()
+        if not marked:
+            self.statusBar().showMessage("No pages are marked.", 4000)
+            return
+        target = next((i for i in marked if i > self.preview_index), marked[0])
+        self.comparing = None
+        self.preview_index = self.selected_first = target
+        self.show_preview(follow=True)
+        a, b = self.plan.entries()[target]
+        notes = self.page_notes.get(a, []) + (self.page_notes.get(b, []) if b is not None else [])
+        self.statusBar().showMessage(f"Marked page {marked.index(target) + 1} of {len(marked)}"
+                                     + "".join(f" · {note}" for note in dict.fromkeys(notes)), 8000)
+
     def navigate(self, delta):
         self.comparing = None
         self.preview_index = max(0, min(self.preview_index + delta, len(self.plan.entries()) - 1))
@@ -4958,6 +5005,45 @@ class ComicWindow(OutlinedWindow, QMainWindow):
     def clear_page_drop(self):
         self.page_drop_boundary = None
         self.page_drop_marker.hide()
+        self.drag_scroll = None
+        self.drag_scroll_timer.stop()
+
+    def page_drag_left(self):
+        """A thumbnail or the strip says a drag left it: passing from one
+        thumbnail to the next, or a page scrolling out from under a still
+        pointer, isn't leaving the strip."""
+        viewport = self.thumb_area.viewport()
+        if not viewport.rect().contains(viewport.mapFromGlobal(QCursor.pos())):
+            self.clear_page_drop()
+
+    def _drag_scroll_step(self, visible_x):
+        """Pixels to scroll the strip per tick for a drag at this point: faster
+        the closer to an end, none away from both ends."""
+        width = self.thumb_area.viewport().width()
+        zone = min(DRAG_SCROLL_ZONE, width // 4)
+        if visible_x < zone:
+            depth = zone - visible_x
+        elif visible_x > width - zone:
+            depth = -(visible_x - (width - zone))
+        else:
+            return 0
+        depth = max(-zone, min(zone, depth))
+        step = max(DRAG_SCROLL_MIN, round(DRAG_SCROLL_MAX * abs(depth) / max(1, zone)))
+        return -step if depth > 0 else step
+
+    def _drag_scroll_tick(self):
+        if self.drag_scroll is None:
+            self.drag_scroll_timer.stop()
+            return
+        source, visible_x = self.drag_scroll
+        bar = self.thumb_area.horizontalScrollBar()
+        before = bar.value()
+        bar.setValue(before + self._drag_scroll_step(visible_x))
+        if bar.value() == before:
+            self.drag_scroll_timer.stop()  # Reached the end of the strip.
+            return
+        # The pointer hasn't moved, but the pages under it have.
+        self.update_page_drop(source, visible_x + bar.value())
 
     def page_drop_at(self, x):
         rtl = self.plan.scan.right_to_left
@@ -4985,6 +5071,14 @@ class ComicWindow(OutlinedWindow, QMainWindow):
                     (before.x() + before.width() + after.x()) / 2)
         self.page_drop_marker.setGeometry(round(edge) - 3, 2, 6, self.thumb_content.height() - 4)
         self.page_drop_marker.show(); self.page_drop_marker.raise_()
+        visible_x = x - self.thumb_area.horizontalScrollBar().value()
+        if self._drag_scroll_step(visible_x):
+            self.drag_scroll = (source, visible_x)
+            if not self.drag_scroll_timer.isActive():
+                self.drag_scroll_timer.start()
+        else:
+            self.drag_scroll = None
+            self.drag_scroll_timer.stop()
         return True
 
     def finish_page_drop(self, source, x):
