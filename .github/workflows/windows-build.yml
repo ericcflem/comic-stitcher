@@ -79,20 +79,40 @@ jobs:
 
       # Each step keeps its output in build-logs/, shown below if a step fails.
       - name: Prepare the pinned build environment
-        shell: bash
-        run: mkdir -p build-logs && cmd //c "packaging\\build_release_windows.bat --prepare-only" 2>&1 | tee build-logs/1-prepare.log; exit ${PIPESTATUS[0]}
+        shell: cmd
+        run: |
+          if not exist build-logs mkdir build-logs
+          call packaging\build_release_windows.bat --prepare-only > build-logs\1-prepare.log 2>&1
+          set rc=%errorlevel%
+          type build-logs\1-prepare.log
+          exit /b %rc%
 
       - name: Build the app
-        shell: bash
-        run: cmd //c "packaging\\rebuild_release_windows.bat" 2>&1 | tee build-logs/2-app.log; exit ${PIPESTATUS[0]}
+        shell: cmd
+        run: |
+          if not exist build-logs mkdir build-logs
+          call packaging\rebuild_release_windows.bat > build-logs\2-app.log 2>&1
+          set rc=%errorlevel%
+          type build-logs\2-app.log
+          exit /b %rc%
 
       - name: Fetch Microsoft's runtime and compile the installer
-        shell: bash
-        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File "packaging\\compile_runtime_installer_windows.ps1" 2>&1 | tee build-logs/3-installer.log; exit ${PIPESTATUS[0]}
+        shell: cmd
+        run: |
+          if not exist build-logs mkdir build-logs
+          call powershell.exe -NoProfile -ExecutionPolicy Bypass -File "packaging\compile_runtime_installer_windows.ps1" > build-logs\3-installer.log 2>&1
+          set rc=%errorlevel%
+          type build-logs\3-installer.log
+          exit /b %rc%
 
       - name: Make the source package and checksums
-        shell: bash
-        run: cmd //c "py -3.14 packaging\\make_source_package.py" 2>&1 | tee build-logs/4-source.log; exit ${PIPESTATUS[0]}
+        shell: cmd
+        run: |
+          if not exist build-logs mkdir build-logs
+          call py -3.14 packaging\make_source_package.py > build-logs\4-source.log 2>&1
+          set rc=%errorlevel%
+          type build-logs\4-source.log
+          exit /b %rc%
 
       - name: List what was made
         shell: bash
