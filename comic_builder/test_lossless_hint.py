@@ -41,10 +41,12 @@ class AlternativeTests(unittest.TestCase):
                          ("webp", True, "full"))
         self.assertIsNotNone(lossless_alternative(ExportOptions("Book", format="webp")))
         self.assertIsNotNone(lossless_alternative(ExportOptions("Book", size_output="both", archive_format="cb7")))
+        # No archive saves pages in the chosen format (WebP at 95, say), so they compare too.
+        self.assertIsNotNone(lossless_alternative(ExportOptions("Book", format="webp", webp_quality=95, cbz=False)))
         for already in (ExportOptions("Book", format="png"),
                         ExportOptions("Book", format="webp", webp_lossless=True),
                         ExportOptions("Book", archive_format="pdf"),
-                        ExportOptions("Book", cbz=False, keep_images=True),
+                        ExportOptions("Book", format="png", cbz=False),
                         ExportOptions("Book", size_output="reduced")):
             self.assertIsNone(lossless_alternative(already), already)
 

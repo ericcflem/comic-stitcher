@@ -8,6 +8,8 @@
   full comparison was skipped even for settings where it wins (WebP at 95: 168
   MB, against 37 MB lossless). The check's answer now applies only to the
   settings it measured.
+- The lossless WebP suggestion is offered for folders of pages (No archive) as
+  well as CBZ and CB7, now that those folders hold pages in the chosen format.
 - Queue window: dragging a comic shows the same pink dotted line as the final
   review's page strip, between comics and also above the first and below the
   last (Windows showed no line above the first). The comic lands where the line
