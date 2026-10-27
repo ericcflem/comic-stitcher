@@ -1324,6 +1324,41 @@ class ThumbnailTest(unittest.TestCase):
         finally:
             window.close()
 
+    def test_queue_drag_shows_the_pink_line_at_every_position(self):
+        # Eric: Qt's black line was thick between comics, thin below the last and
+        # missing above the first on Windows, though a drop there worked.
+        from .ui.thumbnails import QueueList
+        listing = QueueList()
+        try:
+            for name in ("One", "Two", "Three"):
+                listing.addItem(name)
+            listing.resize(300, 200); listing.show(); self.app.processEvents()
+            self.assertFalse(listing.showDropIndicator())
+            rects = [listing.visualItemRect(listing.item(i)) for i in range(3)]
+            self.assertEqual(listing.boundary_at(rects[0].top() + 1), 0)
+            self.assertEqual(listing.boundary_at(rects[1].bottom() - 1), 2)
+            self.assertEqual(listing.boundary_at(rects[2].bottom() + 20), 3)
+            for boundary, expected in ((0, rects[0].top()), (1, (rects[0].bottom() + 1 + rects[1].top()) // 2),
+                                       (3, rects[2].bottom() + 1)):
+                listing.show_drop(boundary)
+                self.assertFalse(listing.drop_marker.isHidden())
+                self.assertEqual(listing.drop_marker.width(), listing.viewport().width())
+                self.assertLessEqual(abs(listing.drop_marker.geometry().center().y() - max(3, expected)), 1)
+                self.assertGreaterEqual(listing.drop_marker.y(), 0)  # Visible even above the first comic.
+            listing.clear_drop()
+            self.assertTrue(listing.drop_marker.isHidden())
+            moved = []
+            listing.reordered.connect(lambda: moved.append(True))
+            listing.move_to_boundary(2, 0)  # The last comic to the top.
+            self.assertEqual([listing.item(i).text() for i in range(3)], ["Three", "One", "Two"])
+            listing.move_to_boundary(0, 3)  # And to the bottom.
+            self.assertEqual([listing.item(i).text() for i in range(3)], ["One", "Two", "Three"])
+            self.assertEqual(listing.currentRow(), 2)
+            listing.move_to_boundary(1, 2)  # Just below itself: stays put.
+            self.assertEqual(len(moved), 2)
+        finally:
+            listing.close()
+
     def test_compact_windows_are_as_large_as_their_contents(self):
         from PySide6.QtWidgets import QPushButton
         window = ComicWindow()

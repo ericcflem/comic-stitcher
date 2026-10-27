@@ -296,15 +296,21 @@ def readable_size(size: int) -> str:
 
 
 class DropMarker(QWidget):
-    def __init__(self, parent):
+    """The pink dotted line showing where a dragged page or comic will go:
+    upright between thumbnails, or across a list (horizontal=True)."""
+    def __init__(self, parent, horizontal=False):
         super().__init__(parent)
+        self.horizontal = horizontal
         self.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.hide()
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setPen(QPen(QColor("#ed3c9b"), 3, Qt.DotLine))
-        painter.drawLine(self.width() // 2, 4, self.width() // 2, self.height() - 4)
+        if self.horizontal:
+            painter.drawLine(4, self.height() // 2, self.width() - 4, self.height() // 2)
+        else:
+            painter.drawLine(self.width() // 2, 4, self.width() // 2, self.height() - 4)
 
 
 EXPORT_HINT = "This comic is in the queue with these settings; any change you make here updates it."

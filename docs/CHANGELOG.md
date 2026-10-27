@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Queue window: dragging a comic shows the same pink dotted line as the final
+  review's page strip, between comics and also above the first and below the
+  last (Windows showed no line above the first). The comic lands where the line
+  is.
 - Fixed: after an export, measuring a screenshot folder (or checking a PDF's
   images) still showed **Process another comic** and **Export this comic
   again**. The first went back to the start screen while the work went on
