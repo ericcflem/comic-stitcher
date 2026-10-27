@@ -1,0 +1,125 @@
+# Builds the Windows release the way docs/BUILDING.md describes, from the
+# pinned environment to a compiled installer and the source package, so a
+# change to the build scripts, the installer or the packaging tools is tried on
+# Windows before a release. It runs for changes to those files, and on request.
+name: Windows build
+
+on:
+  pull_request:
+    paths:
+      - "packaging/**"
+      - "installer/**"
+      - "launch.py"
+      - "requirements.txt"
+      - "comic_builder/__init__.py"
+      - ".github/workflows/windows-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: windows-build
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      PYTHONUTF8: "1"
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Keep files byte-for-byte as stored
+        # The source package checks every file's recorded SHA-256.
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          # The build checks for exactly this version.
+          python-version: "3.14.2"
+          architecture: x64
+
+      - name: Check that "py -3.14" finds that Python
+        # The build scripts use the Python launcher, as on a Windows PC.
+        shell: cmd
+        run: |
+          py --list
+          py -3.14 -c "import sys; print(sys.executable, sys.version); assert sys.version_info[:3] == (3,14,2)"
+
+      - name: Take UnRAR, cwebp and the library sources from the latest release
+        # These aren't in the repository (see docs/BUILDING.md); the release's
+        # source package holds the exact recorded versions.
+        shell: bash
+        run: |
+          tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern 'ComicStitcher_Source_*.zip' --dir "$RUNNER_TEMP/release"
+          python - "$RUNNER_TEMP"/release/ComicStitcher_Source_*.zip <<'PY'
+          import sys, zipfile
+          with zipfile.ZipFile(sys.argv[1]) as source:
+              wanted = [n for n in source.namelist()
+                        if n in ("vendor/unrar.exe", "vendor/cwebp.exe") or n.startswith("third_party_sources/")]
+              for name in wanted:
+                  source.extract(name, ".")
+              print("\n".join(wanted))
+          PY
+          echo "Inputs from $tag"
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          $found = @("${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+                     "$env:ProgramFiles\Inno Setup 7\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") |
+                   Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $found) { choco install innosetup -y --no-progress | Out-Host }
+
+      # Each step keeps its output in build-logs/, shown below if a step fails.
+      - name: Prepare the pinned build environment
+        shell: cmd
+        run: |
+          if not exist build-logs mkdir build-logs
+          call packaging\build_release_windows.bat --prepare-only > build-logs\1-prepare.log 2>&1
+          set rc=%errorlevel%
+          type build-logs\1-prepare.log
+          exit /b %rc%
+
+      - name: Build the app
+        shell: cmd
+        run: |
+          if not exist build-logs mkdir build-logs
+          call packaging\rebuild_release_windows.bat > build-logs\2-app.log 2>&1
+          set rc=%errorlevel%
+          type build-logs\2-app.log
+          exit /b %rc%
+
+      - name: Fetch Microsoft's runtime and compile the installer
+        shell: cmd
+        run: |
+          if not exist build-logs mkdir build-logs
+          call powershell.exe -NoProfile -ExecutionPolicy Bypass -File "packaging\compile_runtime_installer_windows.ps1" > build-logs\3-installer.log 2>&1
+          set rc=%errorlevel%
+          type build-logs\3-installer.log
+          exit /b %rc%
+
+      - name: Make the source package and checksums
+        shell: cmd
+        run: |
+          if not exist build-logs mkdir build-logs
+          call py -3.14 packaging\make_source_package.py > build-logs\4-source.log 2>&1
+          set rc=%errorlevel%
+          type build-logs\4-source.log
+          exit /b %rc%
+
+      - name: List what was made
+        shell: bash
+        run: ls -l installer_dist dist/*.zip dist/SHA256SUMS.txt && cat dist/SHA256SUMS.txt
+
+      - name: Show where it failed
+        # Puts the end of the failing step's output on the pull request.
+        if: failure()
+        shell: bash
+        run: |
+          for log in build-logs/*.log; do
+            [ -f "$log" ] || continue
+            body=$(tail -c 3500 "$log" | sed 's/%/%25/g' | tr -d '\r' | awk 'BEGIN{ORS="%0A"} {print}')
+            echo "::error title=$(basename "$log")::$body"
+          done

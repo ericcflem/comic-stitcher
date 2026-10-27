@@ -13,7 +13,8 @@ from packaging.markers import default_environment
 from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
 
-ROOT = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parent  # packaging/: these tools and the release records
+ROOT = HERE.parent  # The source folder
 
 
 def verify(record):
@@ -62,11 +63,11 @@ def check_dependencies(verified):
 
 
 def main():
-    records = json.loads((ROOT / 'wheel-inputs.json').read_text())
+    records = json.loads((HERE / 'wheel-inputs.json').read_text())
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
         verified = list(pool.map(verify, records))
     check_dependencies(verified)
-    (ROOT / 'wheel-verification.json').write_text(json.dumps({
+    (HERE / 'wheel-verification.json').write_text(json.dumps({
         'target': 'CPython 3.14.2 Windows x64', 'wheels': verified,
         'dependency_metadata_check': 'passed for default extras on the target platform',
         'limits': 'No Windows binary executed; does not replace pip check and Windows rebuild tests.',

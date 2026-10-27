@@ -33,13 +33,13 @@ or replace the libraries; any incompatible changes remain the modifier's task.
 | setuptools' vendored MPL validation sources | setuptools-84.0.0.tar.gz | setuptools' self-contained backend; retain vendored notices |
 
 All ten complete archives are in third_party_sources/. Their versions, source
-locations, sizes and SHA-256 values are recorded in retained-source-manifest.json.
+locations, sizes and SHA-256 values are recorded in packaging/retained-source-manifest.json.
 The source-verification report also records each archive's actual build entry
 points and declared build requirements. Run from the application source root:
 
 ```bat
-py -3.14 verify_native_sources.py --output native-source-check.json
-py -3.14 verify_native_sources.py --extract-to C:\cs-native\src
+py -3.14 packaging\verify_native_sources.py --output native-source-check.json
+py -3.14 packaging\verify_native_sources.py --extract-to C:\cs-native\src
 ```
 
 The extraction destination must not already exist. This checks hashes before
@@ -132,7 +132,7 @@ PySide6, PySide6_Essentials, PySide6_Addons and shiboken6 set into the applicati
 build environment, using explicit filenames. shiboken6_generator is a build tool,
 not an additional application runtime requirement.
 
-Build the app with rebuild_release_windows.bat rather than rerunning the original
+Build the app with packaging\rebuild_release_windows.bat rather than rerunning the original
 hash-selected preparation step. Observe loaded DLL paths and hashes as in the
 completed native replacement test, and test widgets, SVG icons and ordinary image
 previews. Preserve the new library builds and their configuration records. A new
@@ -184,4 +184,4 @@ Primary references, checked 9 October 2026 UTC:
 - https://www.qt.io/development/open-source-lgpl-obligations
 - https://www.mozilla.org/en-US/MPL/2.0/
 - https://wiki.qt.io/MesaLlvmpipe
-- Retained release archives and wheel-inputs.json, rather than moving upstream branches.
+- Retained release archives and packaging/wheel-inputs.json, rather than moving upstream branches.

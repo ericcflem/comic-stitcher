@@ -8,13 +8,15 @@ build inputs. On Linux, Comic Stitcher is installed from source with
 ## Fresh build
 
 1. Install the specified Python and Inno Setup compiler.
-2. Extract this source ZIP into a fresh folder. Keep `assets/`, `build_hooks/`,
-   `installer/`, `vendor/` and the other supplied files together.
+2. Extract this source ZIP into a fresh folder. Keep `assets/`, `installer/`,
+   `packaging/`, `vendor/` and the other supplied files together. The build and
+   release tools are in `packaging/`; run them from the source folder itself,
+   where the build's outputs (`dist/`, `installer_dist/`, `.venv-release/`) go.
 3. Open a terminal in that folder and run:
 
 ```bat
-build_release_windows.bat --prepare-only
-build_runtime_installer_windows.bat
+packaging\build_release_windows.bat --prepare-only
+packaging\build_runtime_installer_windows.bat
 ```
 
 Stop if either command reports failure. The first creates `.venv-release`,
@@ -52,7 +54,7 @@ Microsoft's installer or accept its agreement on your behalf.
 If compiler discovery fails, supply the actual ISCC.exe location:
 
 ```bat
-build_runtime_installer_windows.bat "C:\path\to\Inno Setup 7\ISCC.exe"
+packaging\build_runtime_installer_windows.bat "C:\path\to\Inno Setup 7\ISCC.exe"
 ```
 
 If Inno Setup fails because antivirus is scanning the new installer (it suggests
@@ -61,15 +63,15 @@ seconds apart.
 
 ## Repeat builds
 
-Run `build_runtime_installer_windows.bat` again to incorporate source or document
+Run `packaging\build_runtime_installer_windows.bat` again to incorporate source or document
 changes. To compile Setup from an already rebuilt app folder, use
-`retry_runtime_installer_windows.bat`; this does **not** rebuild the application
-or refresh its bundled documents. Do not compile `setup_windows.iss` alone before
+`packaging\retry_runtime_installer_windows.bat`; this does **not** rebuild the application
+or refresh its bundled documents. Do not compile `packaging\setup_windows.iss` alone before
 preparing its verified prerequisite and payload inputs.
 
-The ordinary `build_windows.bat` uses broad development requirements and a
+The ordinary `packaging\build_windows.bat` uses broad development requirements and a
 separate deployment route. Use the pinned commands above to reproduce this release.
-Do not casually regenerate `requirements-release.txt` or `wheel-inputs.json`.
+Do not casually regenerate `packaging/requirements-release.txt` or `packaging/wheel-inputs.json`.
 
 ## Make the source package
 
@@ -79,10 +81,10 @@ the GitHub repository; copy them from the previous release's source package
 (they only change when the pinned dependencies do). Then run:
 
 ```bat
-py -3.14 make_source_package.py
+py -3.14 packaging\make_source_package.py
 ```
 
-It checks every file against `SOURCE_PACKAGE_FILES.json` (size and SHA-256),
+It checks every file against `packaging/SOURCE_PACKAGE_FILES.json` (size and SHA-256),
 writes `dist\ComicStitcher_Source_<version>.zip`, and writes `dist\SHA256SUMS.txt`
 with the checksums of the installer and the source package for the release page.
 Build the installer first, so it is included. It stops and lists anything missing
@@ -98,7 +100,7 @@ differ from its recorded hash.
 Install the newly built EXE, then run:
 
 ```bat
-verify_runtime_install_windows.bat
+packaging\verify_runtime_install_windows.bat
 ```
 
 For a non-default location, pass the installed application folder as a quoted

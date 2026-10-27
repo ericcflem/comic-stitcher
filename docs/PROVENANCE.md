@@ -43,10 +43,10 @@ replacement/rebuild, notice, or redistribution obligations for those components.
 
 ## Release records
 
-Exact wheel versions and hashes are in wheel-inputs.json. Complete selected
-library archives are in retained-source-manifest.json. The shared-runtime
+Exact wheel versions and hashes are in packaging/wheel-inputs.json. Complete selected
+library archives are in packaging/retained-source-manifest.json. The shared-runtime
 packaging changes are declared in installer/shared-runtime-inputs.json and
-package_shared_runtime.py; original supplier wheels are retained unmodified in
+packaging/package_shared_runtime.py; original supplier wheels are retained unmodified in
 the build cache. No modified-library test artifact is part of the reference app.
 
 SOURCE_ACCESS.md describes versioned source delivery. Raw build and test logs

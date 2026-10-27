@@ -1,16 +1,18 @@
 param([string]$RuntimeFile = '')
 $ErrorActionPreference = 'Stop'
-Set-Location -LiteralPath $PSScriptRoot
+# Work in the source folder, one level up: the paths below are relative to it.
+$Root = Split-Path -Parent $PSScriptRoot
+Set-Location -LiteralPath $Root
 $minimum = [version]'14.44.35211.0'
 $officialUrl = 'https://aka.ms/vc14/vc_redist.x64.exe'
 $terms = Get-Content -LiteralPath 'installer\microsoft-terms-review.json' -Raw | ConvertFrom-Json
 foreach ($entry in $terms.files.PSObject.Properties) {
-    $path = Join-Path $PSScriptRoot $entry.Name
+    $path = Join-Path $Root $entry.Name
     if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -ne $entry.Value) {
         throw "Retained Microsoft terms/evidence changed: $($entry.Name). Review before building."
     }
 }
-$folder = Join-Path $PSScriptRoot 'vendor\microsoft'
+$folder = Join-Path $Root 'vendor\microsoft'
 New-Item -ItemType Directory -Force -Path $folder | Out-Null
 $destination = Join-Path $folder 'vc_redist.x64.exe'
 $download = Join-Path $folder 'vc_redist.download'

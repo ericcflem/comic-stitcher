@@ -4,7 +4,8 @@ import hashlib
 import json
 import shutil
 
-ROOT = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parent  # packaging/: these tools and the release records
+ROOT = HERE.parent  # The source folder
 
 
 def pe_version(path):

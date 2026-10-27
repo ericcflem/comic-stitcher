@@ -1,16 +1,20 @@
-; Compile with build_installer_windows.bat on Windows after supplying official UnRAR.
+; Compile with packaging\build_installer_windows.bat on Windows after supplying official UnRAR.
 #define ComicStitcherVersion "0.10.0"
-#if !FileExists("vendor/microsoft/runtime-verified.iss")
-  #error Run prepare_microsoft_runtime_windows.ps1 before compiling.
+; This script is in packaging\; the files it uses are in the source folder above it.
+#define Root AddBackslash(SourcePath) + "..\"
+#if !FileExists(Root + "vendor\microsoft\runtime-verified.iss")
+  #error Run packaging\prepare_microsoft_runtime_windows.ps1 before compiling.
 #endif
-#include "vendor/microsoft/runtime-verified.iss"
-#if GetSHA256OfFile("vendor/microsoft/vc_redist.x64.exe") != MicrosoftRuntimeSHA256
+#include Root + "vendor\microsoft\runtime-verified.iss"
+#if GetSHA256OfFile(Root + "vendor\microsoft\vc_redist.x64.exe") != MicrosoftRuntimeSHA256
   #error Microsoft runtime installer does not match its verified hash.
 #endif
-#if GetSHA256OfFile("installer/component-terms.txt") != MicrosoftComponentTermsSHA256
+#if GetSHA256OfFile(Root + "installer\component-terms.txt") != MicrosoftComponentTermsSHA256
   #error Microsoft component terms do not match the reviewed record.
 #endif
 [Setup]
+; Paths below (license, icon, output, files) are relative to the source folder.
+SourceDir=..
 LicenseFile=installer\component-terms.txt
 SetupIconFile=assets\app\comic-stitcher.ico
 AppId=ComicSpreadBuilder
@@ -107,6 +111,6 @@ Root: HKCU; Subkey: "Software\Classes\Directory\shell\ComicStitcher"; ValueType:
 Root: HKCU; Subkey: "Software\Classes\Directory\shell\ComicStitcher"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\ComicStitcher.exe"; Flags: uninsdeletekey; Tasks: foldermenu
 Root: HKCU; Subkey: "Software\Classes\Directory\shell\ComicStitcher\command"; ValueType: string; ValueName: ""; ValueData: """{app}\ComicStitcher.exe"" ""%1"""; Flags: uninsdeletekey; Tasks: foldermenu
 
-#include "installer/microsoft_runtime.iss"
-#include "installer/microsoft_terms.iss"
-#include "installer/uninstall_settings.iss"
+#include Root + "installer\microsoft_runtime.iss"
+#include Root + "installer\microsoft_terms.iss"
+#include Root + "installer\uninstall_settings.iss"

@@ -8,19 +8,19 @@ The source compilation recipes are provided with that validation limit.
 ## Reference build
 
 1. Use 64-bit Windows and CPython **3.14.2 x64**, matching the audited build. The application's wheel-based build does not compile every dependency from source.
-2. Extract this consolidated package into a fresh folder; no overlay is required. Keep its `assets` and `build_hooks` directories. If RAR support is required, retain `vendor/unrar.exe` and the matching licence from the verified official supplier package.
-3. Run `build_release_windows.bat`. It creates a separate `.venv-release`, downloads hash-selected wheels into `release-wheelhouse`, installs them without an index, checks dependency consistency, and builds the app using the original packaging options. It deliberately does not run the ordinary build script, which upgrades and resolves broad requirements.
-4. Keep `release-wheelhouse` with the release build inputs. Check the resulting application and notice inventory against the audited reference (its third-party components are unchanged since 0.6.38). Run the existing regression tests and Windows smoke tests. For an installer, use `build_runtime_installer_windows.bat` with the prepared pinned environment; it prepares the verified Microsoft prerequisite before compiling Setup. Retain compiler/version and payload records.
+2. Extract this consolidated package into a fresh folder; no overlay is required. Keep its `assets` and `packaging` directories (the build tools, including `packaging/build_hooks`, are in `packaging`; run them from the source folder). If RAR support is required, retain `vendor/unrar.exe` and the matching licence from the verified official supplier package.
+3. Run `packaging\build_release_windows.bat`. It creates a separate `.venv-release`, downloads hash-selected wheels into `release-wheelhouse`, installs them without an index, checks dependency consistency, and builds the app using the original packaging options. It deliberately does not run the ordinary build script, which upgrades and resolves broad requirements.
+4. Keep `release-wheelhouse` with the release build inputs. Check the resulting application and notice inventory against the audited reference (its third-party components are unchanged since 0.6.38). Run the existing regression tests and Windows smoke tests. For an installer, use `packaging\build_runtime_installer_windows.bat` with the prepared pinned environment; it prepares the verified Microsoft prerequisite before compiling Setup. Retain compiler/version and payload records.
 
 The requirements contain the original 26 installed package versions, including build tooling. Their hashes select official Windows-compatible wheels; they were resolved from official PyPI metadata during reference-input verification. A chosen wheel's compatibility and version do not prove every shipped binary is identical. All 26 selected wheels were downloaded and checked for exact hash, package identity and default dependency metadata consistency during reference-input verification, without installing or executing their code. Four supplier wheels also had their shipped native contents matched separately. The pinned recipe and installed-payload comparison were exercised successfully on Windows. Each rebuild requires its own verification. It does not promise byte-identical executables or installers: timestamps, compiler/tool versions, compression and other build details can differ.
 
-`collect_release_inputs.py` records how the wheel list was selected. Do not rerun it casually for a published release; retain the committed inputs and hashes. Wheel files are downloaded by the pinned preparation step, not bundled here. Matching selected source archives are in `third_party_sources/`.
+`packaging/collect_release_inputs.py` records how the wheel list was selected. Do not rerun it casually for a published release; retain the committed inputs and hashes. Wheel files are downloaded by the pinned preparation step, not bundled here. Matching selected source archives are in `third_party_sources/`.
 
 ## Test a modified frozen LGPL Python library
 
 This is a practical, harmless test of the rebuild route. It is not a requirement that arbitrary modifications work.
 
-1. Use the isolated source copy. Run `build_release_windows.bat --prepare-only` to prepare the reference environment.
+1. Use the isolated source copy. Run `packaging\build_release_windows.bat --prepare-only` to prepare the reference environment.
 2. Extract the retained **py7zr 1.1.3** source archive into a separate directory. Keep its complete upstream licence and notices. Add this harmless constant at the end of `py7zr/__init__.py`:
 
    ```python
@@ -28,8 +28,8 @@ This is a practical, harmless test of the rebuild route. It is not a requirement
    ```
 
 3. In that source directory, build a wheel using a separate source-build environment and upstream build requirements. Record all those requirements, tools and their versions as part of the test. Example command after preparing that environment: `python -m pip wheel --no-deps --wheel-dir modified-wheels .`. Do not assume the reference runtime environment contains every source-build tool.
-4. Install that specific modified wheel into `.venv-release` with `--force-reinstall --no-deps --no-index`. Use its exact local filename, not a wildcard. This intentionally replaces the reference hash-selected library; retain the new wheel's hash and the patch. Do not rerun `build_release_windows.bat` afterward, as pip may treat a same-version modified package as already satisfied. Restore it by explicitly force-reinstalling the verified original wheel with --no-deps --no-index, or use a new environment.
-5. From the application source root, run `rebuild_release_windows.bat --probe`. This uses a temporary observer entry point which runs the normal GUI unless explicitly asked to verify the library. It also retains normal notice collection.
+4. Install that specific modified wheel into `.venv-release` with `--force-reinstall --no-deps --no-index`. Use its exact local filename, not a wildcard. This intentionally replaces the reference hash-selected library; retain the new wheel's hash and the patch. Do not rerun `packaging\build_release_windows.bat` afterward, as pip may treat a same-version modified package as already satisfied. Restore it by explicitly force-reinstalling the verified original wheel with --no-deps --no-index, or use a new environment.
+5. From the application source root, run `packaging\rebuild_release_windows.bat --probe`. This uses a temporary observer entry point which runs the normal GUI unless explicitly asked to verify the library. It also retains normal notice collection.
 6. Run the generated executable with `--verify-library` and an absolute writable JSON output filename. In PowerShell, use `Start-Process -Wait -PassThru` to wait for this windowed executable. For example, from the source root:
 
    ```powershell
@@ -66,7 +66,7 @@ When publishing binaries, publish the matching application sources, applicable c
 ## PDF dependency packaging
 
 The integrated QtGui hook excludes qpdf before dependency collection. Run
-`python verify_no_qt_pdf.py dist/ComicStitcher` after building. PDF rendering uses pypdfium2/PDFium and embedded JPEG extraction uses pypdf.
+`python packaging/verify_no_qt_pdf.py dist/ComicStitcher` after building. PDF rendering uses pypdfium2/PDFium and embedded JPEG extraction uses pypdf.
 QtPDF and QtWebEngine are not application dependencies. The check guards against
 collecting unused Qt PDF libraries into the Windows bundle.
 

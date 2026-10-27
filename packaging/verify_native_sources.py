@@ -6,12 +6,13 @@ from pathlib import Path, PurePosixPath
 import tarfile
 import tomllib
 
-ROOT = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parent  # packaging/: these tools and the release records
+ROOT = HERE.parent  # The source folder
 
 
 def inspect_sources(root=ROOT):
     rows = []
-    for item in json.loads((root / 'retained-source-manifest.json').read_text()):
+    for item in json.loads((HERE / 'retained-source-manifest.json').read_text()):
         relative = PurePosixPath(item['local_path'])
         if relative.is_absolute() or '..' in relative.parts:
             raise ValueError('Unsafe source path')

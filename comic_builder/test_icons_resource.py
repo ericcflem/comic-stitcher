@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "packaging"))
 import package_icons  # noqa: E402
 
 RESOURCE = ROOT / "comic_builder" / "icons_resource.py"

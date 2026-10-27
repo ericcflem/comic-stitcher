@@ -13,8 +13,8 @@
     },
     {
       "path": ".github/workflows/tests.yml",
-      "bytes": 7288,
-      "sha256": "19ce63606ddab52d3e081bf2708568250a445dd351ed69bad811edae099df316"
+      "bytes": 7298,
+      "sha256": "1cbd71ef64f83b4e1db8d2d9a83a88df102063811a517a5593e361e525bc83ca"
     },
     {
       "path": ".gitignore",
@@ -1287,41 +1287,6 @@
       "sha256": "709a167ec64027dfeba7ddbd3429dc39a497a3b84cb6861460df3990616991e1"
     },
     {
-      "path": "build_hooks/hook-PySide6.QtGui.py",
-      "bytes": 618,
-      "sha256": "51efdf0a4fc6d0ac62b25aca8d7580e44e2e5ae0d13fd70de70bc1132f56a79a"
-    },
-    {
-      "path": "build_installer_windows.bat",
-      "bytes": 414,
-      "sha256": "d6fbe647aa4b146c2fa43cea95d180a11d5a4d3bc2533cf742ae4afececfb2eb"
-    },
-    {
-      "path": "build_policy.py",
-      "bytes": 1046,
-      "sha256": "02a1ed4322fae12e02c7dd921711aff0cdb8b534226cf4ec31ef4c9a77ebce83"
-    },
-    {
-      "path": "build_release_windows.bat",
-      "bytes": 1076,
-      "sha256": "6b475b337407b0054edebbfa05ea8761cb1ae68066b30c159fa930698e945ba5"
-    },
-    {
-      "path": "build_runtime_installer_windows.bat",
-      "bytes": 989,
-      "sha256": "586ae0d4d97c6e2065f8f441240f843d946b8e76fc047b1c092af4bfd9e9f3a6"
-    },
-    {
-      "path": "build_windows.bat",
-      "bytes": 1673,
-      "sha256": "75854fd05216022d75e731f8c9ce3d504a89b50d5ea6ffea59466ebbd7bcaecf"
-    },
-    {
-      "path": "collect_release_inputs.py",
-      "bytes": 2571,
-      "sha256": "0ed97d30ddad893188e3e3fdb88ef2052a4841b7913dda1597b925de7b9f7178"
-    },
-    {
       "path": "comic_builder/__init__.py",
       "bytes": 107,
       "sha256": "6cc7650baad3ad5dd3518eaff6292dca4eb8d759b772b538a4ad2f98f567df57"
@@ -1333,13 +1298,13 @@
     },
     {
       "path": "comic_builder/archive_import.py",
-      "bytes": 15279,
-      "sha256": "95b82deefed14640ea7e5d998e1c4ce65e5043f65b12ae9496e771ea1f9ea382"
+      "bytes": 15465,
+      "sha256": "e771c828d9de5661991a350a4fe1e04413c1e348cbead16b1d51f72573b28505"
     },
     {
       "path": "comic_builder/backend.py",
-      "bytes": 76346,
-      "sha256": "da200b20de43110e0ba85e2ccedef8e42e8da9306b7564d2e078a97adb67c4b0"
+      "bytes": 41416,
+      "sha256": "6a46e51823d2992adf727daf2498cd621249547b8651fc0c6a60125adf38baeb"
     },
     {
       "path": "comic_builder/cmyk_profile.py",
@@ -1392,9 +1357,14 @@
       "sha256": "b5b1cc26a9f1b026e63e948c285073db44f23f06250076297e65c4bdabee14df"
     },
     {
+      "path": "comic_builder/export.py",
+      "bytes": 41280,
+      "sha256": "a5d6f1792113ee6fa57b95975a2521a932ca8b1e87110bde252a91dd28237fd5"
+    },
+    {
       "path": "comic_builder/gui.py",
-      "bytes": 305593,
-      "sha256": "e43573c61c48d52e3dbb275073691d3ecb2e7f21602f442c4527cafde71c27e5"
+      "bytes": 41975,
+      "sha256": "2a028a10b0d5d5e3c9c78066710a7f4bb28d7909269fef9b078cefe11cde3f74"
     },
     {
       "path": "comic_builder/icons_resource.py",
@@ -1448,8 +1418,8 @@
     },
     {
       "path": "comic_builder/session.py",
-      "bytes": 14349,
-      "sha256": "f6af4cbbebfe9b7b7c53aa0246209c3d0e827b4ca2f6ef1380da5063d43a662c"
+      "bytes": 14656,
+      "sha256": "fc4a1ce77257db82852fdda377cd4ab6d43f1c44bc0a66ac4e24c07d28fb9962"
     },
     {
       "path": "comic_builder/sharp_webp.py",
@@ -1468,28 +1438,28 @@
     },
     {
       "path": "comic_builder/test_audit_fixes.py",
-      "bytes": 11498,
-      "sha256": "41029092259bb69c28542090cd70adad22e4fd53908d0bc5aa6dc35e1a8e14e3"
+      "bytes": 11484,
+      "sha256": "a5141bcbc41b76ce4979346c4b9ffefc3aef1945fde7e255d48ef7c76cd250b6"
     },
     {
       "path": "comic_builder/test_backend.py",
-      "bytes": 46965,
-      "sha256": "19f22f7d450cf1e57e24e4d1b52f169e1db8c3d3c534f439b014000a6286e148"
+      "bytes": 49285,
+      "sha256": "5208b1482cf90a46ec2f3ddf487d8b78faa1e1d98595e1b12d00cece768e368e"
     },
     {
       "path": "comic_builder/test_case_names.py",
-      "bytes": 5559,
-      "sha256": "a2d0be0f3a75afeb08be0a9f5f332fd2d5ab8e836d1225feea7b40849139e67d"
+      "bytes": 8458,
+      "sha256": "c49b1a21f7adfbdcf4fa76bada52986a5068a207ed733b85cd90c6248aeac480"
     },
     {
       "path": "comic_builder/test_colour.py",
-      "bytes": 7149,
-      "sha256": "4db881aacfe85419f66b34c42a6a8f69d99e6c98b73218c056a4b6a7ecf0a61a"
+      "bytes": 7154,
+      "sha256": "f94e1ccda1eae654766eabfc9c635c369ff1f75ffb4886c4fcaabfe37978c412"
     },
     {
       "path": "comic_builder/test_comicinfo.py",
-      "bytes": 10401,
-      "sha256": "cd2b82d99f4b6bec377a80a71e1b0bd7df2977144caf762003206435f6100510"
+      "bytes": 10420,
+      "sha256": "75d6e354fd685045f83105f890ab086f171eba3d8ca470ba7b33a9abec484d20"
     },
     {
       "path": "comic_builder/test_comicvine.py",
@@ -1528,13 +1498,13 @@
     },
     {
       "path": "comic_builder/test_gui.py",
-      "bytes": 170373,
-      "sha256": "e4c1092c5789f5f39d7cd50b1c15cee19c38bf81a65b1ab8f66a9d13d000d949"
+      "bytes": 185038,
+      "sha256": "976dcacfd1ecba0b093e4aa507193e5ae4eaf38d8f7f8e2725a7f882ce91a0b5"
     },
     {
       "path": "comic_builder/test_icons_resource.py",
-      "bytes": 1682,
-      "sha256": "7bd0442ae79a37a39c9423342f821c868bf7b3bddecd93f46437184f05268e63"
+      "bytes": 1696,
+      "sha256": "1dc0647991d3bd2156117739fbda9c933356191ac40684c1aa61878aa3ef657f"
     },
     {
       "path": "comic_builder/test_import_sources.py",
@@ -1543,18 +1513,18 @@
     },
     {
       "path": "comic_builder/test_license_packaging.py",
-      "bytes": 12614,
-      "sha256": "beb7f6eee96200c5c6f7a99822d4fd024963e6ddd292a70820163789b087cd64"
+      "bytes": 12782,
+      "sha256": "c78deaabd7a126ad8c8a048ab1caa8aa83b811c3463e9637d6e648b8a204f9b3"
     },
     {
       "path": "comic_builder/test_lossless_hint.py",
-      "bytes": 4843,
-      "sha256": "4cdbbb415cfa598ced5bec418c4be78ad22ddd15eb1b1c8ae1683ce59d624248"
+      "bytes": 5604,
+      "sha256": "5bcf8cf4b93f6c9f87b0de03f922e48bdcb4ec8046821beb68551b196fe7c510"
     },
     {
       "path": "comic_builder/test_page_edits.py",
-      "bytes": 7455,
-      "sha256": "31700d8fc5046208643d89f8757e8e959c7283c44e110646fe00f2c8d7694b40"
+      "bytes": 7474,
+      "sha256": "5bf839025d8ee6a50b79bf8e4b67aaf299d3abda1226b1e275cbc7aa6991451b"
     },
     {
       "path": "comic_builder/test_parallel_scan.py",
@@ -1563,13 +1533,13 @@
     },
     {
       "path": "comic_builder/test_pdf_export.py",
-      "bytes": 7109,
-      "sha256": "0f7159bc631bbf7eac830fec86c29b7a04d13baaaf30d1cbc49b087eb8167ed1"
+      "bytes": 7128,
+      "sha256": "7eb8c5fd0996b9d02a8e8f84c60e7c89314bb4a34ea78639a4166b682429c74f"
     },
     {
       "path": "comic_builder/test_pdf_jpegs.py",
-      "bytes": 16561,
-      "sha256": "2ab0cafd878b0d321a25cde9c9321f7e7ce46c37f9a57621a4c1d11285c96dce"
+      "bytes": 16588,
+      "sha256": "9f730638310339ad0eb5f96ef9b1b9d2fafc527640f407e27b51d1e2c01375cb"
     },
     {
       "path": "comic_builder/test_pdf_resolution.py",
@@ -1578,8 +1548,8 @@
     },
     {
       "path": "comic_builder/test_reading_direction.py",
-      "bytes": 10486,
-      "sha256": "e82cef44b36cfb7011994a95622395defb3597119268b1f9ea9012a9aca233d6"
+      "bytes": 10505,
+      "sha256": "8aac8dc8574b0e10e3ecd9bea31994965b4faa0d538d23c2c427794bbafaec3a"
     },
     {
       "path": "comic_builder/test_screenshot_geometry.py",
@@ -1593,8 +1563,8 @@
     },
     {
       "path": "comic_builder/test_sharp_webp.py",
-      "bytes": 12814,
-      "sha256": "ef3d6815b2703ef0403960c8541ba650406a904bd933776cbca4c610465d6bfb"
+      "bytes": 12808,
+      "sha256": "362f3937727cc998077b093c9614ce64e538276f67604744f27b09b3649f4761"
     },
     {
       "path": "comic_builder/test_single_instance.py",
@@ -1603,13 +1573,13 @@
     },
     {
       "path": "comic_builder/test_size_estimate.py",
-      "bytes": 4739,
-      "sha256": "6657005c412ee0788e1d7586f772b474a807bbe811f892792eff5c1c50cca433"
+      "bytes": 4758,
+      "sha256": "579d7103cd11fe5eda772fe9dc7f9deade409b157da21b6f81c9c3170ddcf9be"
     },
     {
       "path": "comic_builder/test_spread_overlap.py",
-      "bytes": 15054,
-      "sha256": "ebe6d5dcd5da501a72de25a284f25a5356b5b83023a0c3e5d4708bb97504cba7"
+      "bytes": 15055,
+      "sha256": "04508feab270a021e74bc22c58cc669be67214adfc4757a6a7082d9a723dc8c8"
     },
     {
       "path": "comic_builder/test_startup_notice.py",
@@ -1622,39 +1592,114 @@
       "sha256": "0dc5a198f26b3a690bf5165c076be9476365d02d55e4da14099d871eb0269001"
     },
     {
+      "path": "comic_builder/ui/__init__.py",
+      "bytes": 69,
+      "sha256": "33e83dc77682ba249bc99daf2cbc416950803a0f2c5f3194db48dc07adb5eaf9"
+    },
+    {
+      "path": "comic_builder/ui/common.py",
+      "bytes": 13188,
+      "sha256": "98d26499a321e41b7eadedf3ca0172e141251b567d5deec67fc26eb3ffddab9d"
+    },
+    {
+      "path": "comic_builder/ui/crop_review.py",
+      "bytes": 31140,
+      "sha256": "1d774fd3b8aa41fb7a2632e6b60a8585997ac557bcdcb3188320cd34363d32e8"
+    },
+    {
+      "path": "comic_builder/ui/export_screen.py",
+      "bytes": 55149,
+      "sha256": "5f8dc137600c013840b634754ee8a4dab059a49ed6ae5c2e7c06d9220f7855e7"
+    },
+    {
+      "path": "comic_builder/ui/final_review.py",
+      "bytes": 35669,
+      "sha256": "813e87f9c44762e39a6e3c034ed70f1cd2dcde5ae326bec4e71c3287e70ecd6c"
+    },
+    {
+      "path": "comic_builder/ui/import_dialogs.py",
+      "bytes": 8246,
+      "sha256": "5048ab85d9b473777b25cab006c2cbe1d20afa30d963ede9d113c804fbaf97ff"
+    },
+    {
+      "path": "comic_builder/ui/import_flow.py",
+      "bytes": 26571,
+      "sha256": "9ef45ebd45dc108fc1ceb19fc78a5d5f4c4bd3f76774b11c601bb6db34be5794"
+    },
+    {
+      "path": "comic_builder/ui/output_options.py",
+      "bytes": 24613,
+      "sha256": "972299f1bea355a9dd220e2bc6b24e77863a66778d2b2a4b30ccb418ba4712da"
+    },
+    {
+      "path": "comic_builder/ui/overlap.py",
+      "bytes": 16169,
+      "sha256": "d49d2e166c6af0ca033d6b38dcace392e1bacecc2469c16e82008a0135e8e771"
+    },
+    {
+      "path": "comic_builder/ui/pair_review.py",
+      "bytes": 15793,
+      "sha256": "4a368589c81763cdf309b721bab9cbb7ea474ae9247b65386aaa2be54ca7b168"
+    },
+    {
+      "path": "comic_builder/ui/pdf_dialog.py",
+      "bytes": 8784,
+      "sha256": "0bd900cb34e8167d09d1308500e5a510c4b3358507f87f63f71533f5a38edf24"
+    },
+    {
+      "path": "comic_builder/ui/queue.py",
+      "bytes": 2978,
+      "sha256": "296709ad1d707cfd5ba6fb4aeeab610926dea21d113aacebce4e91e99a738a04"
+    },
+    {
+      "path": "comic_builder/ui/queue_flow.py",
+      "bytes": 13494,
+      "sha256": "0353559baedaced89b1b901953a3cefe62e4a95a7ad4c85cbb3bbfff8db4958f"
+    },
+    {
+      "path": "comic_builder/ui/screenshot_flow.py",
+      "bytes": 10120,
+      "sha256": "a7c9cc8e89bbf9e653be28f930a172f290989fd9b34a4f8210ebb91be686c339"
+    },
+    {
+      "path": "comic_builder/ui/thumbnails.py",
+      "bytes": 7239,
+      "sha256": "b4e4d6060a319a3b8708f3534d8248c9a61f94c427c6e1be34534bbd5d5d3b20"
+    },
+    {
+      "path": "comic_builder/ui/workers.py",
+      "bytes": 16148,
+      "sha256": "7fa94765c667466f5569628bf745d54f2e2f87efc6865c530a704af1128b7443"
+    },
+    {
       "path": "comic_builder/window_outline.py",
       "bytes": 3624,
       "sha256": "750ebcff5a6e1c612b5ad40eb65a8ff82bd7178805d4a4348ba2e1661663c5ce"
     },
     {
-      "path": "compile_runtime_installer_windows.ps1",
-      "bytes": 4269,
-      "sha256": "fbf7cc908665bec9918b0dc63f6beccd879ef46539f6cd4f0ab51d9555aea99b"
-    },
-    {
       "path": "docs/BUILDING.md",
-      "bytes": 7868,
-      "sha256": "b7c7d0c1c770cceee338601c64f1ceee9201073543d18310ff17552b62485bf8"
+      "bytes": 8158,
+      "sha256": "abaff81a8a987a60f31041773c5699ef0210356a90e6568e81a70aac08b7d3ac"
     },
     {
       "path": "docs/CHANGELOG.md",
-      "bytes": 15799,
-      "sha256": "e00295c3a4d9eba79d6a5b9378884d7b28010f6d0c5257bfd1aca68b877515bf"
+      "bytes": 18965,
+      "sha256": "26eab787799f0843bfd9df378e6ff687fd7acec51071c52f26547bb8d32b3b1c"
     },
     {
       "path": "docs/NATIVE_SOURCE_REBUILD.md",
-      "bytes": 10769,
-      "sha256": "fa773cc6044aa41ed920402c3a8fb6d85bae59c5cee44a64d34f660266cc96f8"
+      "bytes": 10819,
+      "sha256": "73edfb8107a65b09c84e190f713609465acc9eae111b80a5bcea698d27f69f40"
     },
     {
       "path": "docs/PROVENANCE.md",
-      "bytes": 3038,
-      "sha256": "d786d67a7dc8390dbb12315acd7440983d24b1e40b881e1056d37f5879af0628"
+      "bytes": 3068,
+      "sha256": "80ee90c9fcbc2ec31324dab62340e60168dd3426180bee7b0d1a7dcd726874ff"
     },
     {
       "path": "docs/REBUILDING_AND_REPLACING_LIBRARIES.md",
-      "bytes": 8879,
-      "sha256": "c27ac25b77336a057743650f825591ef1f8595f9e30a1a86feb3740b31f00077"
+      "bytes": 9053,
+      "sha256": "a0ba1c7a6b3006525383ff3b15803ce37c0046bc8c74c5173a341c8e2c51583a"
     },
     {
       "path": "docs/RELEASE_NOTES.md",
@@ -1663,13 +1708,13 @@
     },
     {
       "path": "docs/SOURCE_ACCESS.md",
-      "bytes": 6045,
-      "sha256": "3aaae24c0f3586a79927fcaf086758f7fefc80073d45f4859d5b30e5f8149adc"
+      "bytes": 6055,
+      "sha256": "6038ee14f670b2789119e75e24900522c7b66a757dc912c52a69e090147e1e24"
     },
     {
       "path": "docs/SOURCE_PACKAGE_CONTENTS.md",
-      "bytes": 2205,
-      "sha256": "06e9b414328b153f5170339510559115a03755e246ebaac3048217795970118f"
+      "bytes": 2409,
+      "sha256": "0562e30ba54cb65b1a22f0a6b0c6c08d56a7725490266ac7703de73d00352ca7"
     },
     {
       "path": "docs/START_HERE.md",
@@ -1688,8 +1733,8 @@
     },
     {
       "path": "installer/SHARED-RUNTIME.md",
-      "bytes": 1239,
-      "sha256": "cd2d21ba679c46cd7df65c7cd4f889235b5aad2a6c804cab0a886ace85691a7d"
+      "bytes": 1249,
+      "sha256": "32cff33961730f99af6e63e86de1d0bb709870499ed884e662550e571bd02fcd"
     },
     {
       "path": "installer/component-terms.txt",
@@ -1722,11 +1767,6 @@
       "sha256": "b1f6546edc3462aeec78d21c97ac7307c04ad0a6853d94f277766989e2906d34"
     },
     {
-      "path": "installer_evidence.py",
-      "bytes": 5372,
-      "sha256": "49b99622d9d9f13bd98223a7595547db388582321fd4b0df9d7ff043b78d2b71"
-    },
-    {
       "path": "launch.py",
       "bytes": 519,
       "sha256": "1b5ec512acd0b6b4a86c9e7e71a1a141a72cfafe910fe3cec8a1589cf94beb3f"
@@ -1757,59 +1797,179 @@
       "sha256": "e94af9794735b3952f04a63d05866d953f55fed73db6bc069f4a354e8b8f5bad"
     },
     {
-      "path": "make_source_package.py",
-      "bytes": 5437,
-      "sha256": "9a29be16da9e07a20f7acf75e99ff000528c7663ff96fd56d5b4a391706e439b"
+      "path": "packaging/build_hooks/hook-PySide6.QtGui.py",
+      "bytes": 618,
+      "sha256": "51efdf0a4fc6d0ac62b25aca8d7580e44e2e5ae0d13fd70de70bc1132f56a79a"
     },
     {
-      "path": "native_notices.py",
-      "bytes": 3258,
-      "sha256": "96667180be6a4f387bd5c2c11bde4244bf041823f31b72a172b6bd6b10942571"
+      "path": "packaging/build_installer_windows.bat",
+      "bytes": 512,
+      "sha256": "d4dc4eff21df29213b16fb53690deb40485bc40bb11be73827c80f3339fe8e6f"
     },
     {
-      "path": "original-build-environment.json",
+      "path": "packaging/build_policy.py",
+      "bytes": 1046,
+      "sha256": "02a1ed4322fae12e02c7dd921711aff0cdb8b534226cf4ec31ef4c9a77ebce83"
+    },
+    {
+      "path": "packaging/build_release_windows.bat",
+      "bytes": 1184,
+      "sha256": "8f75e5e6f322ab90a8daba9b2b49c30155cb01166a10e2faa53662852f2b44b9"
+    },
+    {
+      "path": "packaging/build_runtime_installer_windows.bat",
+      "bytes": 1087,
+      "sha256": "f98bf8e42490a5dfa1582d9df97fd8e334608875a763afcad558ffb32c6ca8f2"
+    },
+    {
+      "path": "packaging/build_windows.bat",
+      "bytes": 1801,
+      "sha256": "0a3eac090a603560a511ac721a4c77f3fb318a16737d7c98e74634defe75416d"
+    },
+    {
+      "path": "packaging/collect_release_inputs.py",
+      "bytes": 2662,
+      "sha256": "b1a09de30677addbf34938205a5dde45187606ddb3aec8cb16d57ea3cf1c5c79"
+    },
+    {
+      "path": "packaging/compile_runtime_installer_windows.ps1",
+      "bytes": 4437,
+      "sha256": "f39aaa7613767dae83fcdb291a6e549b0502132ea217b71b6000423b908a7efb"
+    },
+    {
+      "path": "packaging/installer_evidence.py",
+      "bytes": 5379,
+      "sha256": "8e1e9f8d006fa75c6cea92ed1c631c6ee2f28838cf554605563e9625287418d9"
+    },
+    {
+      "path": "packaging/make_source_package.py",
+      "bytes": 5628,
+      "sha256": "d6be030d140fef495cb3e3ee83506587625a3f32db6b02ec51d0bdd12d3f65ef"
+    },
+    {
+      "path": "packaging/native_notices.py",
+      "bytes": 3349,
+      "sha256": "7e1bc05a944c421de2a4422df35979008a083049d52c55c955c70c46bea535d5"
+    },
+    {
+      "path": "packaging/original-build-environment.json",
       "bytes": 1505,
       "sha256": "64d12a43ea521ed12f625e4ba7366f00c0e65cf0e09e9a5e7909bd2f9c536c02"
     },
     {
-      "path": "package_cwebp.py",
-      "bytes": 3912,
-      "sha256": "ede81f60f69b9babaaec035c6953917008803a8c90ca28f1c8ff9e108bfbfb18"
+      "path": "packaging/package_cwebp.py",
+      "bytes": 4003,
+      "sha256": "3ef00aa441ee26c9843fc35fb7f746d0b672c7ad05833d92bf8c831a9bf4c41a"
     },
     {
-      "path": "package_icons.py",
-      "bytes": 2783,
-      "sha256": "ef0d2ac91914015f6793ff2a1124f330fab2cc5e43f012219569f533adb6fd7f"
+      "path": "packaging/package_icons.py",
+      "bytes": 2874,
+      "sha256": "0d1b2d9e112079a72814a38a1f3ab1ffecffa6b9f545f4adf18a53857133daee"
     },
     {
-      "path": "package_licenses.py",
-      "bytes": 15113,
-      "sha256": "d5f89af8a0108be076abaea24d656b91279174086d49c9175e59e667614f4c36"
+      "path": "packaging/package_licenses.py",
+      "bytes": 15204,
+      "sha256": "553d8c6c616751f6c8258a7f039e05062c0b2eea6353e73272564fa3013ab0f6"
     },
     {
-      "path": "package_shared_runtime.py",
-      "bytes": 8719,
-      "sha256": "dc60febd77bf29889d6852ebd0c6bc58be2cb876f5e5c3f0fe752fdff848ef92"
+      "path": "packaging/package_shared_runtime.py",
+      "bytes": 8810,
+      "sha256": "91fab65dac2c4651da8c9dbc6856d789aa278e63b4e39577827e99add89d5caa"
     },
     {
-      "path": "package_unrar.py",
+      "path": "packaging/package_unrar.py",
       "bytes": 3043,
       "sha256": "6777f9dbd3b712ccd8d1cf52a9b78af403effa75fcff2ee52f3b9ee5d6a6aa8c"
     },
     {
-      "path": "prepare_microsoft_runtime_windows.ps1",
-      "bytes": 4189,
-      "sha256": "6906bb502593d94b9c6504bb72f655e69f325191f52b937c0598b558a1c7371d"
+      "path": "packaging/prepare_microsoft_runtime_windows.ps1",
+      "bytes": 4285,
+      "sha256": "3d5459531aba0626c441a7e58c6dba7e8cd00235b397f47c32eb94f4e7e0157f"
     },
     {
-      "path": "rebuild_probe.py",
+      "path": "packaging/rebuild_probe.py",
       "bytes": 936,
       "sha256": "1e1e5feb6e26016638ae77b74dab2ef9dbaa63b81936299efd1b748d5aa91bb4"
     },
     {
-      "path": "rebuild_release_windows.bat",
-      "bytes": 1666,
-      "sha256": "d699bed61add82eb9a2c4ac8ec536c4c83ca8db6bc518e1ce5638d29b96bed51"
+      "path": "packaging/rebuild_release_windows.bat",
+      "bytes": 1846,
+      "sha256": "0c7ba72278c59644d6a9ed151f043259c7eb11b50e26590bc4286f083865adc8"
+    },
+    {
+      "path": "packaging/requirements-release.txt",
+      "bytes": 2681,
+      "sha256": "4823c8cb415158445e165b869bbf1797200d69d379c3cbdd9679b0a283281d1d"
+    },
+    {
+      "path": "packaging/retained-source-manifest.json",
+      "bytes": 4491,
+      "sha256": "bb0664572561658c52963bb5df8e93f92d4e895941a9c2865558673d93a7ad68"
+    },
+    {
+      "path": "packaging/retry_runtime_installer_windows.bat",
+      "bytes": 576,
+      "sha256": "972b56ff765bb30bb0711b717e46f1e9f783428c872e99f1a7c6b86f5d9939fd"
+    },
+    {
+      "path": "packaging/setup_windows.iss",
+      "bytes": 9048,
+      "sha256": "e8a24be191c9492ac2e0f00a3e790d96025bf03b9e62333b5fa2e058666089f9"
+    },
+    {
+      "path": "packaging/test_installed_runtime_verifier.py",
+      "bytes": 2549,
+      "sha256": "5536858d3f147e1930835ae4e18b055059d9cbd5665c5b7f029121b3772fc900"
+    },
+    {
+      "path": "packaging/test_microsoft_terms.py",
+      "bytes": 1523,
+      "sha256": "57e02b9a36898f4fed2e7d514f46ffa69458cf3b071c46ffae8f483493cab4ec"
+    },
+    {
+      "path": "packaging/test_qt_pdf_exclusion.py",
+      "bytes": 1547,
+      "sha256": "8efe4b6bf8a5030667cdde9c30f12ea684a2594f5143e43504995d4e95a4c865"
+    },
+    {
+      "path": "packaging/verify_installed_runtime.py",
+      "bytes": 2339,
+      "sha256": "034876cd1c5b6647c2f646935a8241ea50e2405fc924f7306ea85231a1035c2a"
+    },
+    {
+      "path": "packaging/verify_microsoft_terms.py",
+      "bytes": 3953,
+      "sha256": "00ec7374bef5e3cf890e1e3da4b08bc09b0b13794b45ae531f61de366811c849"
+    },
+    {
+      "path": "packaging/verify_native_sources.py",
+      "bytes": 4624,
+      "sha256": "da947d3c206bee8c89cd6cc69742dada007f59dcf2dde259fe8a73d2028c3551"
+    },
+    {
+      "path": "packaging/verify_no_qt_pdf.py",
+      "bytes": 550,
+      "sha256": "658de329d04400fab6da46ade604def58c43a6822583db35c88eba3f466e59f2"
+    },
+    {
+      "path": "packaging/verify_runtime_install_windows.bat",
+      "bytes": 492,
+      "sha256": "4649f2195d60d17e25d700179241ae44772c5667ad0aeaed818db48adcbbb20d"
+    },
+    {
+      "path": "packaging/verify_wheel_inputs.py",
+      "bytes": 3803,
+      "sha256": "121b0f56afa8f6961e38e59802bb63ee8e8f7201a797481cb00bed2a4ad4081e"
+    },
+    {
+      "path": "packaging/wheel-inputs.json",
+      "bytes": 12006,
+      "sha256": "4c7602d73b47715f4512646beaa16d3d3a6b618e8b1f4ce7260fc31a0db9d5f3"
+    },
+    {
+      "path": "packaging/wheel-verification.json",
+      "bytes": 18432,
+      "sha256": "a76c8e233f349fe937dcc16ed53b152ce132ef203a8b7e783feaaf25e1573b5c"
     },
     {
       "path": "requirements-dev.txt",
@@ -1817,49 +1977,14 @@
       "sha256": "073b6d5c99b8091a533806ef5b528649410457555bd1ed6e3bc3f14abd74c061"
     },
     {
-      "path": "requirements-release.txt",
-      "bytes": 2681,
-      "sha256": "4823c8cb415158445e165b869bbf1797200d69d379c3cbdd9679b0a283281d1d"
-    },
-    {
       "path": "requirements.txt",
       "bytes": 313,
       "sha256": "81f7b47113daff131c55a5993ff22333f3f79a51f4e8f108b56167096be89826"
     },
     {
-      "path": "retained-source-manifest.json",
-      "bytes": 4491,
-      "sha256": "bb0664572561658c52963bb5df8e93f92d4e895941a9c2865558673d93a7ad68"
-    },
-    {
-      "path": "retry_runtime_installer_windows.bat",
-      "bytes": 488,
-      "sha256": "f533d37e2edf9ee33d11611208a1006e3759be94ad144d6ad8ba09d2c2e23458"
-    },
-    {
       "path": "ruff.toml",
-      "bytes": 260,
-      "sha256": "7d022f42cef3cc9ab4554f2dc1842ad207e049f2faa9a2be75053a84138528f5"
-    },
-    {
-      "path": "setup_windows.iss",
-      "bytes": 8755,
-      "sha256": "abe720ed77fb29c4fe08d023c9cd2842c2a785828e368e411405b90e58766f57"
-    },
-    {
-      "path": "test_installed_runtime_verifier.py",
-      "bytes": 2549,
-      "sha256": "5536858d3f147e1930835ae4e18b055059d9cbd5665c5b7f029121b3772fc900"
-    },
-    {
-      "path": "test_microsoft_terms.py",
-      "bytes": 1523,
-      "sha256": "57e02b9a36898f4fed2e7d514f46ffa69458cf3b071c46ffae8f483493cab4ec"
-    },
-    {
-      "path": "test_qt_pdf_exclusion.py",
-      "bytes": 1547,
-      "sha256": "8efe4b6bf8a5030667cdde9c30f12ea684a2594f5143e43504995d4e95a4c865"
+      "bytes": 270,
+      "sha256": "e118e99cf9935e94a1c0d88422e43a6d64eb1840a6dee099c24aebcea2d35e17"
     },
     {
       "path": "third_party_notices/NOTICE_INPUTS.json",
@@ -2560,46 +2685,6 @@
       "path": "vendor/unrar.exe",
       "bytes": 565032,
       "sha256": "c4f98e25a824df50f8c80304715f8e6edb9c287225d5d70d423b8b2b12d311cd"
-    },
-    {
-      "path": "verify_installed_runtime.py",
-      "bytes": 2339,
-      "sha256": "034876cd1c5b6647c2f646935a8241ea50e2405fc924f7306ea85231a1035c2a"
-    },
-    {
-      "path": "verify_microsoft_terms.py",
-      "bytes": 3862,
-      "sha256": "01353ac54ec5f16da38dc1bcbeff8abff4d9e1a0cce36b0c4057efd737b4ce3a"
-    },
-    {
-      "path": "verify_native_sources.py",
-      "bytes": 4533,
-      "sha256": "a3c8f9b41bb9d61ec79589314982debbfd02a2c406f2570cf741fc72845e38a5"
-    },
-    {
-      "path": "verify_no_qt_pdf.py",
-      "bytes": 550,
-      "sha256": "658de329d04400fab6da46ade604def58c43a6822583db35c88eba3f466e59f2"
-    },
-    {
-      "path": "verify_runtime_install_windows.bat",
-      "bytes": 404,
-      "sha256": "85ea58698305a6c411c20ac1d4674ee0c0cd3663a6b8a1c012b84d2eb08bd10a"
-    },
-    {
-      "path": "verify_wheel_inputs.py",
-      "bytes": 3712,
-      "sha256": "e5a0ca31768274f79fcc00ff5df0170c444b2a1145689f8e88381c622a2d6608"
-    },
-    {
-      "path": "wheel-inputs.json",
-      "bytes": 12006,
-      "sha256": "4c7602d73b47715f4512646beaa16d3d3a6b618e8b1f4ce7260fc31a0db9d5f3"
-    },
-    {
-      "path": "wheel-verification.json",
-      "bytes": 18432,
-      "sha256": "a76c8e233f349fe937dcc16ed53b152ce132ef203a8b7e783feaaf25e1573b5c"
     }
   ]
 }

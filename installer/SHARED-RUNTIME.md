@@ -12,7 +12,7 @@ unchanged; PE checksums are regenerated. Exact original/modified hashes and the
 removed runtime files are recorded in build-inventory.json. NumPy retains its
 BSD license. Microsoft DLL code is not modified.
 
-The source includes package_shared_runtime.py and installer/shared-runtime-inputs.json.
+The source includes packaging/package_shared_runtime.py and installer/shared-runtime-inputs.json.
 Rebuild with the pinned release requirements, then apply the recorded packaging
 step. A dependency update must be audited before accepting new hashes.
 

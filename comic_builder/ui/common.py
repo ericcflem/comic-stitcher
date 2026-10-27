@@ -146,7 +146,7 @@ def form_hint(form: QFormLayout, widget: QWidget, message: str) -> None:
 
 
 try:
-    from .. import icons_resource  # Generated locally by package_icons.py.
+    from .. import icons_resource  # Generated locally by packaging/package_icons.py.
 except ImportError:
     icons_resource = None
 

@@ -25,7 +25,7 @@ available for the corresponding binary release.
 | setuptools vendored MPL validation material | Complete `third_party_sources/setuptools-84.0.0.tar.gz` |
 
 The ten archives are listed with versions and hashes in
-`retained-source-manifest.json`. They are complete upstream releases, including
+`packaging/retained-source-manifest.json`. They are complete upstream releases, including
 code the application does not use. They remain under their upstream licences.
 Permissively licensed dependencies do not all require source duplication; their
 supplier notices are retained in `third_party_notices/` and `assets/licenses/`.
