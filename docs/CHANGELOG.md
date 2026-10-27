@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- The lossless WebP suggestion is offered for PNG pages too. Both keep every
+  pixel, but lossless WebP is often a quarter to a third smaller, or more; it
+  appears when it would make the comic three quarters of the size or less. Check
+  that your comic reader opens WebP.
 - Fixed: resuming a saved review that opens on Create your comic, then going
   back to the final review, left it showing "Preparing comic preview…" with an
   empty thumbnail strip. It's now drawn when you go back.

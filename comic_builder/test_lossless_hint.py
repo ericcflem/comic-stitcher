@@ -43,17 +43,20 @@ class AlternativeTests(unittest.TestCase):
         self.assertIsNotNone(lossless_alternative(ExportOptions("Book", size_output="both", archive_format="cb7")))
         # No archive saves pages in the chosen format (WebP at 95, say), so they compare too.
         self.assertIsNotNone(lossless_alternative(ExportOptions("Book", format="webp", webp_quality=95, cbz=False)))
-        for already in (ExportOptions("Book", format="png"),
-                        ExportOptions("Book", format="webp", webp_lossless=True),
+        # PNG is lossless already, but lossless WebP is often smaller with the same pixels.
+        self.assertEqual(lossless_alternative(ExportOptions("Book", format="png")).format, "webp")
+        self.assertIsNotNone(lossless_alternative(ExportOptions("Book", format="png", cbz=False)))
+        for already in (ExportOptions("Book", format="webp", webp_lossless=True),
                         ExportOptions("Book", archive_format="pdf"),
-                        ExportOptions("Book", format="png", cbz=False),
                         ExportOptions("Book", size_output="reduced")):
             self.assertIsNone(lossless_alternative(already), already)
 
     def test_copied_pages_compare_their_joined_spreads_format(self):
         alternative = lossless_alternative(ExportOptions("Book", keep_originals=True, spread_format="jpeg"))
         self.assertEqual((alternative.spread_format, alternative.webp_lossless), ("webp", True))
-        self.assertIsNone(lossless_alternative(ExportOptions("Book", keep_originals=True, spread_format="png")))
+        self.assertIsNotNone(lossless_alternative(ExportOptions("Book", keep_originals=True, spread_format="png")))
+        self.assertIsNone(lossless_alternative(ExportOptions("Book", keep_originals=True, spread_format="webp",
+                                                             webp_lossless=True)))
 
 
 class EstimateTests(unittest.TestCase):
@@ -97,7 +100,9 @@ class QuickCheckTests(unittest.TestCase):
             folder = Path(directory)
             line_art(folder / "01.png", 1)
             plan = BookPlan(scan_folder(folder, manual=True))
-            self.assertIsNone(lossless_check(plan, ExportOptions("Book", format="png")))
+            self.assertIsNone(lossless_check(plan, ExportOptions("Book", format="webp", webp_lossless=True)))
+            # PNG is compared too: lossless WebP keeps the same pixels in fewer bytes.
+            self.assertLess(lossless_check(plan, ExportOptions("Book", format="png")), 1)
             self.assertIsNone(lossless_check(plan, ExportOptions("Book"), cancelled=lambda: True))
 
 if __name__ == "__main__":

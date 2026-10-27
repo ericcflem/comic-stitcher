@@ -401,13 +401,15 @@ def lossless_alternative(opt: ExportOptions) -> ExportOptions | None:
     Scans and full-colour art usually aren't, which the estimate shows. CBZ and
     CB7 archives and folders of pages (no archive) qualify, but not a PDF, whose
     pages are JPEG or PNG; and only when the full-size copy's encoded pages use
-    a lossy format.
+    a lossy format or PNG. PNG is lossless too, but lossless WebP is often a
+    quarter to a third smaller with the very same pixels; whether the reader
+    opens WebP is the user's call.
     """
     if (opt.cbz and opt.archive_format not in ("cbz", "cb7")) or opt.size_output not in ("full", "both"):
         return None
     field_name = "spread_format" if opt.keep_originals else "format"
     chosen = getattr(opt, field_name)
-    if chosen == "png" or (chosen == "webp" and opt.webp_lossless):
+    if chosen == "webp" and opt.webp_lossless:
         return None
     return replace(opt, **{field_name: "webp"}, webp_lossless=True, size_output="full",
                    reduced_custom=False, keep_images=False)

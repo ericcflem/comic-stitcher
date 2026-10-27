@@ -266,7 +266,8 @@ class ExportScreen:
         self.lossless_button.setToolTip(tooltip_text(
             "Saves the pages Comic Stitcher encodes as lossless WebP: every pixel is kept exactly, "
             "and clean line art such as black-and-white strips is often several times smaller "
-            "than JPEG. For this comic only: your usual output settings aren't changed, and the "
+            "than JPEG, and usually smaller than PNG. Check that your comic reader opens WebP. "
+            "For this comic only: your usual output settings aren't changed, and the "
             "next comic starts with them again."))
         self.lossless_button.clicked.connect(self._use_lossless_webp)
         lossless_row.addWidget(self.lossless_button)
