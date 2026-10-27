@@ -1,51 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.11.0
 
-- The source code's main folder is now `comic_stitcher`, matching the app's
-  name, instead of `comic_builder`, from the original script. Nothing changes
-  for users: settings, saved reviews and logs stay where they were, and
-  `linux/install.sh` replaces the old folder when updating.
+**Import and review**
 
-- New [User Guide](USER_GUIDE.md), explaining each step and setting: import,
-  screenshot cropping, pair review, final review, export, output options,
-  metadata, the queue, the drop tab and settings, with all keyboard shortcuts.
-  It's installed with the app. The README is shorter: what Comic Stitcher is,
-  a quick start, what it imports, installation and credits. It also gives the
-  right diagnostic log folder (ComicStitcher, not ComicSpreadBuilder).
-- The final review's note about pair review reports names Settings, where
-  **Open pair review reports** is, instead of a Review menu that doesn't exist.
-
-- The lossless WebP suggestion is offered for PNG pages too. Both keep every
-  pixel, but lossless WebP is often a quarter to a third smaller, or more; it
-  appears when it would make the comic three quarters of the size or less. Check
-  that your comic reader opens WebP.
-- Fixed: resuming a saved review that opens on Create your comic, then going
-  back to the final review, left it showing "Preparing comic preview…" with an
-  empty thumbnail strip. It's now drawn when you go back.
-- Fixed: the lossless WebP suggestion could stay hidden after changing the
-  format or quality on Create your comic. The quick check made during review
-  compared lossless with your usual settings, and when lossless lost there, the
-  full comparison was skipped even for settings where it wins (WebP at 95: 168
-  MB, against 37 MB lossless). The check's answer now applies only to the
-  settings it measured.
-- The lossless WebP suggestion is offered for folders of pages (No archive) as
-  well as CBZ and CB7, now that those folders hold pages in the chosen format.
-- Queue window: dragging a comic shows the same pink dotted line as the final
-  review's page strip, between comics and also above the first and below the
-  last (Windows showed no line above the first). The comic lands where the line
-  is.
-- Fixed: after an export, measuring a screenshot folder (or checking a PDF's
-  images) still showed **Process another comic** and **Export this comic
-  again**. The first went back to the start screen while the work went on
-  unseen. Those buttons are now cleared whenever new work starts, and do nothing
-  while work is running.
-- Tighter windows. The start screen drops the large "Comic Stitcher" heading
-  (the title bar names it) and the queue text; the settings gear sits at the
-  bottom left with the queue buttons, and the window is smaller. Settings, and
-  the progress screens for importing, rendering and creating a comic, are just
-  as tall as their contents. Create your comic can no longer be dragged so
-  narrow that it cuts off its fields.
 - Pages worth a look are pointed out after import: where the file numbering
   skips ("File numbers jump from 014.jpg to 016.jpg: a page may be missing
   between them"), and names that differ only in capitalisation, each with its
@@ -56,11 +14,72 @@
 - Final review: dragging a page to either end of the thumbnail strip keeps it
   scrolling, faster the closer to the end, so a page can go from the front of a
   long book to the back in one drag.
+- Queue window: dragging a comic shows the same pink dotted line as the final
+  review's page strip, between comics and also above the first and below the
+  last (Windows showed no line above the first). The comic lands where the line
+  is.
+
+**Export**
+
 - Create your comic: **Also save cover image** saves the front cover, exactly as
   it is in the comic, beside it ("Book - Cover.jpg"; one for each size), and
   **Also save ComicInfo.xml** saves the comic's ComicInfo.xml beside the archive
   as well as inside it. Beside a PDF, which has no place for it, that's the only
   copy; with no archive, the page folders already hold it.
+- The lossless WebP suggestion is offered for PNG pages too. Both keep every
+  pixel, but lossless WebP is often a quarter to a third smaller, or more; it
+  appears when it would make the comic three quarters of the size or less. Check
+  that your comic reader opens WebP.
+- The lossless WebP suggestion is offered for folders of pages (No archive) as
+  well as CBZ and CB7, now that those folders hold pages in the chosen format.
+
+**Windows and layout**
+
+- Tighter windows. The start screen drops the large "Comic Stitcher" heading
+  (the title bar names it) and the queue text; the settings gear sits at the
+  bottom left with the queue buttons, and the window is smaller. Settings, and
+  the progress screens for importing, rendering and creating a comic, are just
+  as tall as their contents. Create your comic can no longer be dragged so
+  narrow that it cuts off its fields.
+
+**Fixes**
+
+- Resuming a saved review that opens on Create your comic, then going back to
+  the final review, left it showing "Preparing comic preview…" with an empty
+  thumbnail strip. It's now drawn when you go back.
+- The lossless WebP suggestion could stay hidden after changing the format or
+  quality on Create your comic. The quick check made during review compared
+  lossless with your usual settings, and when lossless lost there, the full
+  comparison was skipped even for settings where it wins (WebP at 95: 168 MB,
+  against 37 MB lossless). The check's answer now applies only to the settings
+  it measured.
+- After an export, measuring a screenshot folder (or checking a PDF's images)
+  still showed **Process another comic** and **Export this comic again**. The
+  first went back to the start screen while the work went on unseen. Those
+  buttons are now cleared whenever new work starts, and do nothing while work is
+  running.
+- The final review's note about pair review reports names Settings, where
+  **Open pair review reports** is, instead of a Review menu that doesn't exist.
+
+**Documentation and source**
+
+- New [User Guide](USER_GUIDE.md), explaining each step and setting: import,
+  screenshot cropping, pair review, final review, export, output options,
+  metadata, the queue, the drop tab and settings, with all keyboard shortcuts.
+  It's installed with the app. The README is shorter: what Comic Stitcher is,
+  a quick start, what it imports, installation and credits. It also gives the
+  right diagnostic log folder (ComicStitcher, not ComicSpreadBuilder).
+- The source code's main folder is now `comic_stitcher`, matching the app's
+  name, instead of `comic_builder`, from the original script. Nothing changes
+  for users: settings, saved reviews and logs stay where they were, and
+  `linux/install.sh` replaces the old folder when updating.
+- The Windows build and release tools moved from the top of the source folder
+  into `packaging/`; build with `packaging\build_release_windows.bat
+  --prepare-only`, then `packaging\build_runtime_installer_windows.bat` (see
+  [BUILDING.md](BUILDING.md)). Every change to them is now test-built on Windows,
+  installer included.
+- The window's code is split into one file per screen, and exporting has a file
+  of its own; no change in behaviour.
 
 ## 0.10.0
 
