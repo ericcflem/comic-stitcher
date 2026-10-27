@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Fixed: the lossless WebP suggestion could stay hidden after changing the
+  format or quality on Create your comic. The quick check made during review
+  compared lossless with your usual settings, and when lossless lost there, the
+  full comparison was skipped even for settings where it wins (WebP at 95: 168
+  MB, against 37 MB lossless). The check's answer now applies only to the
+  settings it measured.
 - Queue window: dragging a comic shows the same pink dotted line as the final
   review's page strip, between comics and also above the first and below the
   last (Windows showed no line above the first). The comic lands where the line

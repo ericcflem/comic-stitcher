@@ -424,6 +424,16 @@ LOSSLESS_CHECK_METHOD = 1
 LOSSLESS_CHECK_SKIP_SHARE = 1.0
 
 
+def lossless_check_key(opt: ExportOptions) -> tuple | None:
+    """What the quick check's answer depends on: how the full-size copy's pages
+    are encoded. Its answer holds only while these stay the same; with another
+    format or quality the comparison must be made again."""
+    if lossless_alternative(opt) is None:
+        return None
+    return (opt.keep_originals, opt.spread_format if opt.keep_originals else opt.format,
+            *(getattr(opt, name) for name in ENCODER_FIELDS))
+
+
 def lossless_check(plan: BookPlan, opt: ExportOptions,
                    cancelled: Callable[[], bool] | None = None) -> float | None:
     """Lossless WebP's estimated size as a share of the chosen lossy format's,
