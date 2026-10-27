@@ -101,8 +101,8 @@ class QuickCheckTests(unittest.TestCase):
             line_art(folder / "01.png", 1)
             plan = BookPlan(scan_folder(folder, manual=True))
             self.assertIsNone(lossless_check(plan, ExportOptions("Book", format="webp", webp_lossless=True)))
-        # PNG is compared too: lossless WebP keeps the same pixels in fewer bytes.
-        self.assertLess(lossless_check(plan, ExportOptions("Book", format="png")), 1)
+            # PNG is compared too: lossless WebP keeps the same pixels in fewer bytes.
+            self.assertLess(lossless_check(plan, ExportOptions("Book", format="png")), 1)
             self.assertIsNone(lossless_check(plan, ExportOptions("Book"), cancelled=lambda: True))
 
 if __name__ == "__main__":
