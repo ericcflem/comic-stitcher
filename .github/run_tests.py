@@ -1,6 +1,6 @@
 """Run the unit tests at GitHub.
 
-Same tests as ``python -m unittest discover -s comic_builder -t .``, with two
+Same tests as ``python -m unittest discover -s comic_stitcher -t .``, with two
 additions for unattended runs: each failure is printed as soon as it happens,
 and a test that runs longer than PER_TEST_LIMIT seconds stops the run with a
 report of where every thread was waiting.
@@ -36,6 +36,6 @@ class ImmediateResult(unittest.TextTestResult):
 
 
 if __name__ == "__main__":
-    suite = unittest.defaultTestLoader.discover("comic_builder", top_level_dir=".")
+    suite = unittest.defaultTestLoader.discover("comic_stitcher", top_level_dir=".")
     runner = unittest.TextTestRunner(stream=sys.stdout, verbosity=2, resultclass=ImmediateResult)
     sys.exit(0 if runner.run(suite).wasSuccessful() else 1)

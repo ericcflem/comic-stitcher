@@ -230,7 +230,7 @@ class XWaylandTests(unittest.TestCase):
             tab._expand()
             tab.enterEvent(None)
             stale = tab.frameGeometry().center()  # The last place XWayland saw the mouse.
-            with patch("comic_builder.drop_tab.QCursor.pos", return_value=stale):
+            with patch("comic_stitcher.drop_tab.QCursor.pos", return_value=stale):
                 self.assertFalse(wait_for(lambda: not tab.expanded, seconds=0.6))  # Still hovered.
                 tab.leaveEvent(None)
                 self.assertTrue(wait_for(lambda: not tab.expanded, seconds=2))

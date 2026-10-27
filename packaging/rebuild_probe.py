@@ -17,7 +17,7 @@ if __name__ == '__main__':
         }
         Path(sys.argv[2]).write_text(json.dumps(payload, indent=2), encoding='utf-8')
         raise SystemExit(0 if payload['frozen'] and payload['marker'] == 'modified-library-test-1' else 2)
-    from comic_builder.diagnostics import install_diagnostics
+    from comic_stitcher.diagnostics import install_diagnostics
     install_diagnostics()
-    from comic_builder.gui import main
+    from comic_stitcher.gui import main
     raise SystemExit(main())

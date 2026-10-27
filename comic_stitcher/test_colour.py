@@ -45,7 +45,7 @@ class StandardModeTests(unittest.TestCase):
         srgb = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB"))
         expected = ImageCms.profileToProfile(page, ImageCms.ImageCmsProfile(BytesIO(CMYK_PROFILE)), srgb,
                                              outputMode="RGB")
-        with patch("comic_builder.colour.SWOP_PROFILE", b"not used"):  # Only the page's own profile counts.
+        with patch("comic_stitcher.colour.SWOP_PROFILE", b"not used"):  # Only the page's own profile counts.
             converted = standard_mode(page)
         self.assertEqual(converted.mode, "RGB")
         self.assertEqual(converted.tobytes(), expected.tobytes())
@@ -68,7 +68,7 @@ class StandardModeTests(unittest.TestCase):
 
     def test_the_plain_conversion_is_the_last_resort(self):
         page = cmyk(2)
-        with patch("comic_builder.colour.SWOP_PROFILE", b"broken"):
+        with patch("comic_stitcher.colour.SWOP_PROFILE", b"broken"):
             converted = standard_mode(page)
         self.assertEqual(converted.tobytes(), page.convert("RGB").tobytes())
         self.assertNotIn("icc_profile", converted.info)

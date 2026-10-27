@@ -30,10 +30,10 @@ class ReadingDirectionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             self.make_pages(root)
-            with patch('comic_builder.backend.is_candidate_pair', return_value=True), \
-                 patch('comic_builder.backend.load_edge_rgb',
+            with patch('comic_stitcher.backend.is_candidate_pair', return_value=True), \
+                 patch('comic_stitcher.backend.load_edge_rgb',
                        return_value=np.zeros((120, 200, 3), np.uint8)) as edge, \
-                 patch('comic_builder.backend.seam_score', return_value={'continuity': .8}):
+                 patch('comic_stitcher.backend.seam_score', return_value={'continuity': .8}):
                 scan = scan_folder(root, right_to_left=True)
             self.assertTrue(scan.right_to_left)
             self.assertEqual(scan.candidates[0].left, 0)

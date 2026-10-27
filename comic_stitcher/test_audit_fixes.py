@@ -58,8 +58,8 @@ class AuditFixTests(unittest.TestCase):
             plan = self.pages(Path(d)); plan.scan.manual_mode = False
             plan.scan.candidates = [Candidate(i, i + 1, .7, True) for i in range(3)]
             for _ in range(3): plan.decide(False)
-            with patch('comic_builder.backend.is_candidate_pair', return_value=True), patch(
-                    'comic_builder.backend.seam_score', return_value={'continuity': .6}) as score:
+            with patch('comic_stitcher.backend.is_candidate_pair', return_value=True), patch(
+                    'comic_stitcher.backend.seam_score', return_value={'continuity': .6}) as score:
                 plan.move_entry(0, 1)
                 self.assertEqual(score.call_count, 2)
                 self.assertEqual(plan.decisions, {0: False, 1: False, 2: False})
@@ -73,8 +73,8 @@ class AuditFixTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             plan = self.pages(Path(d)); plan.scan.manual_mode = False
             plan.scan.candidates = [Candidate(2, 3, .45, False)]
-            with patch('comic_builder.backend.is_candidate_pair', return_value=True), patch(
-                    'comic_builder.backend.seam_score', return_value={'continuity': .6}):
+            with patch('comic_stitcher.backend.is_candidate_pair', return_value=True), patch(
+                    'comic_stitcher.backend.seam_score', return_value={'continuity': .6}):
                 plan.move_entry(0, 1)
             self.assertTrue(plan.current()[1].likely)
             self.assertEqual((plan.current()[1].left, plan.current()[1].right), (1, 0))
@@ -82,7 +82,7 @@ class AuditFixTests(unittest.TestCase):
     def test_guided_reorder_does_not_rescan_unchanged_excluded_pairs(self):
         with tempfile.TemporaryDirectory() as d:
             plan = self.pages(Path(d)); plan.scan.manual_mode = False; plan.scan.candidates = []
-            with patch('comic_builder.backend.is_candidate_pair', return_value=False) as classify:
+            with patch('comic_stitcher.backend.is_candidate_pair', return_value=False) as classify:
                 plan.move_entry(0, 1)
                 self.assertEqual(classify.call_count, 2)
                 plan.undo_preview(); plan.move_entry(0, 1)
@@ -101,7 +101,7 @@ class AuditFixTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d); source = root / 'source'; source.write_bytes(b'verified archive')
             target = root / 'target'
-            with patch('comic_builder.export.os.link', side_effect=OSError(errno.EOPNOTSUPP, 'unsupported')):
+            with patch('comic_stitcher.export.os.link', side_effect=OSError(errno.EOPNOTSUPP, 'unsupported')):
                 publish_archive(source, target)
                 self.assertEqual(target.read_bytes(), b'verified archive')
                 if os.name == 'nt':
@@ -117,7 +117,7 @@ class AuditFixTests(unittest.TestCase):
                     failed = root / 'failed'
                     def partial_copy(origin, output):
                         output.write(b'partial'); raise OSError('disk full')
-                    with patch('comic_builder.export.shutil.copyfileobj', side_effect=partial_copy):
+                    with patch('comic_stitcher.export.shutil.copyfileobj', side_effect=partial_copy):
                         with self.assertRaises(OSError): publish_archive(source, failed)
                     self.assertFalse(failed.exists())
                     self.assertEqual(source.read_bytes(), b'verified archive')
@@ -125,8 +125,8 @@ class AuditFixTests(unittest.TestCase):
     def test_export_cleanup_failure_keeps_completed_archive(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d); plan = self.pages(root)
-            with patch('comic_builder.export.shutil.rmtree', side_effect=PermissionError('locked')), patch(
-                    'comic_builder.export.logging.exception') as logged:
+            with patch('comic_stitcher.export.shutil.rmtree', side_effect=PermissionError('locked')), patch(
+                    'comic_stitcher.export.logging.exception') as logged:
                 archive = export_book(plan, ExportOptions('Completed', format='png', workers=1))
                 logged.assert_called_once()
             with zipfile.ZipFile(archive) as z:
@@ -140,7 +140,7 @@ class AuditFixTests(unittest.TestCase):
             def fail_second(source, destination):
                 if source.name == 'reduced.cbz': raise PermissionError('denied')
                 real_publish(source, destination)
-            with patch('comic_builder.export.publish_archive', side_effect=fail_second):
+            with patch('comic_stitcher.export.publish_archive', side_effect=fail_second):
                 with self.assertRaises(RuntimeError):
                     export_book(plan, ExportOptions('Rollback', format='png', workers=1, size_output='both'))
             self.assertFalse((root / 'Rollback - Full.cbz').exists())
@@ -153,11 +153,11 @@ class AuditFixTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d); source = root / 'source'; target = root / 'target'
             error = OSError('Incorrect function'); error.winerror = 1
-            with patch('comic_builder.export.os.link', side_effect=error), patch(
-                    'comic_builder.export.os.name', 'nt'), patch('comic_builder.export.os.rename') as rename:
+            with patch('comic_stitcher.export.os.link', side_effect=error), patch(
+                    'comic_stitcher.export.os.name', 'nt'), patch('comic_stitcher.export.os.rename') as rename:
                 publish_archive(source, target)
                 rename.assert_called_once_with(source, target)
-            with patch('comic_builder.export.os.link', side_effect=FileExistsError()):
+            with patch('comic_stitcher.export.os.link', side_effect=FileExistsError()):
                 with self.assertRaises(FileExistsError): publish_archive(source, target)
 
     def test_all_exif_orientations_match_preview_scan_export_and_copy(self):

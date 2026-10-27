@@ -16,7 +16,7 @@ available for the corresponding binary release.
 
 | Component | Source supplied in this package |
 | --- | --- |
-| Comic Stitcher | Application, documentation, artwork and build helpers at the source root and in `comic_builder/` |
+| Comic Stitcher | Application, documentation, artwork and build helpers at the source root and in `comic_stitcher/` |
 | Qt base modules/plugins | `third_party_sources/qtbase-everywhere-src-6.11.2.tar.xz` |
 | Qt SVG modules/plugins | `third_party_sources/qtsvg-everywhere-src-6.11.2.tar.xz` |
 | Qt additional image plugins | `third_party_sources/qtimageformats-everywhere-src-6.11.2.tar.xz` |

@@ -103,7 +103,7 @@ def frozen_distributions(destination):
     owners = metadata.packages_distributions()
     found = {}
     unmapped = []
-    internal = {'comic_builder', 'launch', '_pyi_rth_utils'}
+    internal = {'comic_stitcher', 'launch', '_pyi_rth_utils'}
     for root in sorted({name.split('.')[0] for name in modules}):
         if root in internal or root in sys.stdlib_module_names:
             continue

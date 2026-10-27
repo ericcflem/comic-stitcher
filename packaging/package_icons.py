@@ -1,6 +1,6 @@
 """Embed the bundled interface artwork as Qt resources.
 
-The generated comic_builder/icons_resource.py is kept in the source. Qt's resource
+The generated comic_stitcher/icons_resource.py is kept in the source. Qt's resource
 compiler also records each image's file time, so a fresh run never produces the
 same bytes; the file is only replaced when the icon images or their names
 actually change. That keeps a build from altering the recorded source.
@@ -49,7 +49,7 @@ def prepare():
         compiler = Path(sys.executable).parent / ('pyside6-rcc.exe' if sys.platform == 'win32' else 'pyside6-rcc')
         command = str(compiler) if compiler.exists() else shutil.which('pyside6-rcc')
         prefix = [command] if command else [sys.executable, '-c', 'from PySide6.scripts.pyside_tool import rcc; rcc()']
-        output = ROOT / 'comic_builder' / 'icons_resource.py'
+        output = ROOT / 'comic_stitcher' / 'icons_resource.py'
         fresh = stage / 'icons_resource.py'
         subprocess.run(prefix + [str(qrc), '-o', str(fresh)], check=True)
         if output.is_file() and same_icons(output.read_bytes(), fresh.read_bytes()):

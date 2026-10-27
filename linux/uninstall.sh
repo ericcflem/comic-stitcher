@@ -68,11 +68,11 @@ remove_if_ours() {
 }
 
 forget_comicvine_key() {
-    if [ ! -x "$VENV/bin/python" ] || [ ! -d "$APP/comic_builder" ]; then return 0; fi
+    if [ ! -x "$VENV/bin/python" ] || [ ! -d "$APP/comic_stitcher" ]; then return 0; fi
     "$VENV/bin/python" - "$APP" <<'PY' || true
 import sys
 sys.path.insert(0, sys.argv[1])
-from comic_builder.key_store import KEYRING_MARKER, forget_key
+from comic_stitcher.key_store import KEYRING_MARKER, forget_key
 forget_key(KEYRING_MARKER)
 PY
 }

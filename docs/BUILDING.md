@@ -154,8 +154,8 @@ From the source root with those dependencies installed:
 
 ```bat
 python -m ruff check .
-python -m unittest discover -s comic_builder -t .
-python -m unittest test_installed_runtime_verifier test_qt_pdf_exclusion comic_builder.test_license_packaging
+python -m unittest discover -s comic_stitcher -t .
+python -m unittest test_installed_runtime_verifier test_qt_pdf_exclusion comic_stitcher.test_license_packaging
 ```
 
 Windows credential and local socket tests need the appropriate platform/access.

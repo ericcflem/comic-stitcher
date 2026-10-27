@@ -33,7 +33,7 @@ NOT_IN_GIT = ("third_party_sources/", "vendor/unrar.exe", "vendor/cwebp.exe")
 
 
 def version() -> str:
-    text = (ROOT / "comic_builder" / "__init__.py").read_text(encoding="utf-8")
+    text = (ROOT / "comic_stitcher" / "__init__.py").read_text(encoding="utf-8")
     return re.search(r'__version__ = "([^"]+)"', text).group(1)
 
 

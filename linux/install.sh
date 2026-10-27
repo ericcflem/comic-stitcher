@@ -224,7 +224,7 @@ check_system() {
 
 copy_app() {
     step "Copying Comic Stitcher to $APP"
-    if [ ! -f "$SOURCE/launch.py" ] || [ ! -d "$SOURCE/comic_builder" ] || [ ! -f "$SOURCE/requirements.txt" ]; then
+    if [ ! -f "$SOURCE/launch.py" ] || [ ! -d "$SOURCE/comic_stitcher" ] || [ ! -f "$SOURCE/requirements.txt" ]; then
         die "Run this script from inside the downloaded Comic Stitcher folder (it was run from $SOURCE)."
     fi
     mkdir -p "$PREFIX"
@@ -232,10 +232,10 @@ copy_app() {
     rm -rf "$stage" "$PREFIX/app.old"
     mkdir -p "$stage"
     local item
-    for item in launch.py LICENSE README.md requirements.txt comic_builder assets docs linux; do
+    for item in launch.py LICENSE README.md requirements.txt comic_stitcher assets docs linux; do
         [ -e "$SOURCE/$item" ] && cp -R "$SOURCE/$item" "$stage/"
     done
-    find "$stage/comic_builder" \( -name 'test_*.py' -o -name '__pycache__' \) -prune -exec rm -rf {} +
+    find "$stage/comic_stitcher" \( -name 'test_*.py' -o -name '__pycache__' \) -prune -exec rm -rf {} +
     [ -d "$APP" ] && mv "$APP" "$PREFIX/app.old"
     mv "$stage" "$APP"
     rm -rf "$PREFIX/app.old"
@@ -457,7 +457,7 @@ setup_drop_tab() {
     "$VENV/bin/python" - "$APP" "$LAUNCHER" <<'PY' || warn "could not set the drop tab to start when you sign in."
 import sys
 sys.path.insert(0, sys.argv[1])
-from comic_builder.drop_tab_support import DROP_TAB_FLAG, set_autostart
+from comic_stitcher.drop_tab_support import DROP_TAB_FLAG, set_autostart
 set_autostart(True, [sys.argv[2], DROP_TAB_FLAG])
 PY
     if [ -n "${WAYLAND_DISPLAY:-}${DISPLAY:-}" ]; then
