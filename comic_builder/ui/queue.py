@@ -5,7 +5,8 @@ import tempfile
 import copy
 from dataclasses import dataclass
 from pathlib import Path
-from ..backend import export_outputs, BookPlan, ExportOptions, export_book, safe_book_name
+from ..backend import BookPlan, safe_book_name
+from ..export import export_outputs, ExportOptions, export_book
 from ..archive_import import import_archive
 from ..pdf_import import import_pdf
 

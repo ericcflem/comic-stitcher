@@ -17,7 +17,8 @@ from PySide6.QtCore import QSettings, QTimer, Qt, QMimeData, QUrl
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QDialog, QFrame, QLabel, QMessageBox, QTabWidget
 
-from .backend import BookPlan, Candidate, ExportOptions, export_book, scan_folder, scan_manual_folder
+from .backend import BookPlan, Candidate, scan_folder, scan_manual_folder
+from .export import ExportOptions, export_book
 from .archive_import import import_archive
 from .screenshot_geometry import propose_crops
 from .screenshot_import import CropChoice, stage_screenshots

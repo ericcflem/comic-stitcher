@@ -9,9 +9,9 @@ from PySide6.QtCore import Qt, QThread, QTimer, QSignalBlocker
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QFormLayout, QFrame,
     QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QScrollArea, QSizePolicy,
     QVBoxLayout, QWidget, QGroupBox)
-from ..backend import (keeps_png, ExportOptions, check_sources, export_book, planned_names,
-    safe_book_name, copy_encoding_options, lossless_alternative, LOSSLESS_HINT_SHARE,
-    LOSSLESS_CHECK_SKIP_SHARE)
+from ..backend import check_sources, safe_book_name
+from ..export import (keeps_png, ExportOptions, export_book, planned_names, copy_encoding_options,
+    lossless_alternative, LOSSLESS_HINT_SHARE, LOSSLESS_CHECK_SKIP_SHARE)
 from .. import diagnostics
 from ..metadata_dialog import MetadataDialog
 from ..comicinfo import parse_xml

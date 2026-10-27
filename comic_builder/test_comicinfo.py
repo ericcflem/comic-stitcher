@@ -5,7 +5,8 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 from PIL import Image
 import py7zr
-from .backend import BookPlan, ExportOptions, scan_folder, export_book
+from .backend import BookPlan, scan_folder
+from .export import ExportOptions, export_book
 from .archive_import import import_archive
 from .comicinfo import edit_xml, parse_xml, read_folder_metadata
 from .session import save_session, read_session, restore_plan, cached_folder_scan

@@ -9,7 +9,8 @@ from unittest.mock import patch
 
 import numpy as np
 from PIL import Image
-from .backend import BookPlan, ExportOptions, scan_folder, export_book
+from .backend import BookPlan, scan_folder
+from .export import ExportOptions, export_book
 from .session import save_session, read_session, cached_folder_scan, restore_plan, session_path
 from .screenshot_import import CropChoice, stage_screenshots
 from .archive_import import import_archive
