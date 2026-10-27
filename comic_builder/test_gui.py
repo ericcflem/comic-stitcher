@@ -1359,6 +1359,29 @@ class ThumbnailTest(unittest.TestCase):
         finally:
             listing.close()
 
+    def test_final_review_is_drawn_when_a_resumed_review_goes_back_to_it(self):
+        # Eric: a saved review resumed on Create your comic; Back to Comic Preview
+        # showed "Preparing comic preview…" for good and an empty thumbnail strip.
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            for i in range(5):
+                Image.new("RGB", (60, 80), (30 + i * 40, 20, 10)).save(folder / f"{i:03d}.png")
+            window = ComicWindow()
+            try:
+                window.show()
+                window.scan_done(scan_manual_folder(folder))
+                # As resuming at the export stage does: the final review, then straight on.
+                window.enter_preview()
+                window.show_export()
+                self.app.processEvents()
+                self.assertFalse(window.preview_ready)
+                window.return_preview_from_export()
+                self.wait_for(lambda: len(getattr(window, "thumb_buttons", [])) == 5)
+                self.assertTrue(window.preview_ready)
+                self.assertNotEqual(window.preview_heading.text(), "Preparing comic preview…")
+            finally:
+                window.close()
+
     def test_compact_windows_are_as_large_as_their_contents(self):
         from PySide6.QtWidgets import QPushButton
         window = ComicWindow()

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fixed: resuming a saved review that opens on Create your comic, then going
+  back to the final review, left it showing "Preparing comic preview…" with an
+  empty thumbnail strip. It's now drawn when you go back.
 - Fixed: the lossless WebP suggestion could stay hidden after changing the
   format or quality on Create your comic. The quick check made during review
   compared lossless with your usual settings, and when lossless lost there, the

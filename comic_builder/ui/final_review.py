@@ -193,6 +193,7 @@ class FinalReview:
             self.return_review_button.review_caption.setText("Pair review")
             self.return_review_button.setToolTip("Back to Pair Review")
         self.preview_heading.setText("Preparing comic preview…")
+        self.preview_ready = False  # Drawn by _populate_preview, once this screen is showing.
         if self.review_report_path:
             self.statusBar().showMessage("Pair review report saved. Open it from Review → Open pair review reports.")
 
@@ -203,6 +204,7 @@ class FinalReview:
             return
         self.rebuild_thumbnails()
         self.show_preview()
+        self.preview_ready = True
         if self.screenshot_flagged_pages and not self.inferred_notice_shown:
             self.inferred_notice_shown = True
             QTimer.singleShot(0, lambda: QMessageBox.information(
