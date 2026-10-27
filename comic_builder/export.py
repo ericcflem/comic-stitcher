@@ -398,11 +398,12 @@ def lossless_alternative(opt: ExportOptions) -> ExportOptions | None:
 
     Clean line art (black-and-white strips, for example) is often several times
     smaller as lossless WebP than as JPEG or lossy WebP, with no loss at all.
-    Scans and full-colour art usually aren't, which the estimate shows. Only CBZ
-    and CB7 archives qualify (PDF pages are JPEG or PNG), and only when the
-    full-size copy's encoded pages use a lossy format.
+    Scans and full-colour art usually aren't, which the estimate shows. CBZ and
+    CB7 archives and folders of pages (no archive) qualify, but not a PDF, whose
+    pages are JPEG or PNG; and only when the full-size copy's encoded pages use
+    a lossy format.
     """
-    if not opt.cbz or opt.archive_format not in ("cbz", "cb7") or opt.size_output not in ("full", "both"):
+    if (opt.cbz and opt.archive_format not in ("cbz", "cb7")) or opt.size_output not in ("full", "both"):
         return None
     field_name = "spread_format" if opt.keep_originals else "format"
     chosen = getattr(opt, field_name)
@@ -422,6 +423,16 @@ LOSSLESS_CHECK_METHOD = 1
 # At the fast effort lossless only gets smaller at the chosen one, so a check
 # that finds it no smaller than the lossy format rules the suggestion out.
 LOSSLESS_CHECK_SKIP_SHARE = 1.0
+
+
+def lossless_check_key(opt: ExportOptions) -> tuple | None:
+    """What the quick check's answer depends on: how the full-size copy's pages
+    are encoded. Its answer holds only while these stay the same; with another
+    format or quality the comparison must be made again."""
+    if lossless_alternative(opt) is None:
+        return None
+    return (opt.keep_originals, opt.spread_format if opt.keep_originals else opt.format,
+            *(getattr(opt, name) for name in ENCODER_FIELDS))
 
 
 def lossless_check(plan: BookPlan, opt: ExportOptions,

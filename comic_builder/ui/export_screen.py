@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QFor
     QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QScrollArea, QSizePolicy,
     QVBoxLayout, QWidget, QGroupBox)
 from ..backend import check_sources, safe_book_name
-from ..export import (keeps_png, ExportOptions, export_book, planned_names, copy_encoding_options,
+from ..export import (lossless_check_key, keeps_png, ExportOptions, export_book, planned_names, copy_encoding_options,
     lossless_alternative, LOSSLESS_HINT_SHARE, LOSSLESS_CHECK_SKIP_SHARE)
 from .. import diagnostics
 from ..metadata_dialog import MetadataDialog
@@ -276,7 +276,7 @@ class ExportScreen:
         self.lossless_for_this_comic = False  # Lossless WebP from the suggestion: never saved.
         self.lossless_field = "format"
         self.lossless_checks = []  # Running quick checks (kept until finished).
-        self.lossless_checked = (None, None)  # (plan, share) from the latest quick check.
+        self.lossless_checked = (None, None, None)  # (plan, settings, share) from the latest quick check.
         self.estimate_generation = 0
         self.estimate_png_pages = False
         self.estimate_timer = QTimer(self)
@@ -677,7 +677,8 @@ class ExportScreen:
         if lossless_alternative(opt) is None:
             return  # The usual format is already lossless.
         worker = LosslessCheckWorker(self.plan, opt)
-        worker.done.connect(self._lossless_check_done)
+        key = lossless_check_key(opt)
+        worker.done.connect(lambda plan, share, key=key: self._lossless_check_done(plan, share, key))
         worker.finished.connect(lambda worker=worker: self.lossless_checks.remove(worker)
                                 if worker in self.lossless_checks else None)
         self.lossless_checks.append(worker)
@@ -686,18 +687,23 @@ class ExportScreen:
     def _stop_lossless_checks(self):
         for worker in self.lossless_checks:
             worker.requestInterruption()
-        self.lossless_checked = (None, None)
+        self.lossless_checked = (None, None, None)
 
-    def _lossless_check_done(self, plan, share):
+    def _lossless_check_done(self, plan, share, key=None):
         if plan is not self.plan:
             return
-        self.lossless_checked = (plan, share)
+        self.lossless_checked = (plan, key, share)
         if self.lossless_hint_row.isHidden():
             self._show_early_lossless_hint()
 
     def _lossless_share(self):
-        plan, share = self.lossless_checked
-        return share if plan is not None and plan is self.plan else None
+        """The quick check's answer, while this comic's pages would be encoded as
+        it measured them. Change the format or quality and it no longer applies:
+        lossless might lose to JPEG at 80 yet win easily against WebP at 95."""
+        plan, key, share = self.lossless_checked
+        if plan is None or plan is not self.plan:
+            return None
+        return share if key == lossless_check_key(self.opt) else None
 
     def _show_early_lossless_hint(self):
         """The suggestion as soon as the quick check supports it; the full estimate adds sizes."""
