@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- New [User Guide](USER_GUIDE.md), explaining each step and setting: import,
+  screenshot cropping, pair review, final review, export, output options,
+  metadata, the queue, the drop tab and settings, with all keyboard shortcuts.
+  It's installed with the app. The README is shorter: what Comic Stitcher is,
+  a quick start, what it imports, installation and credits. It also gives the
+  right diagnostic log folder (ComicStitcher, not ComicSpreadBuilder).
+- The final review's note about pair review reports names Settings, where
+  **Open pair review reports** is, instead of a Review menu that doesn't exist.
+
 - The lossless WebP suggestion is offered for PNG pages too. Both keep every
   pixel, but lossless WebP is often a quarter to a third smaller, or more; it
   appears when it would make the comic three quarters of the size or less. Check

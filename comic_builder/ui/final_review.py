@@ -195,7 +195,7 @@ class FinalReview:
         self.preview_heading.setText("Preparing comic preview…")
         self.preview_ready = False  # Drawn by _populate_preview, once this screen is showing.
         if self.review_report_path:
-            self.statusBar().showMessage("Pair review report saved. Open it from Review → Open pair review reports.")
+            self.statusBar().showMessage("Pair review report saved. Open it from Settings → Open pair review reports.")
 
         QTimer.singleShot(0, self._populate_preview)
 

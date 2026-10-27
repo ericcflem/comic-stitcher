@@ -17,7 +17,7 @@ ROOT = HERE.parent  # The source folder
 QT_PACKAGES = {'pyside6', 'pyside6-essentials', 'pyside6-addons', 'shiboken6'}
 PUBLIC_DOCUMENTS = (
     'LICENSE', 'README.md', 'docs/RELEASE_NOTES.md', 'docs/CHANGELOG.md', 'docs/PROVENANCE.md',
-    'docs/START_HERE.md', 'docs/SOURCE_ACCESS.md', 'docs/SOURCE_PACKAGE_CONTENTS.md', 'docs/BUILDING.md',
+    'docs/START_HERE.md', 'docs/USER_GUIDE.md', 'docs/SOURCE_ACCESS.md', 'docs/SOURCE_PACKAGE_CONTENTS.md', 'docs/BUILDING.md',
     'docs/REBUILDING_AND_REPLACING_LIBRARIES.md', 'docs/NATIVE_SOURCE_REBUILD.md',
     'docs/THIRD_PARTY_ACKNOWLEDGEMENTS.md',
 )

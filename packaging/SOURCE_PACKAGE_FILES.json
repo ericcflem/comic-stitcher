@@ -17,6 +17,11 @@
       "sha256": "1cbd71ef64f83b4e1db8d2d9a83a88df102063811a517a5593e361e525bc83ca"
     },
     {
+      "path": ".github/workflows/windows-build.yml",
+      "bytes": 4834,
+      "sha256": "a12c8be90d27e5d09cd13feac9f62ffa6b2dc37f7239101077d8135730c77b05"
+    },
+    {
       "path": ".gitignore",
       "bytes": 215,
       "sha256": "1eae6f6dd11a5d4670549aaf5258615f163ba10642c6d66ec39e5d1e910abcd4"
@@ -28,8 +33,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 12469,
-      "sha256": "f578b25fbd43c4726b0c7c49c2aadef8534d791352078f2de038fed66413de3a"
+      "bytes": 6513,
+      "sha256": "9250bd91018208d6a276a363dc6dfa379af75132312f774fef5c2a84bb6457e9"
     },
     {
       "path": "assets/app/comic-stitcher.ico",
@@ -1613,8 +1618,8 @@
     },
     {
       "path": "comic_builder/ui/final_review.py",
-      "bytes": 35669,
-      "sha256": "813e87f9c44762e39a6e3c034ed70f1cd2dcde5ae326bec4e71c3287e70ecd6c"
+      "bytes": 35671,
+      "sha256": "483f6aae55b62a6d4b28af04b357c68c1c4985b7620e89eda6be9efee0d7f169"
     },
     {
       "path": "comic_builder/ui/import_dialogs.py",
@@ -1683,8 +1688,8 @@
     },
     {
       "path": "docs/CHANGELOG.md",
-      "bytes": 18965,
-      "sha256": "26eab787799f0843bfd9df378e6ff687fd7acec51071c52f26547bb8d32b3b1c"
+      "bytes": 19577,
+      "sha256": "5cd8e11eadcc5b467bf077065b6aba77fae2e14376897d49ce2d4343048ae2c3"
     },
     {
       "path": "docs/NATIVE_SOURCE_REBUILD.md",
@@ -1718,13 +1723,18 @@
     },
     {
       "path": "docs/START_HERE.md",
-      "bytes": 959,
-      "sha256": "ef3c31e92254a7cc085ef6a6c0f000ae37f25d7b241efb5b7cc8ebc857a668d5"
+      "bytes": 1018,
+      "sha256": "82e0647b2957e13baf7278ed4eda2831b0dd575642b55bed94c48cb96aaf8abc"
     },
     {
       "path": "docs/THIRD_PARTY_ACKNOWLEDGEMENTS.md",
       "bytes": 2481,
       "sha256": "dbcb2df213f713faa170f55df8499413741edf9879c83d8b74a340f5c87404e0"
+    },
+    {
+      "path": "docs/USER_GUIDE.md",
+      "bytes": 18384,
+      "sha256": "eee7a963bca265c0fe78cefe13cd557bf096b849b371277b6958767d6b5dc008"
     },
     {
       "path": "installer/RUNTIME_REFERENCES.md",
@@ -1868,8 +1878,8 @@
     },
     {
       "path": "packaging/package_licenses.py",
-      "bytes": 15204,
-      "sha256": "553d8c6c616751f6c8258a7f039e05062c0b2eea6353e73272564fa3013ab0f6"
+      "bytes": 15226,
+      "sha256": "334b949c03359b384ce29bd7de32240eaccc89504728d0a745abaca1a951735e"
     },
     {
       "path": "packaging/package_shared_runtime.py",
