@@ -29,7 +29,7 @@ Comic Stitcher imports:
 - **PDFs**, rendered at a chosen resolution, or with their original JPEG pages extracted unchanged when possible.
 - **Comic archives:** `CBZ`, `CB7` and `CBR`, and plain ZIP, 7z and RAR files.
 - **Folders of page images:** `JPEG`, `PNG`, `WebP`, `BMP` and `TIFF`.
-- **Folders of screenshots** from a reading app or emulator, which are measured, cropped and split into pages.
+- **Folders of screenshots** from a reading app or emulator, with black borders at the sides, which are measured, cropped and split into pages.
 
 It exports `CBZ`, `CB7`, `PDF`, or a folder of pages, in JPEG, WebP or PNG, at full size, reduced size, or both.
 

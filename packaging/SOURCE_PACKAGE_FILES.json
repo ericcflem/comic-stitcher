@@ -33,8 +33,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 6513,
-      "sha256": "9250bd91018208d6a276a363dc6dfa379af75132312f774fef5c2a84bb6457e9"
+      "bytes": 6546,
+      "sha256": "65bc43d57f79837d8a9af82d86553ab581c67780360982ad777c4dc9aeb7280f"
     },
     {
       "path": "assets/app/comic-stitcher.ico",
@@ -1733,8 +1733,8 @@
     },
     {
       "path": "docs/USER_GUIDE.md",
-      "bytes": 18384,
-      "sha256": "eee7a963bca265c0fe78cefe13cd557bf096b849b371277b6958767d6b5dc008"
+      "bytes": 18813,
+      "sha256": "685493abd39d5f2f92d15145a02764abb63e8aea563ffad0aa5822ebbab2cdee"
     },
     {
       "path": "installer/RUNTIME_REFERENCES.md",

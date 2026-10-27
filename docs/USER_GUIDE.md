@@ -40,7 +40,7 @@ folder…**. Comic Stitcher reads:
 - **PDFs**
 - **Comic archives:** CBZ, CB7 and CBR, and plain ZIP, 7z and RAR files
 - **Folders of page images:** JPEG, PNG, WebP, BMP and TIFF
-- **Folders of screenshots** with black surroundings, such as from a reading app or
+- **Folders of screenshots** with black borders at the sides, such as from a reading app or
   emulator (see [Screenshots and cropping](#screenshots-and-cropping))
 
 A folder is read **one level deep**: the images directly inside it are the pages. A
@@ -96,9 +96,13 @@ Stitcher offers **Resume review**, which brings back your decisions and joins, o
 
 ## Screenshots and cropping
 
-For screenshots, Comic Stitcher measures each one to find the page inside its black
-surroundings, then shows a summary: the page sizes it found, how many screenshots have
-each, and any that need your choice.
+For screenshots, Comic Stitcher measures each one to find the page between the black
+borders at its left and right, then shows a summary: the page sizes it found, how many
+screenshots have each, and any that need your choice.
+
+The page should fill the screenshot from top to bottom, with black borders only at
+the sides, as when a portrait page is shown on a wide screen. Black borders above and
+below the page aren't cropped.
 
 **Review crop previews** opens the crop review. Each screenshot shows its crop outline:
 
@@ -204,7 +208,10 @@ The **Create your comic** screen sets how the finished comic is named and saved.
     PDF stays chosen until Comic Stitcher closes, then your usual format returns.
   - **No archive:** saves the finished pages in a folder.
 
-  Comic Stitcher can't make CBR files; CBZ is the usual replacement.
+  Comic Stitcher can't make CBR files. RAR is a closed format: only RARLAB's own
+  WinRAR and RAR programs may create RAR archives, and the UnRAR tool Comic
+  Stitcher uses can only open them. CBZ is the usual replacement, and comic readers
+  that open CBR open CBZ too.
 - **Save comic in front-to-back page order** (back-to-front comics only): checked, the
   comic starts with the front cover; unchecked, it keeps the back-to-front order.
 - **Also keep lossless PNG pages:** also saves the final pages as PNG files in a folder,
