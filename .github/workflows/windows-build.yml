@@ -39,17 +39,12 @@ jobs:
           python-version: "3.14.2"
           architecture: x64
 
-      - name: Let "py -3.14" find that Python
-        # The build scripts use the Python launcher; point it at the Python above.
-        shell: bash
-        run: |
-          mkdir -p "$RUNNER_TEMP/py-shim"
-          printf '@echo off\r\nif "%%~1"=="-3.14" (shift & goto run)\r\n:run\r\npython %%1 %%2 %%3 %%4 %%5 %%6 %%7 %%8 %%9\r\n' > "$RUNNER_TEMP/py-shim/py.cmd"
-          echo "$RUNNER_TEMP/py-shim" >> "$GITHUB_PATH"
-
-      - name: Check the launcher shim
+      - name: Check that "py -3.14" finds that Python
+        # The build scripts use the Python launcher, as on a Windows PC.
         shell: cmd
-        run: py -3.14 -c "import sys; print(sys.version); assert sys.version_info[:3] == (3,14,2)"
+        run: |
+          py --list
+          py -3.14 -c "import sys; print(sys.executable, sys.version); assert sys.version_info[:3] == (3,14,2)"
 
       - name: Take UnRAR, cwebp and the library sources from the latest release
         # These aren't in the repository (see docs/BUILDING.md); the release's
