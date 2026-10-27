@@ -77,22 +77,34 @@ jobs:
                    Where-Object { Test-Path $_ } | Select-Object -First 1
           if (-not $found) { choco install innosetup -y --no-progress | Out-Host }
 
+      # Each step keeps its output in build-logs/, shown below if a step fails.
       - name: Prepare the pinned build environment
-        shell: cmd
-        run: packaging\build_release_windows.bat --prepare-only
+        shell: bash
+        run: mkdir -p build-logs && cmd //c "packaging\\build_release_windows.bat --prepare-only" 2>&1 | tee build-logs/1-prepare.log; exit ${PIPESTATUS[0]}
 
       - name: Build the app
-        shell: cmd
-        run: packaging\rebuild_release_windows.bat
+        shell: bash
+        run: cmd //c "packaging\\rebuild_release_windows.bat" 2>&1 | tee build-logs/2-app.log; exit ${PIPESTATUS[0]}
 
       - name: Fetch Microsoft's runtime and compile the installer
-        shell: cmd
-        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File "packaging\compile_runtime_installer_windows.ps1"
+        shell: bash
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File "packaging\\compile_runtime_installer_windows.ps1" 2>&1 | tee build-logs/3-installer.log; exit ${PIPESTATUS[0]}
 
       - name: Make the source package and checksums
-        shell: cmd
-        run: py -3.14 packaging\make_source_package.py
+        shell: bash
+        run: cmd //c "py -3.14 packaging\\make_source_package.py" 2>&1 | tee build-logs/4-source.log; exit ${PIPESTATUS[0]}
 
       - name: List what was made
         shell: bash
         run: ls -l installer_dist dist/*.zip dist/SHA256SUMS.txt && cat dist/SHA256SUMS.txt
+
+      - name: Show where it failed
+        # Puts the end of the failing step's output on the pull request.
+        if: failure()
+        shell: bash
+        run: |
+          for log in build-logs/*.log; do
+            [ -f "$log" ] || continue
+            body=$(tail -c 3500 "$log" | sed 's/%/%25/g' | tr -d '\r' | awk 'BEGIN{ORS="%0A"} {print}')
+            echo "::error title=$(basename "$log")::$body"
+          done
