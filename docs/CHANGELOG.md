@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- The source code's main folder is now `comic_stitcher`, matching the app's
+  name, instead of `comic_builder`, from the original script. Nothing changes
+  for users: settings, saved reviews and logs stay where they were, and
+  `linux/install.sh` replaces the old folder when updating.
+
 - New [User Guide](USER_GUIDE.md), explaining each step and setting: import,
   screenshot cropping, pair review, final review, export, output options,
   metadata, the queue, the drop tab and settings, with all keyboard shortcuts.

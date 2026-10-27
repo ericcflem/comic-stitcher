@@ -51,7 +51,7 @@ class ThumbnailTest(unittest.TestCase):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         settings_file = Path(directory.name) / "settings.ini"
-        settings_patch = patch("comic_builder.gui.QSettings", side_effect=lambda *_:
+        settings_patch = patch("comic_stitcher.gui.QSettings", side_effect=lambda *_:
                                QSettings(str(settings_file), QSettings.IniFormat))
         settings_patch.start()
         self.addCleanup(settings_patch.stop)
@@ -279,7 +279,7 @@ class ThumbnailTest(unittest.TestCase):
             proposals = [SimpleNamespace(path=Path("wide.png"), kind="double", source="suggested", box=(112, 0, 4088, 3056))]
             choice = CropChoice(Path("wide.png"), "double", (112, 0, 4088, 3056))
             with patch.object(window, "screenshot_crop_summary", return_value=True), \
-                 patch("comic_builder.ui.screenshot_flow.ScreenshotCropDialog") as dialog, \
+                 patch("comic_stitcher.ui.screenshot_flow.ScreenshotCropDialog") as dialog, \
                  patch.object(window, "_stage_approved_screenshots") as stage:
                 dialog.return_value.exec.return_value = QDialog.Accepted
                 dialog.return_value.approved_choices.return_value = [choice]
@@ -337,7 +337,7 @@ class ThumbnailTest(unittest.TestCase):
             proposal = SimpleNamespace(path=Path("not-read-during-construction.png"), canvas=(4200, 3056),
                                        kind="double", source="measured", page_width=3976,
                                        box=(112, 0, 4088, 3056), review_reason=None, family_widths=(), family_width=None)
-            with patch("comic_builder.gui.Image.open", side_effect=AssertionError("GUI decoded an image")):
+            with patch("comic_stitcher.gui.Image.open", side_effect=AssertionError("GUI decoded an image")):
                 dialog = ScreenshotCropDialog([proposal])
                 dialog.guide_edit_button.setChecked(True)
                 dialog.crop_left.setValue(113)
@@ -358,10 +358,10 @@ class ThumbnailTest(unittest.TestCase):
 
     def test_explorer_launch_passes_paths_to_import_flow(self):
         from .gui import main
-        with patch("comic_builder.gui.QApplication") as application, \
-             patch("comic_builder.gui.ComicWindow") as window, \
-             patch("comic_builder.gui.LaunchBroker") as broker, \
-             patch("comic_builder.gui.sys.argv", ["ComicStitcher.exe", "C:/My Comics/Book.cbz"]):
+        with patch("comic_stitcher.gui.QApplication") as application, \
+             patch("comic_stitcher.gui.ComicWindow") as window, \
+             patch("comic_stitcher.gui.LaunchBroker") as broker, \
+             patch("comic_stitcher.gui.sys.argv", ["ComicStitcher.exe", "C:/My Comics/Book.cbz"]):
             broker.return_value.start.return_value = True
             application.return_value.exec.return_value = 0
             self.assertEqual(main(), 0)
@@ -722,7 +722,7 @@ class ThumbnailTest(unittest.TestCase):
     def test_sharp_yuv_option_is_per_size_and_needs_lossy_webp_and_cwebp(self):
         window = ComicWindow()
         self.addCleanup(window.close)
-        with patch("comic_builder.ui.output_options.sharp_yuv_available", return_value=True):
+        with patch("comic_stitcher.ui.output_options.sharp_yuv_available", return_value=True):
             dialog = OutputOptionsDialog(ExportOptions("Book", format="webp"), window.custom_resize_values)
             try:
                 full, reduced = dialog.advanced, dialog.reduced_advanced
@@ -737,7 +737,7 @@ class ThumbnailTest(unittest.TestCase):
                 self.assertTrue(opt.reduced_settings["webp_sharp_yuv"])
             finally:
                 dialog.close()
-        with patch("comic_builder.ui.output_options.sharp_yuv_available", return_value=False):
+        with patch("comic_stitcher.ui.output_options.sharp_yuv_available", return_value=False):
             dialog = OutputOptionsDialog(ExportOptions("Book", format="webp", webp_sharp_yuv=True),
                                          window.custom_resize_values)
             try:
@@ -901,7 +901,7 @@ class ThumbnailTest(unittest.TestCase):
             ]
             choice = CropChoice(Path("review.png"), "double", (112, 0, 4088, 3056), True)
             with patch.object(window, "screenshot_crop_summary", return_value=False), \
-                 patch("comic_builder.ui.screenshot_flow.ScreenshotCropDialog") as dialog, \
+                 patch("comic_stitcher.ui.screenshot_flow.ScreenshotCropDialog") as dialog, \
                  patch.object(window, "_stage_approved_screenshots") as stage:
                 dialog.return_value.exec.return_value = QDialog.Accepted
                 dialog.return_value.approved_choices.return_value = [choice]
@@ -954,7 +954,7 @@ class ThumbnailTest(unittest.TestCase):
             try:
                 window.show()
                 window.review_mode.setCurrentIndex(1)
-                with patch("comic_builder.backend.classify_page",
+                with patch("comic_stitcher.backend.classify_page",
                            side_effect=AssertionError("manual mode ran the detector")):
                     window.start_scan(folder)
                     self.wait_for(lambda: window.plan is not None)
@@ -992,7 +992,7 @@ class ThumbnailTest(unittest.TestCase):
                     dialog.folder_type.setCurrentIndex(0)
                     dialog.review_mode.setCurrentIndex(1)
                     return QDialog.Accepted
-                with patch("comic_builder.ui.import_flow.looks_like_screenshot_folder", return_value=(True, 1)), \
+                with patch("comic_stitcher.ui.import_flow.looks_like_screenshot_folder", return_value=(True, 1)), \
                      patch.object(ImportChoiceDialog, "exec", choose_manual_pages), \
                      patch.object(window, "start_scan") as start:
                     window._prepare_import(folder)
@@ -1137,8 +1137,8 @@ class ThumbnailTest(unittest.TestCase):
                 key.setText('test-only-key')
                 dialog.findChild(QCheckBox, 'remember_comicvine_key').setChecked(True)
                 return QDialog.Accepted
-            with patch('comic_builder.gui.can_remember_key', return_value=True), \
-                 patch('comic_builder.gui.protect_key', return_value='protected-test-value'), \
+            with patch('comic_stitcher.gui.can_remember_key', return_value=True), \
+                 patch('comic_stitcher.gui.protect_key', return_value='protected-test-value'), \
                  patch.object(QDialog, 'exec', accept_settings):
                 window.show_settings()
             self.assertTrue(window.comicvine_client.configured)
@@ -1261,7 +1261,7 @@ class ThumbnailTest(unittest.TestCase):
                     return dialog.result()
                 with patch.object(ImportChoiceDialog, "exec", choose_unsmoothed), \
                      patch.object(PdfImportDialog, "exec", check_render_settings), \
-                     patch("comic_builder.ui.import_flow.check_pdf_jpegs", return_value=(None, "Page 1: the JPEG is CMYK.")):
+                     patch("comic_stitcher.ui.import_flow.check_pdf_jpegs", return_value=(None, "Page 1: the JPEG is CMYK.")):
                     window._prepare_import(source)
                     self.wait_for(lambda window=window: window.pages.currentIndex() == 0)
             finally:
@@ -1596,8 +1596,8 @@ class ThumbnailTest(unittest.TestCase):
             stat = source.stat()
             job = QueuedComic(plan, ExportOptions("Test", workers=1), source, None, None, source,
                               (stat.st_size, stat.st_mtime_ns), {"dpi": 200})
-            with patch("comic_builder.ui.queue.import_pdf", return_value=scan_manual_folder(pages)), patch(
-                    "comic_builder.ui.queue.export_book") as exporter:
+            with patch("comic_stitcher.ui.queue.import_pdf", return_value=scan_manual_folder(pages)), patch(
+                    "comic_stitcher.ui.queue.export_book") as exporter:
                 export_queued_comic(job)
                 restored = exporter.call_args.args[0]
                 self.assertEqual(restored.entries(), [(1, None), (0, 2), (3, None)])
@@ -1614,8 +1614,8 @@ class ThumbnailTest(unittest.TestCase):
                 window.opt = ExportOptions("Finished", workers=1)
                 window.session_source = root
                 destination = root / "Finished.cbz"
-                with patch("comic_builder.ui.queue_flow.clear_session", side_effect=PermissionError("locked")), patch(
-                        "comic_builder.gui.diagnostics.exception") as logged:
+                with patch("comic_stitcher.ui.queue_flow.clear_session", side_effect=PermissionError("locked")), patch(
+                        "comic_stitcher.gui.diagnostics.exception") as logged:
                     window.export_done(destination)
                     self.assertFalse(window.done_button.isHidden())
                     self.assertFalse(window.repeat_button.isHidden())
@@ -1626,9 +1626,9 @@ class ThumbnailTest(unittest.TestCase):
                     job.import_work.cleanup.side_effect = PermissionError("locked temp folder")
                     window.queue_jobs = [job]
                     window.active_queue_job = job
-                    with patch("comic_builder.gui.shutil.rmtree", side_effect=PermissionError("locked crops")), patch(
-                            "comic_builder.gui.QTimer.singleShot") as advance, patch(
-                            "comic_builder.ui.queue_flow.queued_outputs", return_value=[destination]):
+                    with patch("comic_stitcher.gui.shutil.rmtree", side_effect=PermissionError("locked crops")), patch(
+                            "comic_stitcher.gui.QTimer.singleShot") as advance, patch(
+                            "comic_stitcher.ui.queue_flow.queued_outputs", return_value=[destination]):
                         window._queued_export_done(destination)
                         self.assertEqual(window.queue_completed, 1)
                         self.assertFalse(window.queue_jobs)
@@ -1840,7 +1840,7 @@ class ThumbnailTest(unittest.TestCase):
             try:
                 window.show()
                 window.review_mode.setCurrentIndex(NO_PAIR_REVIEW)
-                with patch("comic_builder.backend.classify_page",
+                with patch("comic_stitcher.backend.classify_page",
                            side_effect=AssertionError("no pair review ran the detector")):
                     window.start_scan(folder)
                     self.wait_for(lambda: window.plan is not None)
@@ -2284,8 +2284,8 @@ class ThumbnailTest(unittest.TestCase):
                               (stat.st_size, stat.st_mtime_ns),
                               {"dpi": 300, "workers": 2, "smooth_images": False})
             captured = []
-            with patch("comic_builder.ui.queue.import_pdf", return_value=scan) as importer, \
-                 patch("comic_builder.ui.queue.export_book", side_effect=lambda p, o, **kw: captured.append(p)):
+            with patch("comic_stitcher.ui.queue.import_pdf", return_value=scan) as importer, \
+                 patch("comic_stitcher.ui.queue.export_book", side_effect=lambda p, o, **kw: captured.append(p)):
                 export_queued_comic(job)
             self.assertEqual(importer.call_args.kwargs["dpi"], 300)
             self.assertFalse(importer.call_args.kwargs["smooth_images"])
@@ -2686,7 +2686,7 @@ class ThumbnailTest(unittest.TestCase):
             with tempfile.TemporaryDirectory() as directory:
                 source = Path(directory) / "comic.pdf"
                 source.touch()
-                with patch("comic_builder.gui.QFileDialog.getOpenFileNames",
+                with patch("comic_stitcher.gui.QFileDialog.getOpenFileNames",
                            return_value=([str(source)], "")) as picker, \
                      patch.object(ImportChoiceDialog, "exec", return_value=QDialog.Accepted), \
                      patch.object(first, "start_scan") as start:
@@ -2821,7 +2821,7 @@ class ThumbnailTest(unittest.TestCase):
             folder.mkdir()
             for i in range(3):
                 Image.new("RGB", (60, 80), "orange").save(folder / f"{i:03d}.png")
-            with patch("comic_builder.gui.diagnostics.log_path", return_value=root / "app" / "logs" / "run.log"):
+            with patch("comic_stitcher.gui.diagnostics.log_path", return_value=root / "app" / "logs" / "run.log"):
                 first = ComicWindow()
                 try:
                     first.show()
@@ -2839,7 +2839,7 @@ class ThumbnailTest(unittest.TestCase):
                              if button.text() == "Resume review").click()
                         return dialog.result()
                     with patch.object(QMessageBox, "exec", resume), \
-                         patch("comic_builder.ui.import_flow.scan_folder", side_effect=AssertionError("Rescanned")):
+                         patch("comic_stitcher.ui.import_flow.scan_folder", side_effect=AssertionError("Rescanned")):
                         second.start_scan(folder)
                     self.assertIn(0, second.plan.manual_pairs)
                     self.assertEqual(len(second.plan.scan.pages), 3)

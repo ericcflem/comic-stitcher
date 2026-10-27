@@ -50,7 +50,7 @@ def venv_python(code):
 def installed():
     check(os.access(LAUNCHER, os.X_OK), f"launcher is executable: {LAUNCHER}")
     check(BIN_LINK.is_symlink() and BIN_LINK.resolve() == LAUNCHER.resolve(), "~/.local/bin link points at the launcher")
-    check(not list(APP.glob("comic_builder/test_*.py")), "tests are not copied into the installed app")
+    check(not list(APP.glob("comic_stitcher/test_*.py")), "tests are not copied into the installed app")
     check((PREFIX / "uninstall.sh").is_file(), "uninstall.sh is kept beside the installation")
     check(ICON.is_file(), "256 px menu icon installed")
 
@@ -94,7 +94,7 @@ def installed():
         "import sys; sys.path.insert(0, sys.argv[1])\n"
         "from PySide6.QtWidgets import QApplication\n"
         "app = QApplication([])\n"
-        "from comic_builder.gui import ComicWindow\n"
+        "from comic_stitcher.gui import ComicWindow\n"
         "ComicWindow.show_startup_notice = lambda self: None  # A first-run dialog waits for a click.\n"
         "window = ComicWindow(); window.show(); app.processEvents(); window.close()\n"
         "print('started')\n")

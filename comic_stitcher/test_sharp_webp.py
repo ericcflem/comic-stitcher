@@ -89,7 +89,7 @@ class SharpWebpTests(unittest.TestCase):
         with Image.open(target) as saved:
             self.assertEqual(saved.info["icc_profile"], PROFILE)
         # Lossless WebP has no colour conversion to sharpen: Pillow encodes it as before.
-        with patch("comic_builder.export.save_sharp_webp", side_effect=AssertionError("cwebp used")):
+        with patch("comic_stitcher.export.save_sharp_webp", side_effect=AssertionError("cwebp used")):
             _save_image(image, target, "webp", ExportOptions("t", webp_sharp_yuv=True, webp_lossless=True))
 
     def test_png_input_as_windows_uses_gives_the_same_file(self):
@@ -194,13 +194,13 @@ class PartitionOverflowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, \
                 patch.object(Image.Image, "save", overflowing_save):
             target = Path(tmp) / "page.webp"
-            with patch("comic_builder.export.sharp_yuv_available", return_value=True), \
-                    patch("comic_builder.export.save_sharp_webp") as sharp:
+            with patch("comic_stitcher.export.sharp_yuv_available", return_value=True), \
+                    patch("comic_stitcher.export.save_sharp_webp") as sharp:
                 _save_image(image, target, "webp", ExportOptions("t", webp_quality=80, webp_method=5))
             sharp.assert_called_once()
             self.assertEqual(sharp.call_args.args[2:4], (80, 5))
             self.assertFalse(sharp.call_args.kwargs["sharp_yuv"])  # Only the limits change.
-            with patch("comic_builder.export.sharp_yuv_available", return_value=False):
+            with patch("comic_stitcher.export.sharp_yuv_available", return_value=False):
                 with self.assertRaisesRegex(RuntimeError, "too large and detailed"):
                     _save_image(image, target, "webp", ExportOptions("t"))
 
@@ -230,7 +230,7 @@ class RealOverflowTests(unittest.TestCase):
 
     def test_pillow_encode_retries_at_effort_3(self):
         buffer = io.BytesIO()
-        with patch("comic_builder.export.sharp_yuv_available", return_value=False):
+        with patch("comic_stitcher.export.sharp_yuv_available", return_value=False):
             _save_image(self.page, buffer, "webp", ExportOptions("t", webp_quality=90, webp_method=0))
         self.assertEqual(buffer.getvalue(), pillow_webp(self.page, quality=90, method=3))
 

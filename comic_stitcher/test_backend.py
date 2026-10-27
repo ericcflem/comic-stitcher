@@ -123,8 +123,8 @@ class BookFlowTest(unittest.TestCase):
             folder.mkdir()
             for name in ("001", "002", "004", "005", "006"):
                 Image.new("RGB", (60, 80), "black").save(folder / f"{name}.png")
-            with patch("comic_builder.backend.classify_page", side_effect=AssertionError("edge scan")), \
-                 patch("comic_builder.backend.seam_score", side_effect=AssertionError("seam score")):
+            with patch("comic_stitcher.backend.classify_page", side_effect=AssertionError("edge scan")), \
+                 patch("comic_stitcher.backend.seam_score", side_effect=AssertionError("seam score")):
                 scan = scan_folder(folder, manual=True)
             self.assertTrue(scan.manual_mode)
             self.assertEqual([p.group for p in scan.pages], [0] * 5)
@@ -202,7 +202,7 @@ class BookFlowTest(unittest.TestCase):
             with zipfile.ZipFile(archive, "w") as writer:
                 writer.write(original, "001.png")
                 writer.write(original, "003.png")
-            with patch("comic_builder.backend.classify_page", side_effect=AssertionError("edge scan")):
+            with patch("comic_stitcher.backend.classify_page", side_effect=AssertionError("edge scan")):
                 pdf_progress, archive_progress = [], []
                 pdf_scan = import_pdf(source_pdf, root / "pdf-pages", dpi=72, workers=1,
                                       manual=True, progress=lambda n, total: pdf_progress.append((n, total)))
@@ -405,9 +405,9 @@ class BookFlowTest(unittest.TestCase):
             Image.new("RGB", (120, 150), "blue").save(page2)
             members = [Member("part/10.png", page2.read_bytes()),
                        Member("part/2.png", page1.read_bytes())]
-            with patch("comic_builder.archive_import._unrar_tool", return_value="unrar"), \
-                 patch("comic_builder.archive_import.rarfile.tool_setup"), \
-                 patch("comic_builder.archive_import.rarfile.RarFile", return_value=Archive(members)):
+            with patch("comic_stitcher.archive_import._unrar_tool", return_value="unrar"), \
+                 patch("comic_stitcher.archive_import.rarfile.tool_setup"), \
+                 patch("comic_stitcher.archive_import.rarfile.RarFile", return_value=Archive(members)):
                 scan = import_archive(source, root / "staged")
                 self.assertEqual([p.path.read_bytes() for p in scan.pages],
                                  [page1.read_bytes(), page2.read_bytes()])
@@ -419,13 +419,13 @@ class BookFlowTest(unittest.TestCase):
                 self.assertFalse((root / "escape.png").exists())
 
     def test_rar_extractor_choice_per_platform(self):
-        from comic_builder import archive_import
-        with patch("comic_builder.archive_import._unrar_tool", return_value="C:/App/unrar.exe"):
+        from comic_stitcher import archive_import
+        with patch("comic_stitcher.archive_import._unrar_tool", return_value="C:/App/unrar.exe"):
             choices = archive_import._rar_extractors(windows=True)
             self.assertEqual(archive_import.rarfile.UNRAR_TOOL, "C:/App/unrar.exe")
         self.assertEqual(choices, [("UnRAR", dict(unrar=True, unar=False, bsdtar=False,
                                                   sevenzip=False, sevenzip2=False))])
-        with patch("comic_builder.archive_import._unrar_tool") as windows_lookup:
+        with patch("comic_stitcher.archive_import._unrar_tool") as windows_lookup:
             choices = archive_import._rar_extractors(windows=False)
             windows_lookup.assert_not_called()
         # Elsewhere each installed extractor is tried on its own, UnRAR first.
@@ -435,19 +435,19 @@ class BookFlowTest(unittest.TestCase):
             self.assertEqual(sum(backends.values()), 1)
 
     def test_missing_rar_extractor_names_packages_outside_windows(self):
-        from comic_builder import archive_import
+        from comic_stitcher import archive_import
         with tempfile.TemporaryDirectory() as tmp, \
-                patch("comic_builder.archive_import.rarfile.tool_setup",
+                patch("comic_stitcher.archive_import.rarfile.tool_setup",
                       side_effect=archive_import.rarfile.RarCannotExec("none")):
             with self.assertRaisesRegex(ValueError, "sudo apt install unrar"):
                 archive_import._import_rar(Path(tmp) / "book.cbr", Path(tmp), None, windows=False)
             with self.assertRaisesRegex(ValueError, "UnRAR could not start"):
-                with patch("comic_builder.archive_import._unrar_tool", return_value="unrar.exe"):
+                with patch("comic_stitcher.archive_import._unrar_tool", return_value="unrar.exe"):
                     archive_import._import_rar(Path(tmp) / "book.cbr", Path(tmp), None, windows=True)
 
     def _rar_by_extractor(self, behaviour, pages):
         """Patches rarfile so each extractor behaves as given: 'missing', 'short' or 'whole'."""
-        from comic_builder import archive_import
+        from comic_stitcher import archive_import
         current = {}
 
         def setup(**backends):
@@ -484,11 +484,11 @@ class BookFlowTest(unittest.TestCase):
                     return io.BytesIO(data[:len(data) // 2])  # As unar does with RAR5.
                 return io.BytesIO(data)
 
-        return (patch("comic_builder.archive_import.rarfile.tool_setup", side_effect=setup),
-                patch("comic_builder.archive_import.rarfile.RarFile", Archive))
+        return (patch("comic_stitcher.archive_import.rarfile.tool_setup", side_effect=setup),
+                patch("comic_stitcher.archive_import.rarfile.RarFile", Archive))
 
     def test_rar_import_moves_on_when_an_extractor_cuts_pages_short(self):
-        from comic_builder import archive_import
+        from comic_stitcher import archive_import
         pages = []
         for colour in ("red", "blue"):
             buffer = io.BytesIO()

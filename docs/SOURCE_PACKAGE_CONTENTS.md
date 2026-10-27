@@ -2,7 +2,7 @@
 
 | Location | Contents |
 | --- | --- |
-| `comic_builder/`, `launch.py` | Application code and tests |
+| `comic_stitcher/`, `launch.py` | Application code and tests |
 | `packaging/` | Windows build scripts, Inno Setup script, packaging helpers and verification tools, the Qt packaging hook (`build_hooks/`), and the release records: pinned wheels, build environment, source archive manifest and this package's file list |
 | `README.md`, `LICENSE`, `docs/` | User guide, Windows build/replacement instructions, component scope and source access |
 | `assets/` | App/page/interface icons and retained component notices |

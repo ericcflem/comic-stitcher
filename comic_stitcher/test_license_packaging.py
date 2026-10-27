@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import sys
 from unittest.mock import patch
 
-# The packaging scripts are in packaging/, beside comic_builder.
+# The packaging scripts are in packaging/, beside comic_stitcher.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "packaging"))
 import package_licenses  # noqa: E402
 
@@ -145,7 +145,7 @@ class LicensePackagingTests(unittest.TestCase):
     def test_frozen_helpers_are_resolved_even_when_not_runtime_requirements(self):
         fake = SimpleNamespace(metadata={'Name': 'setuptools'})
         archive = SimpleNamespace(open_embedded_archive=lambda _: SimpleNamespace(
-            toc={'setuptools._vendor.jaraco.context': None, 'comic_builder.gui': None,
+            toc={'setuptools._vendor.jaraco.context': None, 'comic_stitcher.gui': None,
                  'launch': None, 'json': None, 'unknown_helper': None}))
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
