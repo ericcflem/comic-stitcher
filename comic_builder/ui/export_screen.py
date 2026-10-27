@@ -402,6 +402,10 @@ class ExportScreen:
     def return_preview_from_export(self):
         self.pages.setCurrentWidget(self.preview)
         self._expand_window()
+        if not getattr(self, "preview_ready", False):
+            # A resumed review that opened on this screen went straight past the
+            # final review before it was drawn: draw it now, thumbnails and all.
+            QTimer.singleShot(0, self._populate_preview)
 
     def show_output_options(self):
         self.options_from_screen()

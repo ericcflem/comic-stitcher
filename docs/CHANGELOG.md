@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fixed: resuming a saved review that opens on Create your comic, then going
+  back to the final review, left it showing "Preparing comic preview…" with an
+  empty thumbnail strip. It's now drawn when you go back.
 - Queue window: dragging a comic shows the same pink dotted line as the final
   review's page strip, between comics and also above the first and below the
   last (Windows showed no line above the first). The comic lands where the line
