@@ -1917,8 +1917,8 @@ class ThumbnailTest(unittest.TestCase):
                     window._start_size_estimate()
                     self.assertTrue(requests[-1]["compare_lossless"])
                     generation = window.estimate_generation
-                    window._size_estimate_ready(generation, {"full": 168_000_000})
-                    window._lossless_estimate_ready(generation, 37_000_000)
+                    window._size_estimate_ready(generation, {"full": 168 * 1024 * 1024})
+                    window._lossless_estimate_ready(generation, 37 * 1024 * 1024)
                     self.assertFalse(window.lossless_hint_row.isHidden())
                     self.assertIn("about 37", window.lossless_hint.text())
                     # Back to the settings it measured: its answer applies again.
