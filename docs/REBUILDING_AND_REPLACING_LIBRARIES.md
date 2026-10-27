@@ -1,4 +1,4 @@
-# Comic Stitcher 0.10.0: reference rebuild and replacement recipe
+# Comic Stitcher 0.11.0: reference rebuild and replacement recipe
 
 The pinned application rebuild, modified py7zr rebuild and coherent official
 prebuilt Qt/PySide replacement were exercised on Windows. Native Qt/PySide source

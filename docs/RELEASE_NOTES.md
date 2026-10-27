@@ -1,4 +1,4 @@
-# Comic Stitcher 0.10.0
+# Comic Stitcher 0.11.0
 
 Comic Stitcher prepares comic archives. Import PDFs, comic archives, image folders
 or centered screenshots; review suggested page pairs; join split spreads; and
@@ -6,27 +6,21 @@ check the finished comic before exporting. Original input files are preserved.
 
 ## What's new
 
-- **Smarter screenshot crops.** Covers of a different size are cropped on their
-  own, black-bordered pages no longer create false page sizes, and a crop never
-  cuts off art the screenshot shows. Books with two page sizes place
-  black-bordered pages by their art, the pages around them and their borders.
-  A short summary says how many screenshots have pages of each size.
-- **Page sizes in crop review.** Choose a page size for one screenshot with
-  radio buttons, or for the whole book at once, or measure one screenshot again
-  on its own.
-- **Overlapping halves.** Spreads sliced with a repeated strip of art at the
-  seam are found and joined lined up, and the Seam tools line up any spread by
-  hand (I and O move the halves, Enter shows the seam line).
-- **Page folders in any format.** With no archive, pages are saved as JPEG,
-  WebP or PNG; lossless PNG folders can be added to any export.
-- **A lossless WebP suggestion** when it would make a comic much smaller, as
-  with clean black-and-white line art.
-- **Skip pair review** for comics whose pages are already complete, such as a
-  CBR to convert to CBZ.
-- **Truer colour** for CMYK pages without a colour profile, converted as printed
-  for North American comics (SWOP).
-- **RAR5 comics on Linux**, and on Windows, uninstalling can remove your settings
-  too.
+- **A User Guide** explains each step and setting, with every keyboard shortcut.
+  It's installed with the app, and the README is shorter.
+- **Pages worth a look** are pointed out after import: gaps in the file
+  numbering, where a page may be missing, and names that differ only in
+  capitalisation. They're marked with a pink ! in the final review; **M** goes
+  from one to the next.
+- **Save the cover and ComicInfo.xml beside the comic,** as well as inside it.
+- **More lossless WebP suggestions:** for PNG pages and folders of pages too,
+  and fixed so that changing the format or quality no longer hides it.
+- **Easier dragging:** a page dragged to either end of the final review's strip
+  keeps scrolling, and the queue shows the pink drop line everywhere.
+- **Tighter windows,** and fixes for a resumed review's blank final review and
+  for buttons left over from a finished export.
+- **For builders:** the build tools are in `packaging/`, and the code's folder
+  is `comic_stitcher`.
 
 The full list is in [CHANGELOG.md](CHANGELOG.md).
 
@@ -49,6 +43,6 @@ encoder (libwebp 1.6.0, unchanged from 0.8.0) for WebP's sharp color conversion.
 - Windows has an installer; Linux installs from source. There is no Mac or
   portable download. Comic Stitcher is not a comic reader or library manager.
 
-See [README.md](../README.md) for instructions and
+See the [User Guide](USER_GUIDE.md) for instructions and
 [SOURCE_ACCESS.md](SOURCE_ACCESS.md) for matching source, licenses and library
 replacement information.
