@@ -1,11 +1,11 @@
 """Build the release's source package, or refresh its file list.
 
-    python make_source_package.py
+    python packaging/make_source_package.py
         Checks that every file in SOURCE_PACKAGE_FILES.json is present with the
         recorded size and SHA-256, then writes dist/ComicStitcher_Source_<version>.zip
         and dist/SHA256SUMS.txt (with the installer too, once it has been built).
 
-    python make_source_package.py --update
+    python packaging/make_source_package.py --update
         (Maintainers, in a git checkout.) Rewrites SOURCE_PACKAGE_FILES.json from
         the files git tracks, keeping the recorded entries for the large inputs git
         does not hold: third_party_sources/*.tar.*, vendor/unrar.exe and
@@ -25,8 +25,10 @@ import sys
 import zipfile
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
-LISTING = ROOT / "SOURCE_PACKAGE_FILES.json"
+HERE = Path(__file__).resolve().parent  # packaging/: these tools and the release records
+ROOT = HERE.parent  # The source folder
+LISTING = HERE / "SOURCE_PACKAGE_FILES.json"
+LISTING_PATH = LISTING.relative_to(ROOT).as_posix()  # Its path in the package.
 NOT_IN_GIT = ("third_party_sources/", "vendor/unrar.exe", "vendor/cwebp.exe")
 
 
@@ -52,7 +54,7 @@ def update() -> None:
     tracked = subprocess.run(["git", "ls-files", "-z"], cwd=ROOT, capture_output=True,
                              check=True).stdout.decode().split("\0")
     previous = {item["path"]: item for item in json.loads(LISTING.read_text(encoding="utf-8"))["files"]}
-    files = [entry(path) for path in tracked if path and path != LISTING.name]
+    files = [entry(path) for path in tracked if path and path != LISTING_PATH]
     files += [item for path, item in previous.items() if path.startswith(NOT_IN_GIT)]
     listed = {item["path"] for item in files}
     files += [entry(path) for path in NOT_IN_GIT
@@ -90,7 +92,7 @@ def build() -> Path:
     output.parent.mkdir(exist_ok=True)
     partial = output.with_suffix(".zip.part")
     with zipfile.ZipFile(partial, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        for item in files + [{"path": LISTING.name}]:
+        for item in files + [{"path": LISTING_PATH}]:
             # Already-compressed archives are stored as they are.
             stored = item["path"].endswith((".gz", ".xz", ".zip", ".exe", ".png", ".ico"))
             archive.write(ROOT / item["path"], item["path"],

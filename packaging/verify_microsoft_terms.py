@@ -12,7 +12,8 @@ import struct
 import zlib
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parent  # packaging/: these tools and the release records
+ROOT = HERE.parent  # The source folder
 RECORD = ROOT / 'installer/microsoft-terms-review.json'
 
 

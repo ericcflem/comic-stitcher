@@ -12,7 +12,8 @@ import subprocess
 import sys
 import tempfile
 
-ROOT = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parent  # packaging/: these tools and the release records
+ROOT = HERE.parent  # The source folder
 
 
 def resource_contents(source: bytes) -> tuple[bytes, bytes]:

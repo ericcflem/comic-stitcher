@@ -57,7 +57,7 @@ def capture(root, output):
         raise ValueError('UnRAR does not match the verified supplier')
     if digest(root / 'licenses/unrar/license.txt') != '48c3ebe5e74e4b9312cdf6b337b04f87f220416cb54ca4f4df01a1f504859d09':
         raise ValueError('UnRAR license does not match the verified supplier')
-    if digest(root / 'cwebp.exe') != json.loads((Path(__file__).resolve().parent / 'vendor' / 'CWEBP-PROVENANCE.json')
+    if digest(root / 'cwebp.exe') != json.loads((Path(__file__).resolve().parent.parent / 'vendor' / 'CWEBP-PROVENANCE.json')
                                                .read_text())['executable_sha256']:
         raise ValueError('cwebp.exe does not match the recorded libwebp download')
     record = {'scope': 'Installer payload comparison, not complete licensing clearance',

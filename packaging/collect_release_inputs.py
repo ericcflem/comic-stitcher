@@ -7,7 +7,8 @@ from pathlib import Path
 
 from packaging.tags import compatible_tags, cpython_tags
 
-ROOT = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parent  # packaging/: these tools and the release records
+ROOT = HERE.parent  # The source folder
 TAGS = list(cpython_tags(python_version=(3, 14), abis=['cp314'], platforms=['win_amd64']))
 TAGS += list(compatible_tags(python_version=(3, 14), interpreter='cp314', platforms=['win_amd64']))
 RANK = {str(t): i for i, t in enumerate(TAGS)}
@@ -42,14 +43,14 @@ def resolve(record):
 
 
 def main():
-    records = json.loads((ROOT / 'original-build-environment.json').read_text())
+    records = json.loads((HERE / 'original-build-environment.json').read_text())
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
         selected = list(pool.map(resolve, records))
-    (ROOT / 'wheel-inputs.json').write_text(json.dumps(selected, indent=2) + '\n')
+    (HERE / 'wheel-inputs.json').write_text(json.dumps(selected, indent=2) + '\n')
     requirements = ['# CPython 3.14 Windows x64; exact installed versions (unchanged since 0.6.38).',
                     '# Hashes select compatible official wheels, not a byte-identical installer guarantee.']
     requirements += [f"{r['name']}=={r['version']} --hash=sha256:{r['sha256']}" for r in selected]
-    (ROOT / 'requirements-release.txt').write_text('\n'.join(requirements) + '\n')
+    (HERE / 'requirements-release.txt').write_text('\n'.join(requirements) + '\n')
     print(f'Resolved {len(selected)} release wheel inputs')
 
 if __name__ == '__main__':

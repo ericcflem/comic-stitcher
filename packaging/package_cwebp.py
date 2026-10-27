@@ -13,7 +13,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parent  # packaging/: these tools and the release records
+ROOT = HERE.parent  # The source folder
 
 
 def main(executable: Path, destination: Path) -> None:

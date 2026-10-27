@@ -12,7 +12,8 @@ import sysconfig
 from pathlib import Path
 from packaging.requirements import Requirement
 
-ROOT = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parent  # packaging/: these tools and the release records
+ROOT = HERE.parent  # The source folder
 QT_PACKAGES = {'pyside6', 'pyside6-essentials', 'pyside6-addons', 'shiboken6'}
 PUBLIC_DOCUMENTS = (
     'LICENSE', 'README.md', 'docs/RELEASE_NOTES.md', 'docs/CHANGELOG.md', 'docs/PROVENANCE.md',

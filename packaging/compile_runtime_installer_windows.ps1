@@ -1,18 +1,20 @@
 param([string]$Compiler = '', [string]$RuntimeFile = '')
 $ErrorActionPreference = 'Stop'
-Set-Location -LiteralPath $PSScriptRoot
+# Work in the source folder, one level up, where the build's outputs go.
+$Root = Split-Path -Parent $PSScriptRoot
+Set-Location -LiteralPath $Root
 $policy = Get-Content -LiteralPath 'installer\shared-runtime-inputs.json' -Raw | ConvertFrom-Json
 if ($policy.minimum_runtime_version -ne '14.44.35211.0') {
     throw 'Update and retest the Inno prerequisite/version policy before changing the runtime minimum.'
 }
-$python = Join-Path $PSScriptRoot '.venv-release\Scripts\python.exe'
+$python = Join-Path $Root '.venv-release\Scripts\python.exe'
 if (-not (Test-Path -LiteralPath $python)) { throw 'Use the pinned .venv-release testing environment.' }
-& $python package_shared_runtime.py verify 'dist\ComicStitcher'
-if ($LASTEXITCODE -ne 0) { throw 'Shared runtime bundle validation failed. Run rebuild_release_windows.bat first.' }
-& $python installer_evidence.py capture 'dist\ComicStitcher' --record 'runtime-integration\input-bundle.json'
+& $python packaging\package_shared_runtime.py verify 'dist\ComicStitcher'
+if ($LASTEXITCODE -ne 0) { throw 'Shared runtime bundle validation failed. Run packaging\rebuild_release_windows.bat first.' }
+& $python packaging\installer_evidence.py capture 'dist\ComicStitcher' --record 'runtime-integration\input-bundle.json'
 if ($LASTEXITCODE -ne 0) { throw 'Bundle inventory/notice preflight failed.' }
 & (Join-Path $PSScriptRoot 'prepare_microsoft_runtime_windows.ps1') -RuntimeFile $RuntimeFile
-& $python verify_microsoft_terms.py --runtime 'vendor\microsoft\vc_redist.x64.exe'
+& $python packaging\verify_microsoft_terms.py --runtime 'vendor\microsoft\vc_redist.x64.exe'
 if ($LASTEXITCODE -ne 0) { throw 'Microsoft prerequisite terms/evidence validation failed.' }
 $candidates = @($Compiler, $env:INNO_ISCC)
 $onPath = Get-Command ISCC.exe -ErrorAction SilentlyContinue
@@ -29,7 +31,7 @@ New-Item -ItemType Directory -Force -Path 'runtime-integration' | Out-Null
 # seconds later before giving up.
 $attempts = 3
 for ($attempt = 1; $attempt -le $attempts; $attempt++) {
-    & $iscc 'setup_windows.iss' 2>&1 | Tee-Object -FilePath 'runtime-integration\compiler.log'
+    & $iscc 'packaging\setup_windows.iss' 2>&1 | Tee-Object -FilePath 'runtime-integration\compiler.log'
     if ($LASTEXITCODE -eq 0) { break }
     if ($attempt -eq $attempts) { throw "Inno compilation failed $attempts times; see runtime-integration\compiler.log." }
     Write-Host "Inno compilation failed (attempt $attempt of $attempts), often because antivirus was scanning the new installer. Trying again in 10 seconds..."
@@ -37,7 +39,7 @@ for ($attempt = 1; $attempt -le $attempts; $attempt++) {
 }
 $installer = 'installer_dist\ComicStitcher-Setup-0.10.0.exe'
 if (-not (Test-Path -LiteralPath $installer)) { throw 'Expected installer was not produced.' }
-& $python installer_evidence.py compare 'dist\ComicStitcher' --record 'runtime-integration\input-bundle.json' --output 'runtime-integration\input-unchanged-result.json'
+& $python packaging\installer_evidence.py compare 'dist\ComicStitcher' --record 'runtime-integration\input-bundle.json' --output 'runtime-integration\input-unchanged-result.json'
 if ($LASTEXITCODE -ne 0) { throw 'Bundle changed during compilation.' }
 $record = [ordered]@{
     compiler_name = $info.Name
@@ -45,7 +47,7 @@ $record = [ordered]@{
     compiler_sha256 = (Get-FileHash -LiteralPath $iscc -Algorithm SHA256).Hash.ToLowerInvariant()
     installer_name = (Split-Path -Leaf $installer)
     installer_sha256 = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
-    setup_script_sha256 = (Get-FileHash -LiteralPath 'setup_windows.iss' -Algorithm SHA256).Hash.ToLowerInvariant()
+    setup_script_sha256 = (Get-FileHash -LiteralPath 'packaging\setup_windows.iss' -Algorithm SHA256).Hash.ToLowerInvariant()
     prerequisite_script_sha256 = (Get-FileHash -LiteralPath 'installer\microsoft_runtime.iss' -Algorithm SHA256).Hash.ToLowerInvariant()
     component_terms_script_sha256 = (Get-FileHash -LiteralPath 'installer\microsoft_terms.iss' -Algorithm SHA256).Hash.ToLowerInvariant()
     component_terms_record_sha256 = (Get-FileHash -LiteralPath 'installer\microsoft-terms-review.json' -Algorithm SHA256).Hash.ToLowerInvariant()

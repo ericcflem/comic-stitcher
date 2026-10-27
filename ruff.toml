@@ -1,5 +1,5 @@
 # Audit checks for correctness; avoid a large cosmetic rewrite.
-# Generated Qt resources are rebuilt by package_icons.py.
+# Generated Qt resources are rebuilt by packaging/package_icons.py.
 target-version = "py310"
 exclude = ["comic_builder/icons_resource.py", ".venv", "build", "dist"]
 

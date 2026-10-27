@@ -1,7 +1,8 @@
 @echo off
 setlocal
-cd /d "%~dp0"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "compile_runtime_installer_windows.ps1" -Compiler "%~1" > "runtime-installer-retry.log" 2>&1
+rem Run from the source folder, one level up, where the build's outputs go.
+cd /d "%~dp0.."
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "packaging\compile_runtime_installer_windows.ps1" -Compiler "%~1" > "runtime-installer-retry.log" 2>&1
 if errorlevel 1 goto :failed
 type "runtime-installer-retry.log"
 echo.

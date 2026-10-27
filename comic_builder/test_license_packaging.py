@@ -3,9 +3,12 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+import sys
 from unittest.mock import patch
 
-import package_licenses
+# The packaging scripts are in packaging/, beside comic_builder.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "packaging"))
+import package_licenses  # noqa: E402
 
 
 class LicensePackagingTests(unittest.TestCase):

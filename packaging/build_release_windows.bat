@@ -1,6 +1,7 @@
 @echo off
 setlocal
-cd /d "%~dp0"
+rem Run from the source folder, one level up, where the build's outputs go.
+cd /d "%~dp0.."
 if not exist "launch.py" (
     echo Copy this rebuild kit into an isolated copy of the 0.10.0 source folder first.
     exit /b 1
@@ -11,14 +12,14 @@ py -3.14 -m venv .venv-release
 if errorlevel 1 goto :failed
 set "STITCHER_PYTHON=.venv-release\Scripts\python.exe"
 if not exist "release-wheelhouse" mkdir "release-wheelhouse"
-"%STITCHER_PYTHON%" -m pip download --require-hashes --only-binary=:all: --dest "release-wheelhouse" -r "requirements-release.txt"
+"%STITCHER_PYTHON%" -m pip download --require-hashes --only-binary=:all: --dest "release-wheelhouse" -r "packaging\requirements-release.txt"
 if errorlevel 1 goto :failed
-"%STITCHER_PYTHON%" -m pip install --no-index --find-links "release-wheelhouse" --require-hashes -r "requirements-release.txt"
+"%STITCHER_PYTHON%" -m pip install --no-index --find-links "release-wheelhouse" --require-hashes -r "packaging\requirements-release.txt"
 if errorlevel 1 goto :failed
 "%STITCHER_PYTHON%" -m pip check
 if errorlevel 1 goto :failed
 if /I "%~1"=="--prepare-only" exit /b 0
-call rebuild_release_windows.bat
+call packaging\rebuild_release_windows.bat
 exit /b %errorlevel%
 :failed
 echo Release preparation failed; keep the error output.

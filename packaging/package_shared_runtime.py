@@ -12,7 +12,8 @@ from pathlib import Path
 import hashlib
 import pefile
 
-ROOT = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parent  # packaging/: these tools and the release records
+ROOT = HERE.parent  # The source folder
 
 def digest(data):
     return hashlib.sha256(data).hexdigest()
