@@ -1910,7 +1910,9 @@ class ThumbnailTest(unittest.TestCase):
                 self.wait_for(lambda: window.lossless_checked[0] is window.plan)  # Started by the import.
                 self.wait_for(lambda: not window.lossless_checks)
                 # A book the check favours: the note is there as the screen opens.
-                window.lossless_checked = (window.plan, 0.2)
+                key = window.lossless_checked[1]
+                self.assertIsNotNone(key)
+                window.lossless_checked = (window.plan, key, 0.2)
                 requests = []
                 with patch.object(window.size_worker, "request",
                                   side_effect=lambda *args, **kw: requests.append(kw)):
@@ -1925,13 +1927,29 @@ class ThumbnailTest(unittest.TestCase):
                     window._lossless_estimate_ready(generation, 90_000_000)
                     self.assertTrue(window.lossless_hint_row.isHidden())
                     # A book the check rules out: no note, and no full comparison.
-                    window.lossless_checked = (window.plan, 1.6)
+                    window.lossless_checked = (window.plan, key, 1.6)
                     window._schedule_size_estimate()
                     self.assertTrue(window.lossless_hint_row.isHidden())
                     window._start_size_estimate()
                     self.assertFalse(requests[-1]["compare_lossless"])
+                    # Eric: the check ruled lossless out against the usual JPEG, then
+                    # WebP at 95 was chosen (168 MB, lossless 37 MB). Its answer no
+                    # longer applies, so the full comparison runs.
+                    window.opt.format, window.opt.webp_quality = "webp", 95
+                    self.assertIsNone(window._lossless_share())
+                    window._start_size_estimate()
+                    self.assertTrue(requests[-1]["compare_lossless"])
+                    generation = window.estimate_generation
+                    window._size_estimate_ready(generation, {"full": 168_000_000})
+                    window._lossless_estimate_ready(generation, 37_000_000)
+                    self.assertFalse(window.lossless_hint_row.isHidden())
+                    from .ui.common import readable_size  # MB as this system's file manager counts them.
+                    self.assertIn(f"about {readable_size(37_000_000)} as lossless WebP", window.lossless_hint.text())
+                    # Back to the settings it measured: its answer applies again.
+                    window.opt.format, window.opt.webp_quality = "jpeg", 90
+                    self.assertEqual(window._lossless_share(), 1.6)
                 window.new_comic()
-                self.assertEqual(window.lossless_checked, (None, None))
+                self.assertEqual(window.lossless_checked, (None, None, None))
             finally:
                 window.queue_jobs.clear()
                 window.close()
