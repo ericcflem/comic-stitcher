@@ -1308,8 +1308,8 @@
     },
     {
       "path": "comic_stitcher/backend.py",
-      "bytes": 41630,
-      "sha256": "65e99b2c08f3e525d3248dea971349c375ee984fdd36a49285772224b7c3dc90"
+      "bytes": 43266,
+      "sha256": "2d52d6f309543c8f7b7f7d5cfc84406e3fc3c4df3c6d3e7247bd48481f1f4b06"
     },
     {
       "path": "comic_stitcher/cmyk_profile.py",
@@ -1423,8 +1423,8 @@
     },
     {
       "path": "comic_stitcher/session.py",
-      "bytes": 14656,
-      "sha256": "fc4a1ce77257db82852fdda377cd4ab6d43f1c44bc0a66ac4e24c07d28fb9962"
+      "bytes": 15679,
+      "sha256": "bb8460912de5e6bf07705e522554f5e239a8eaf2ec99c859ee5a378bb0f0b632"
     },
     {
       "path": "comic_stitcher/sharp_webp.py",
@@ -1528,8 +1528,8 @@
     },
     {
       "path": "comic_stitcher/test_page_edits.py",
-      "bytes": 7474,
-      "sha256": "5bf839025d8ee6a50b79bf8e4b67aaf299d3abda1226b1e275cbc7aa6991451b"
+      "bytes": 11190,
+      "sha256": "53d681279a01799c81c07aa189097d6b6fdc19d3ece9f11d0d1d318cd14681b3"
     },
     {
       "path": "comic_stitcher/test_parallel_scan.py",
@@ -1618,8 +1618,8 @@
     },
     {
       "path": "comic_stitcher/ui/final_review.py",
-      "bytes": 35671,
-      "sha256": "483f6aae55b62a6d4b28af04b357c68c1c4985b7620e89eda6be9efee0d7f169"
+      "bytes": 35730,
+      "sha256": "eba3bcd144fac5f00af6c25b27677fe8247df10659445fa02d92957cd3a9e8cd"
     },
     {
       "path": "comic_stitcher/ui/import_dialogs.py",
@@ -1643,8 +1643,8 @@
     },
     {
       "path": "comic_stitcher/ui/pair_review.py",
-      "bytes": 15793,
-      "sha256": "4a368589c81763cdf309b721bab9cbb7ea474ae9247b65386aaa2be54ca7b168"
+      "bytes": 16316,
+      "sha256": "ffbe5e8c4f0ce087faf552c8aca238993b9a0cf7251e1f7594cfc16979b08077"
     },
     {
       "path": "comic_stitcher/ui/pdf_dialog.py",
@@ -1688,8 +1688,18 @@
     },
     {
       "path": "docs/CHANGELOG.md",
-      "bytes": 20712,
-      "sha256": "caef678020ddb6f22204dd334c585570a4605db254f5cd529cb8ae06febd4dc8"
+      "bytes": 20993,
+      "sha256": "7708bbf5908f75b0619704fa83df7805655944f3087e7bb2370872d89832d8eb"
+    },
+    {
+      "path": "docs/CHANGELOG.md",
+      "bytes": 20993,
+      "sha256": "7708bbf5908f75b0619704fa83df7805655944f3087e7bb2370872d89832d8eb"
+    },
+    {
+      "path": "docs/CHANGELOG.md",
+      "bytes": 20993,
+      "sha256": "7708bbf5908f75b0619704fa83df7805655944f3087e7bb2370872d89832d8eb"
     },
     {
       "path": "docs/NATIVE_SOURCE_REBUILD.md",
@@ -1733,8 +1743,8 @@
     },
     {
       "path": "docs/USER_GUIDE.md",
-      "bytes": 18813,
-      "sha256": "685493abd39d5f2f92d15145a02764abb63e8aea563ffad0aa5822ebbab2cdee"
+      "bytes": 18787,
+      "sha256": "1f42a816b953ca5b797d2d511446d031f74b1773f1b9bbc5c7bac5ff6e4af1ec"
     },
     {
       "path": "installer/RUNTIME_REFERENCES.md",
