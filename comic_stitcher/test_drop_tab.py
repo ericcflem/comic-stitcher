@@ -167,23 +167,42 @@ class DropTabTests(unittest.TestCase):
         reopened.deleteLater()
 
     def test_settings_dialog_reset_restores_defaults(self):
-        self.tab.apply_settings(thickness=20, height=300, hover_delay=900, colour="gray")
+        self.tab.apply_settings(thickness=20, height=300, hover_delay=900, colour="#3d3d3d")
         dialog = DropTabSettingsDialog(self.tab)
         dialog.reset()
-        self.assertEqual((self.tab.thickness, self.tab.tab_height, self.tab.hover_delay, self.tab.colour_mode),
-                         (8, self.tab.expanded_size()[1], 450, "accent"))
+        self.assertEqual((self.tab.thickness, self.tab.tab_height, self.tab.hover_delay, self.tab.colour),
+                         (8, self.tab.expanded_size()[1], 450, "#0073e5"))
+        self.assertTrue(dialog.colour.buttons["#0073e5"].isChecked())
         dialog.deleteLater()
 
-    def test_gray_colour_is_saved_and_used(self):
+    def test_swatch_colour_is_saved_and_used(self):
         from PySide6.QtGui import QColor
-        from .drop_tab import TAB_GRAY
-        self.assertEqual(self.tab.tab_colour(), self.tab.palette().highlight().color())
-        self.tab.apply_settings(colour="gray")
-        self.assertEqual(self.tab.tab_colour(), QColor(TAB_GRAY))
-        self.assertEqual(self.settings.value("drop_tab/color"), "gray")
+        self.assertEqual(self.tab.tab_colour(), QColor("#0073e5"))  # Blue by default.
+        dialog = DropTabSettingsDialog(self.tab)
+        dialog.colour.buttons["#e95420"].click()
+        self.assertEqual(self.tab.tab_colour(), QColor("#e95420"))
+        self.assertEqual(self.settings.value("drop_tab/color"), "#e95420")
+        self.assertEqual([v for v, b in dialog.colour.buttons.items() if b.isChecked()], ["#e95420"])
+        dialog.colour.choose("#FFEEDD")  # A custom colour, as Custom… gives it.
+        self.assertEqual(self.tab.colour, "#ffeedd")
+        self.assertFalse(any(b.isChecked() for b in dialog.colour.buttons.values()))
+        self.assertFalse(dialog.colour.custom.icon().isNull())
         reopened = DropTab(self.settings, opener=lambda paths: True)
-        self.assertEqual(reopened.colour_mode, "gray")
+        self.assertEqual(reopened.colour, "#ffeedd")
         reopened.deleteLater()
+        dialog.deleteLater()
+
+    def test_older_colour_settings_and_bad_values(self):
+        from .drop_tab import edge_colour, saved_colour
+        from PySide6.QtGui import QColor
+        self.assertEqual(saved_colour("accent"), "#0073e5")  # Was the system accent: now Blue.
+        self.assertEqual(saved_colour("gray"), "#3d3d3d")
+        self.assertEqual(saved_colour("not a colour"), "#0073e5")
+        self.assertEqual(saved_colour("red"), "#0073e5")  # Only #rrggbb is saved.
+        self.assertEqual(saved_colour(None), "#0073e5")
+        # The edge sets the tab off: darker around light colours, lighter around dark.
+        self.assertLess(edge_colour(QColor("#ffffff")).lightness(), 200)
+        self.assertGreater(edge_colour(QColor("#3d3d3d")).lightness(), QColor("#3d3d3d").lightness())
 
     def test_a_saved_height_is_kept(self):
         self.tab.apply_settings(height=120)

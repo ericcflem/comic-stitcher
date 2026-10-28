@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Drop tab: choose its color from a row of swatches (Ubuntu's ten accent
+  colors and a dark gray), or any color with **Custom…**, in **Drop tab
+  settings…**. Blue is the default. "Match system accent" is gone: on Windows
+  the usual accent is nearly white, and the tab vanished against a white
+  window; a tab set to it turns blue, and one set to Gray turns dark gray. The
+  closed tab is also solid now, not see-through, with a thin edge that sets it
+  off from whatever is behind it.
 - Final review: **Remove** works on a joined spread too, removing both of its
   pages at once; before, it did nothing until the spread was split. **Undo
   last edit**, or going back in pair review, brings the spread back as it was,
