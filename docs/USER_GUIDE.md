@@ -144,7 +144,6 @@ those were joined, or 2–3 if not.
 Other controls:
 
 - **Rotate left / Rotate right** turns the spread, if it was scanned sideways.
-- **Remove a page…** leaves one of the two pages out of the finished comic.
 - **Inspect seam** (Space) shows a close-up of where the halves meet. Up and Down
   scroll along it.
 - **Line up spread** is for spreads where both halves repeat a strip of the art at the
@@ -167,7 +166,8 @@ The final review shows the finished comic, with every page in the filmstrip.
 - **Reorder** by dragging a thumbnail to the left or right half of another. A pink
   dotted line shows where it will go.
 - **Rotate page** turns the current page left or right.
-- **Remove current page…** leaves the page out, after asking.
+- **Remove current page…** leaves the page out, after asking. On a joined spread, it
+  removes both of its pages.
 - **Undo last edit** undoes the last move, swap, rotation, join, split or removal.
 - **Inspect selected seam** (Space) shows how two selected pages would meet as a spread,
   or lets you line up the halves of a joined spread.

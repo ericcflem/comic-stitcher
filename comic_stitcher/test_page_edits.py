@@ -123,3 +123,68 @@ class PageEditTests(unittest.TestCase):
             with Image.open(folder / '001.png') as a, Image.open(folder / '000.png') as b:
                 expected = Image.new('RGB', (36, 12)); expected.paste(a.transpose(Image.Transpose.ROTATE_90), (0, 0)); expected.paste(b.transpose(Image.Transpose.ROTATE_270), (18, 0))
             self.assertEqual(result.tobytes(), expected.tobytes())
+
+
+class SpreadRemovalTests(unittest.TestCase):
+    make_pages = PageEditTests.make_pages
+
+    def resumed(self, folder, root, plan):
+        save_session(folder, root / 'state', plan, possible_started=False, stage='preview', preview_index=0)
+        data = read_session(folder, root / 'state')
+        return restore_plan(cached_folder_scan(folder, data), data)
+
+    def test_spread_joined_by_hand_is_removed_whole_and_restored_by_back_and_undo(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); folder = root / 'pages'; folder.mkdir()
+            plan = self.make_pages(folder)
+            plan.set_rotation(2, 90)
+            plan.join(1, override_boundary=True, right=2)
+            plan.set_overlap(1, 3, 'right')
+            plan.set_rotation(1, 180)
+            with self.assertRaises(ValueError):
+                plan.remove_page(1)  # One half alone still asks for a split.
+            plan.remove_page(2, 1)  # Either order names the same spread.
+            self.assertEqual(plan.entries(), [(0, None), (3, None)])
+            self.assertEqual((plan.manual_pairs, plan.join_overlaps, plan.rotations), (set(), {}, {}))
+            self.assertEqual(plan.history[-1], {'removed': 1, 'also': 2, 'rotation': 180,
+                                                'overlap': [3, 'right'], 'turns': [0, 90]})
+            resumed = self.resumed(folder, root, plan)
+            self.assertEqual(resumed.removed_pages, {1, 2})
+            self.assertTrue(resumed.back())  # Pair review's Back.
+            self.assertEqual(resumed.entries(), [(0, None), (1, 2), (3, None)])
+            self.assertEqual((resumed.join_overlaps, resumed.rotations, resumed.joined_rotations),
+                             ({1: (3, 'right')}, {1: 180}, {1: (0, 90)}))
+            again = self.resumed(folder, root, plan)
+            self.assertEqual(again.undo_preview()['_action'], 'page removal')  # Final review's Undo.
+            self.assertEqual(again.entries(), [(0, None), (1, 2), (3, None)])
+            self.assertEqual(again.join_overlaps, {1: (3, 'right')})
+
+    def test_approved_spread_is_removed_whole_and_restored(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); folder = root / 'pages'; folder.mkdir()
+            plan = self.make_pages(folder)
+            self.assertEqual((plan.current()[1].left, plan.current()[1].right), (0, 1))
+            plan.decide(True)
+            plan.set_overlap(0, 2, 'left')
+            plan.remove_page(0, 1)
+            self.assertEqual(plan.entries(), [(2, None), (3, None)])
+            archive = export_book(plan, ExportOptions('Without spread', format='png', workers=1))
+            with zipfile.ZipFile(archive) as z:
+                self.assertEqual(len(z.namelist()), 2)
+            resumed = self.resumed(folder, root, plan)
+            self.assertTrue(resumed.back())
+            self.assertEqual(resumed.entries()[0], (0, 1))
+            self.assertEqual(resumed.join_overlaps, {0: (2, 'left')})
+
+    def test_two_pages_of_a_pair_and_the_last_pages(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory); plan = self.make_pages(folder, 3)
+            plan.set_rotation(1, 270)
+            plan.remove_page(0, 1)
+            self.assertEqual(plan.history[-1], {'removed': 0, 'also': 1, 'also_rotation': 270})
+            with self.assertRaises(ValueError):
+                plan.remove_page(2)  # The comic needs a page.
+            self.assertTrue(plan.back())
+            self.assertEqual((plan.removed_pages, plan.rotations), (set(), {1: 270}))
+            with self.assertRaises(ValueError):
+                plan.remove_page(1, 1)

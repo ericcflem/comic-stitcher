@@ -277,17 +277,25 @@ class PairReview:
         self._save_review_report()
         self.show_candidate()
 
-    def _confirm_page_removal(self, index: int) -> bool:
-        page = self.plan.scan.pages[index]
+    def _confirm_page_removal(self, index: int, also: int | None = None) -> bool:
+        pages = self.plan.scan.pages
         dialog = QMessageBox(self)
         dialog.setIcon(QMessageBox.Warning)
-        dialog.setWindowTitle("Remove page from finished comic?")
-        dialog.setText(f"Remove page {index + 1}: {page.path.name}?")
-        dialog.setInformativeText(
-            "This page will disappear from Final Comic Preview and the exported comic. "
-            "Are you sure?")
+        if also is None:
+            dialog.setWindowTitle("Remove page from finished comic?")
+            dialog.setText(f"Remove page {index + 1}: {pages[index].path.name}?")
+            dialog.setInformativeText(
+                "This page will disappear from Final Comic Preview and the exported comic. "
+                "Are you sure?")
+        else:
+            dialog.setWindowTitle("Remove both pages from finished comic?")
+            dialog.setText(f"Remove pages {index + 1} and {also + 1}: "
+                           f"{pages[index].path.name} and {pages[also].path.name}?")
+            dialog.setInformativeText(
+                "Both pages will disappear from Final Comic Preview and the exported comic. "
+                "Are you sure?")
         remove = dialog.addButton("Remove from comic", QMessageBox.DestructiveRole)
-        keep = dialog.addButton("Keep page", QMessageBox.RejectRole)
+        keep = dialog.addButton("Keep pages" if also is not None else "Keep page", QMessageBox.RejectRole)
         dialog.setDefaultButton(keep)
         dialog.exec()
         return dialog.clickedButton() == remove

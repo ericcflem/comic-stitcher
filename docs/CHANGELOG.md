@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Final review: **Remove** works on a joined spread too, removing both of its
+  pages at once; before, it did nothing until the spread was split. **Undo
+  last edit**, or going back in pair review, brings the spread back as it was,
+  lined up and rotated as before.
+
 ## 0.11.0
 
 **Import and review**

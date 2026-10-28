@@ -150,6 +150,27 @@ def cached_folder_scan(source: Path, data: dict) -> Scan:
                             if all(0 <= int(i) < len(pages) for i in noted)])
 
 
+def _valid_removal(item: dict, page_count: int) -> bool:
+    """A saved page removal: one page, or two at once (a spread, with how it was joined)."""
+    def page(value):
+        return type(value) is int and 0 <= value < page_count
+
+    def turn(value, allowed=(90, 180, 270)):
+        return type(value) is int and value in allowed
+
+    keys = {"removed", "also", "rotation", "also_rotation", "overlap", "turns"}
+    return ({"removed"} <= set(item) <= keys and page(item["removed"]) and
+            ("also" not in item or (page(item["also"]) and item["also"] != item["removed"])) and
+            ("rotation" not in item or turn(item["rotation"])) and
+            ("also_rotation" not in item or ("also" in item and turn(item["also_rotation"]))) and
+            ("overlap" not in item or ("also" in item and isinstance(item["overlap"], list) and
+                                       len(item["overlap"]) == 2 and type(item["overlap"][0]) is int and
+                                       item["overlap"][0] > 0 and item["overlap"][1] in ("left", "right"))) and
+            ("turns" not in item or ("also" in item and isinstance(item["turns"], list) and
+                                     len(item["turns"]) == 2 and
+                                     all(turn(t, (0, 90, 180, 270)) for t in item["turns"]))))
+
+
 def restore_plan(scan: Scan, data: dict, *, restore_undo: bool = True) -> BookPlan:
     if scan.right_to_left != bool(data.get("right_to_left", False)):
         raise ValueError("The saved reading direction differs from this import.")
@@ -206,11 +227,7 @@ def restore_plan(scan: Scan, data: dict, *, restore_undo: bool = True) -> BookPl
         any(type(i) is not int or i < 0 or i >= len(scan.pages) for i in removed) or
         len(removed) >= len(scan.pages) or
         any(i in removed or rights.get(i, i + 1) in removed for i in manual) or
-        any((not {"removed"} <= set(item) <= {"removed", "rotation"} or
-             type(item["removed"]) is not int or
-             item["removed"] < 0 or item["removed"] >= len(scan.pages) or
-             ("rotation" in item and (type(item["rotation"]) is not int or
-                                      item["rotation"] not in (90, 180, 270))))
+        any(not _valid_removal(item, len(scan.pages))
             if isinstance(item, dict) and "removed" in item else
             (type(item) is not int or item < 0 or item >= len(scan.candidates))
             if scan.manual_mode else

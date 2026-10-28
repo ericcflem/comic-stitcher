@@ -506,20 +506,42 @@ class BookPlan:
                    candidate.right not in self.removed_pages
                    for index, candidate in enumerate(self.scan.candidates))
 
-    def remove_page(self, index: int) -> None:
-        if index < 0 or index >= len(self.scan.pages) or index in self.removed_pages:
+    def remove_page(self, index: int, also: int | None = None) -> None:
+        """Leave a page out of the comic; with `also`, two at once: both pages
+        of a joined spread, or both pages of a pair in review. One step undoes it."""
+        pages = (index,) if also is None else (index, also)
+        if (any(i < 0 or i >= len(self.scan.pages) or i in self.removed_pages for i in pages)
+                or len(set(pages)) != len(pages)):
             raise ValueError("Select a page that is still in the comic.")
-        if len(self.removed_pages) + 1 >= len(self.scan.pages):
+        if len(self.removed_pages) + len(pages) >= len(self.scan.pages):
             raise ValueError("The finished comic needs at least one page.")
-        if any(index in (left, self.partner(left)) for left in self.approved()):
-            raise ValueError("Split this spread before removing one of its pages.")
+        spread = None
+        for left in self.approved():
+            right = self.partner(left)
+            if left in pages or right in pages:
+                if also is None or {left, right} != set(pages):
+                    raise ValueError("Split this spread before removing one of its pages.")
+                spread = (left, right)
+        if spread:
+            index, also = spread
         self.checkpoint_preview("page removal", index)
-        previous_rotation = self.rotations.pop(index, None)
         removal = {"removed": index}
-        if previous_rotation is not None:
-            removal["rotation"] = previous_rotation
+        if also is not None:
+            removal["also"] = also
+        for key, page in (("rotation", index), ("also_rotation", also)):
+            rotation = self.rotations.pop(page, None) if page is not None else None
+            if rotation is not None:
+                removal[key] = rotation
+        if spread:
+            overlap = self.join_overlaps.pop(index, None)
+            if overlap is not None:
+                removal["overlap"] = list(overlap)
+            if index in self.manual_pairs:  # Joined by hand: keep how, for going back.
+                self.manual_pairs.discard(index)
+                self.manual_rights.pop(index, None)
+                removal["turns"] = list(self.joined_rotations.pop(index, (0, 0)))
         self.history.append(removal)
-        self.removed_pages.add(index)
+        self.removed_pages.update(i for i in (index, also) if i is not None)
         self.reconcile_neighbors()
 
     def decide(self, yes: bool) -> None:
@@ -566,9 +588,18 @@ class BookPlan:
         if isinstance(previous, int):
             self.decisions.pop(previous, None)
         elif "removed" in previous:
-            self.removed_pages.remove(previous["removed"])
+            left, also = previous["removed"], previous.get("also")
+            self.removed_pages.difference_update((left, also))
             if "rotation" in previous:
-                self.rotations[previous["removed"]] = previous["rotation"]
+                self.rotations[left] = previous["rotation"]
+            if "also_rotation" in previous:
+                self.rotations[also] = previous["also_rotation"]
+            if "turns" in previous:
+                self.manual_pairs.add(left)
+                self.manual_rights[left] = also
+                self.joined_rotations[left] = tuple(previous["turns"])
+            if "overlap" in previous:
+                self.join_overlaps[left] = tuple(previous["overlap"])
         else:
             self.decisions = previous
         approved = self.approved()
