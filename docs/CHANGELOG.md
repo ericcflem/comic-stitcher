@@ -2,8 +2,6 @@
 
 ## Unreleased
 
-## Unreleased
-
 - Final review: **Remove** works on a joined spread too, removing both of its
   pages at once; before, it did nothing until the spread was split. **Undo
   last edit**, or going back in pair review, brings the spread back as it was,

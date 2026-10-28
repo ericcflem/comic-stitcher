@@ -1688,18 +1688,8 @@
     },
     {
       "path": "docs/CHANGELOG.md",
-      "bytes": 20993,
-      "sha256": "7708bbf5908f75b0619704fa83df7805655944f3087e7bb2370872d89832d8eb"
-    },
-    {
-      "path": "docs/CHANGELOG.md",
-      "bytes": 20993,
-      "sha256": "7708bbf5908f75b0619704fa83df7805655944f3087e7bb2370872d89832d8eb"
-    },
-    {
-      "path": "docs/CHANGELOG.md",
-      "bytes": 20993,
-      "sha256": "7708bbf5908f75b0619704fa83df7805655944f3087e7bb2370872d89832d8eb"
+      "bytes": 20978,
+      "sha256": "2f75071ff731590c80afd9ea1c99c6df0b6dc9073fbd0c72bf56683ecb7397fa"
     },
     {
       "path": "docs/NATIVE_SOURCE_REBUILD.md",
