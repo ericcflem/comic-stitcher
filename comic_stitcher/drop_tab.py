@@ -12,13 +12,15 @@ import tempfile
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QLockFile, QObject, QProcess, QRectF, QSettings, Qt, QTimer, Signal
-from PySide6.QtGui import QAction, QColor, QCursor, QFont, QFontMetrics, QGuiApplication, QIcon, QPainter, QPainterPath, QPen
+from PySide6.QtCore import QEvent, QLockFile, QObject, QProcess, QRectF, QSettings, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import (
+    QAction, QColor, QCursor, QFont, QFontMetrics, QGuiApplication, QIcon, QPainter, QPainterPath, QPen, QPixmap,
+)
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from shiboken6 import isValid
 from PySide6.QtWidgets import (
-    QApplication, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout, QLabel, QMenu,
-    QMessageBox, QPushButton, QSlider, QSpinBox, QSystemTrayIcon, QVBoxLayout, QWidget,
+    QApplication, QColorDialog, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout, QLabel, QMenu,
+    QMessageBox, QPushButton, QSlider, QSpinBox, QSystemTrayIcon, QToolButton, QVBoxLayout, QWidget,
 )
 
 from .drop_tab_support import (
@@ -29,8 +31,29 @@ from .drop_tab_support import (
 )
 
 CLICK_SLOP = 4
-COLOUR_MODES = ("accent", "gray")  # Match the system accent colour, or a neutral gray.
-TAB_GRAY = "#8c8c8c"
+# The tab's colours: Ubuntu's ten accent colours and a dark gray. Any other
+# colour can be picked with Custom….
+SWATCHES = (("Blue", "#0073e5"), ("Teal", "#308280"), ("Olive", "#4b8501"), ("Yellow", "#c88800"),
+            ("Orange", "#e95420"), ("Red", "#da3450"), ("Magenta", "#b34cb3"), ("Purple", "#7764d8"),
+            ("Sage", "#657b69"), ("Tan", "#b39169"), ("Dark gray", "#3d3d3d"))
+DEFAULT_COLOUR = SWATCHES[0][1]
+# Settings saved before the swatches: the system accent (often near-white on
+# Windows, where the tab vanished against white windows) and a gray.
+OLD_COLOUR_MODES = {"accent": DEFAULT_COLOUR, "gray": "#3d3d3d"}
+
+
+def saved_colour(value) -> str:
+    """The tab colour as #rrggbb, from a saved setting."""
+    value = str(value or "").strip().lower()
+    value = OLD_COLOUR_MODES.get(value, value)
+    colour = QColor(value)
+    return colour.name() if value.startswith("#") and colour.isValid() else DEFAULT_COLOUR
+
+
+def edge_colour(colour: QColor) -> QColor:
+    """A thin edge that sets the tab off from any window behind it: darker
+    around a light colour, lighter around a dark one."""
+    return colour.darker(165) if colour.lightness() >= 70 else colour.lighter(260)
 ICON_SIZE = 48
 TOP_PAD = 16
 ICON_GAP = 8
@@ -229,8 +252,7 @@ class DropTab(QWidget):
         saved_height = self.settings.value("drop_tab/height", None)
         self.tab_height = (self.default_height() if saved_height in (None, "")
                            else clamp_height(saved_height, 1 << 30))
-        colour = str(self.settings.value("drop_tab/color", "accent"))
-        self.colour_mode = colour if colour in COLOUR_MODES else "accent"
+        self.colour = saved_colour(self.settings.value("drop_tab/color", DEFAULT_COLOUR))
         self.hover_delay = clamp_hover_delay(self.settings.value("drop_tab/hover_delay", HOVER_DELAY_MS))
         self.offset = self._stored_offset()
         self.anchor_y = None
@@ -318,9 +340,7 @@ class DropTab(QWidget):
         return clamp_height(self.expanded_size()[1], 1 << 30)
 
     def tab_colour(self):
-        if self.colour_mode == "gray":
-            return QColor(TAB_GRAY)
-        return QColor(self.palette().highlight().color())
+        return QColor(self.colour)
 
     def _expand(self, anchor_y=None):
         """Open the panel; on a tall tab it opens where the pointer is."""
@@ -341,9 +361,9 @@ class DropTab(QWidget):
             self.hover_delay = clamp_hover_delay(hover_delay)
             self.hover_timer.setInterval(self.hover_delay)
             self.settings.setValue("drop_tab/hover_delay", self.hover_delay)
-        if colour in COLOUR_MODES:
-            self.colour_mode = colour
-            self.settings.setValue("drop_tab/color", colour)
+        if colour is not None:
+            self.colour = saved_colour(colour)
+            self.settings.setValue("drop_tab/color", self.colour)
         self.place()
         if offset is not None or height is not None:
             self.settings.setValue("drop_tab/offset", self.offset)
@@ -516,9 +536,10 @@ class DropTab(QWidget):
             path = QPainterPath()
             radius = self.thickness / 2
             path.addRoundedRect(rect.adjusted(0, 0, radius, 0), radius, radius)
-            colour = QColor(accent)
-            colour.setAlpha(255 if self.hovered else 190)
-            painter.fillPath(path, colour)
+            # Solid, with a thin contrasting edge, so it shows against any window.
+            painter.fillPath(path, accent.lighter(115) if self.hovered else accent)
+            painter.setPen(QPen(edge_colour(accent), 1))
+            painter.drawPath(path)
             return
         path = QPainterPath()
         path.addRoundedRect(rect.adjusted(0, 0, 12, 0), 12, 12)
@@ -575,6 +596,81 @@ class SliderField(QWidget):
         self.box.setValue(value)
 
 
+class ColourSwatches(QWidget):
+    """A row of round colour swatches, and Custom… for any other colour."""
+
+    SIZE = 24
+
+    def __init__(self, current, changed, parent=None):
+        super().__init__(parent)
+        self.changed = changed
+        self.current = saved_colour(current)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        self.buttons = {}
+        for name, value in SWATCHES:
+            button = QToolButton()
+            button.setCheckable(True)
+            button.setAutoRaise(True)
+            button.setToolTip(name)
+            button.setAccessibleName(name)
+            button.setIcon(QIcon(self._dot(value)))
+            button.setIconSize(QSize(self.SIZE + 6, self.SIZE + 6))
+            button.clicked.connect(lambda _=False, v=value: self.choose(v))
+            layout.addWidget(button)
+            self.buttons[value] = button
+        self.custom = QPushButton("Custom…")
+        self.custom.setToolTip("Choose any color")
+        self.custom.clicked.connect(self.pick)
+        layout.addWidget(self.custom)
+        layout.addStretch()
+        self._show_choice()
+
+    def _dot(self, value, ring=False):
+        """A filled circle, with a ring around it when it is the chosen colour."""
+        size = self.SIZE + 6
+        pixmap = QPixmap(size * 2, size * 2)
+        pixmap.setDevicePixelRatio(2)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        colour = QColor(value)
+        painter.setPen(QPen(edge_colour(colour), 1))
+        painter.setBrush(colour)
+        painter.drawEllipse(QRectF(4, 4, size - 8, size - 8))
+        if ring:
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(QPen(colour, 2))
+            painter.drawEllipse(QRectF(1, 1, size - 2, size - 2))
+        painter.end()
+        return pixmap
+
+    def _show_choice(self):
+        for value, button in self.buttons.items():
+            button.setChecked(value == self.current)
+            button.setIcon(QIcon(self._dot(value, value == self.current)))
+        custom = self.current not in self.buttons
+        self.custom.setIcon(QIcon(self._dot(self.current, True)) if custom else QIcon())
+
+    def choose(self, value):
+        self.current = saved_colour(value)
+        self._show_choice()
+        self.changed(self.current)
+
+    def pick(self):
+        """Qt's colour picker; the tab follows the colour as it changes, and
+        Cancel puts the previous one back."""
+        before = self.current
+        dialog = QColorDialog(QColor(before), self)
+        dialog.setWindowTitle("Drop tab color")
+        dialog.currentColorChanged.connect(lambda colour: colour.isValid() and self.changed(colour.name()))
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.selectedColor().isValid():
+            self.choose(dialog.selectedColor().name())
+        else:
+            self.choose(before)
+
+
 class DropTabSettingsDialog(QDialog):
     """Changes apply to the real tab as you move the sliders."""
 
@@ -595,10 +691,7 @@ class DropTabSettingsDialog(QDialog):
                                  lambda v: tab.apply_settings(hover_delay=v))
         self.delay.slider.setSingleStep(50)
         self.delay.box.setSingleStep(50)
-        self.colour = QComboBox()
-        self.colour.addItems(["Match system accent", "Gray"])
-        self.colour.setCurrentIndex(COLOUR_MODES.index(tab.colour_mode))
-        self.colour.currentIndexChanged.connect(lambda i: tab.apply_settings(colour=COLOUR_MODES[i]))
+        self.colour = ColourSwatches(tab.colour, lambda value: tab.apply_settings(colour=value))
         form = QFormLayout()
         form.addRow("How far it sticks out:", self.thickness)
         form.addRow("Height:", self.height_field)
@@ -630,7 +723,7 @@ class DropTabSettingsDialog(QDialog):
         self.height_field.set_value(self.tab.default_height())
         self.position.set_value(DEFAULT_OFFSET)
         self.delay.set_value(HOVER_DELAY_MS)
-        self.colour.setCurrentIndex(COLOUR_MODES.index("accent"))
+        self.colour.choose(DEFAULT_COLOUR)
 
 
 def build_menu(tab, app):

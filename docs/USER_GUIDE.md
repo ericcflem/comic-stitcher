@@ -346,7 +346,8 @@ joins the window that's already open.
   panel to start Comic Stitcher. Drag the tab up or down to move it. Right-click it, or
   its tray icon, for **Start when I sign in**, **Hide drop tab** and **Close drop tab**.
 - **Adjust it:** right-click and choose **Drop tab settings…** to set how far it sticks
-  out, its height, its distance from the top, the hover delay, and its color.
+  out, its height, its distance from the top, the hover delay, and its color: one of
+  eleven swatches (blue by default), or any color with **Custom…**.
 - **Get it back:** click the tray icon, or use the **Comic Stitcher Drop Tab** shortcut.
 - On Linux's Wayland desktops, the tab runs through XWayland, because Wayland doesn't
   let ordinary windows stay at a screen edge.

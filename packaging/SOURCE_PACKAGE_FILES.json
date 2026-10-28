@@ -1353,8 +1353,8 @@
     },
     {
       "path": "comic_stitcher/drop_tab.py",
-      "bytes": 29589,
-      "sha256": "a0bc72d9404ceace9d288f53892b038392a7242dc3e37589418238bcb0b6b76d"
+      "bytes": 33516,
+      "sha256": "963a01f8b46012dc2a19b211a2243250f5c68d5e6701d25459e2da37f3517f63"
     },
     {
       "path": "comic_stitcher/drop_tab_support.py",
@@ -1493,8 +1493,8 @@
     },
     {
       "path": "comic_stitcher/test_drop_tab.py",
-      "bytes": 13601,
-      "sha256": "251e2226a126a1d4636952d909efb5dc194ca6f97187d06d027646ff41e46c67"
+      "bytes": 14876,
+      "sha256": "4dc8f6c8d695f87afce5abaadedbea6f1f13d22b87661b8ebd254ac185ea648d"
     },
     {
       "path": "comic_stitcher/test_drop_tab_support.py",
@@ -1688,8 +1688,8 @@
     },
     {
       "path": "docs/CHANGELOG.md",
-      "bytes": 20978,
-      "sha256": "2f75071ff731590c80afd9ea1c99c6df0b6dc9073fbd0c72bf56683ecb7397fa"
+      "bytes": 21470,
+      "sha256": "782869d7ce789d4c0586e3584a40e82eaadb3e839dc31559ca94c19dcab060bb"
     },
     {
       "path": "docs/NATIVE_SOURCE_REBUILD.md",
@@ -1733,8 +1733,8 @@
     },
     {
       "path": "docs/USER_GUIDE.md",
-      "bytes": 18787,
-      "sha256": "1f42a816b953ca5b797d2d511446d031f74b1773f1b9bbc5c7bac5ff6e4af1ec"
+      "bytes": 18864,
+      "sha256": "a30f6373bbba9a6f13bd56cd81e1be96ba7aeb1eff94e5a8cc956b971bba54cb"
     },
     {
       "path": "installer/RUNTIME_REFERENCES.md",
