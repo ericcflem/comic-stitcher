@@ -113,7 +113,7 @@ class FinalReview:
         controls.insertWidget(3, self.swap_button)
         box.removeItem(controls)
         box.insertLayout(1, controls)
-        review_control(self.remove_preview_button, "⌫", "Remove", "Remove current page after confirmation")
+        review_control(self.remove_preview_button, "⌫", "Remove", "Remove the current page, or both pages of a spread, after confirmation")
         review_control(self.undo_remove_button, "↶", "Undo", "Undo the last page move, swap, rotation, join, split, or removal")
         remove_row.removeWidget(self.remove_preview_button)
         remove_row.removeWidget(self.undo_remove_button)
@@ -436,7 +436,7 @@ class FinalReview:
         self.preview_seam_button.setEnabled(bool(self.comparing and
             all(entries[i][1] is None for i in self.comparing)) or (b is not None and self.comparing is None))
         self.split_button.setEnabled(b is not None and self.comparing is None)
-        self.remove_preview_button.setEnabled(b is None and self.comparing is None)
+        self.remove_preview_button.setEnabled(self.comparing is None)
         self.undo_remove_button.setEnabled(bool(self.plan.preview_history))
         self.undo_remove_button.setToolTip("Undo " + self.plan.preview_history[-1]["_action"]
                                            if self.plan.preview_history else "No final-review edits to undo")
@@ -646,16 +646,16 @@ class FinalReview:
         if self.plan is None or self.comparing:
             return
         index, right = self.plan.entries()[self.preview_index]
-        if right is not None:
-            return
-        if not self._confirm_page_removal(index):
+        if not self._confirm_page_removal(index, right):
             return
         try:
-            self.plan.remove_page(index)
+            self.plan.remove_page(index, right)
         except ValueError as exc:
             QMessageBox.warning(self, "Cannot remove page", str(exc))
             return
-        diagnostics.note("Page excluded from comic: %s", self.plan.scan.pages[index].path.name)
+        for page in (index, right):
+            if page is not None:
+                diagnostics.note("Page excluded from comic: %s", self.plan.scan.pages[page].path.name)
         self.comparing = None
         self.selected_first = None
         self._save_review_report()
