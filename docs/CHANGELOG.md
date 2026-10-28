@@ -6,6 +6,10 @@
   pages at once; before, it did nothing until the spread was split. **Undo
   last edit**, or going back in pair review, brings the spread back as it was,
   lined up and rotated as before.
+- Pair review: a pair whose halves repeat a strip of art at the seam, found and
+  lined up by the scan, is now among the Likely pairs, reviewed first. Finding
+  the repeated strip as good as proves it's a spread; before, it waited among
+  the Possible pairs, since a repeated strip doesn't match at the seam.
 
 ## 0.11.0
 

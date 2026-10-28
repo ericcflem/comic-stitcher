@@ -1308,8 +1308,8 @@
     },
     {
       "path": "comic_stitcher/backend.py",
-      "bytes": 43052,
-      "sha256": "242fc5678d16649b3ee6f51b242de28eaf30e326345ddb4959d4653339a93ea4"
+      "bytes": 43266,
+      "sha256": "2d52d6f309543c8f7b7f7d5cfc84406e3fc3c4df3c6d3e7247bd48481f1f4b06"
     },
     {
       "path": "comic_stitcher/cmyk_profile.py",
@@ -1583,8 +1583,8 @@
     },
     {
       "path": "comic_stitcher/test_spread_overlap.py",
-      "bytes": 15055,
-      "sha256": "04508feab270a021e74bc22c58cc669be67214adfc4757a6a7082d9a723dc8c8"
+      "bytes": 15274,
+      "sha256": "3361dfcc6e3d71c5c689283eacdc2c3c91ae6efec8e70ef929cd8dede27815ea"
     },
     {
       "path": "comic_stitcher/test_startup_notice.py",
@@ -1688,8 +1688,8 @@
     },
     {
       "path": "docs/CHANGELOG.md",
-      "bytes": 20669,
-      "sha256": "f4aa2605fadfa8a11893f86263c0806eb0b2ad41294ab0a03f05bc086a843ef8"
+      "bytes": 20978,
+      "sha256": "2f75071ff731590c80afd9ea1c99c6df0b6dc9073fbd0c72bf56683ecb7397fa"
     },
     {
       "path": "docs/NATIVE_SOURCE_REBUILD.md",

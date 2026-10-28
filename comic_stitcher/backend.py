@@ -197,14 +197,17 @@ def _measured_candidate(left: int, right: int, visual_left: Path, visual_right: 
     overlap = overlap_in(left_edge, right_edge, limit)
     if overlap:
         metrics["overlap"] = overlap
-    return Candidate(left, right, score["continuity"], score["continuity"] >= LIKELY_MIN_SCORE, metrics)
+    # A strip of art both halves repeat is as good as proof of a spread, so it is
+    # Likely, whatever the seam scored (a repeated strip doesn't match at the seam).
+    return Candidate(left, right, score["continuity"], score["continuity"] >= LIKELY_MIN_SCORE or bool(overlap),
+                     metrics)
 
 
 def _overlap_candidate(left: int, right: int, visual_left: Path, visual_right: Path,
                        left_info, right_info) -> Candidate | None:
     """For neighbouring pages the edge test rules out (a border on an inner edge,
-    for example). Offered when both repeat a strip of art, which is strict
-    enough to trust on its own; or when one inner edge has a thin plain border
+    for example). Offered as Likely when both repeat a strip of art, which is
+    strict enough to trust on its own; or when one inner edge has a thin plain border
     and, with it set aside, the art carries on across the seam."""
     seam_columns = 8 * SEAM_BAND_PX
     limit = overlap_limit(left_info.width, right_info.width)
@@ -215,7 +218,7 @@ def _overlap_candidate(left: int, right: int, visual_left: Path, visual_right: P
     stats = {"left_page_right_edge": left_info.right_stats, "right_page_left_edge": right_info.left_stats}
     overlap = overlap_in(left_edge, right_edge, limit)
     if overlap:
-        return Candidate(left, right, 0.0, False, {"overlap": overlap, "edges_not_scored": True, **stats})
+        return Candidate(left, right, 0.0, True, {"overlap": overlap, "edges_not_scored": True, **stats})
     border = thin_border(left_info.right_stats["plain_px"], right_info.left_stats["plain_px"])
     width_gap = abs(left_info.width - right_info.width)
     if border is None or width_gap > max(2, round(min(left_info.width, right_info.width) * .005)) + BORDER_COVER_MAX:
