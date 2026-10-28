@@ -173,6 +173,7 @@ class SuggestionTests(unittest.TestCase):
             plan = BookPlan(scan)
             index, candidate = next((i, c) for i, c in enumerate(scan.candidates) if (c.left, c.right) == (1, 2))
             self.assertTrue(offered(candidate))
+            self.assertTrue(candidate.likely)  # Found lined up: reviewed with the Likely pairs.
             while plan.current() and plan.current()[0] != index:
                 plan.decide(False)
             plan.decide(True)
@@ -204,7 +205,9 @@ class SuggestionTests(unittest.TestCase):
                 scan = scan_folder(folder)
                 found = [(c.left, c.right, c.metrics.get("overlap")) for c in scan.candidates if c.metrics.get("overlap")]
                 self.assertEqual(found, [(1, 2, 40)])
-                self.assertTrue(offered(next(c for c in scan.candidates if c.metrics.get("overlap"))))
+                candidate = next(c for c in scan.candidates if c.metrics.get("overlap"))
+                self.assertTrue(offered(candidate))
+                self.assertTrue(candidate.likely)  # Though its edges ruled it out.
 
     def test_found_between_halves_of_different_widths(self):
         with tempfile.TemporaryDirectory() as directory:
