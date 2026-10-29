@@ -50,6 +50,22 @@ class MeasureTests(unittest.TestCase):
         spread.paste(page(), (0, 0))
         self.assertIsNone(self.measure(spread))
 
+    def test_small_margins_and_off_white_paper(self):
+        # 190 px against 160: 15 px off, under 1% of the page, still worth moving (Peanuts).
+        self.assertAlmostEqual(self.measure(page(190, 1540))[0], -15, delta=4)
+        self.assertIsNone(self.measure(page(178, 1528)))  # 3 px: left alone.
+        cream = page(200, 1550, background=(238, 228, 205))  # Yellowed paper.
+        self.assertAlmostEqual(self.measure(cream)[0], -25, delta=4)
+
+    def test_why_a_page_is_left_alone(self):
+        from .centering import check_page
+        with tempfile.TemporaryDirectory() as folder:
+            for image, why in ((page(175, 1525), "already centered"), (page(0, W), "art to the edges"),
+                               (page(200, 1550, background=(200, 120, 90)), "colored background")):
+                path = Path(folder) / "page.png"
+                image.save(path)
+                self.assertEqual(check_page(str(path)), why)
+
     def test_lettering_past_a_panel_moves_but_is_not_measured(self):
         # A sound effect 90 px past the left panel side: the panels still decide.
         lettering = [((115, 400 + y, 260, 430 + y), (220, 30, 30)) for y in range(0, 300, 60)]

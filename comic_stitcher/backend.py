@@ -422,6 +422,7 @@ class BookPlan:
         self.center_skipped: set[int] = set()
         self.centering_measured = False  # Every page measured (none of them may need it).
         self.centering_offered = False  # Asked once whether to center it.
+        self.centering_left_alone: dict[str, int] = {}  # Why pages weren't measured off-center (not saved).
         self._measured_neighbors = set(zip(range(len(scan.pages) - 1), range(1, len(scan.pages)), strict=True))
         self._measured_neighbors.update((c.left, c.right) for c in scan.candidates)
 

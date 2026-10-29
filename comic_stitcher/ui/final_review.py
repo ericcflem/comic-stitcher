@@ -209,6 +209,7 @@ class FinalReview:
         self.preview_ready = True
         if self.plan.centering_measured:
             QTimer.singleShot(0, self._offer_centering)
+            QTimer.singleShot(0, self._report_centered)
         if self.screenshot_flagged_pages and not self.inferred_notice_shown:
             self.inferred_notice_shown = True
             QTimer.singleShot(0, lambda: QMessageBox.information(
@@ -514,6 +515,7 @@ class FinalReview:
                 or not self.settings.value("check_centering", True, type=bool)):
             return
         worker = CenteringWorker(plan, max(1, encoding_workers(self.worker_count()) // 2))
+        worker.reasons.connect(lambda reasons, plan=plan: setattr(plan, "centering_left_alone", reasons))
         worker.done.connect(self._centering_done)
         worker.progress.connect(self._centering_progress)
         self.centering_measured_count = (0, len(plan.scan.pages))
@@ -544,7 +546,21 @@ class FinalReview:
             waiting.accept()  # Continue to Export was waiting for this; it carries on.
         elif self.pages.currentWidget() == self.preview and self.preview_ready:
             self._update_centering_row()
+            self._report_centered()
             self._offer_centering()
+
+    def _report_centered(self) -> None:
+        """Say the check ran when it found nothing to center, so its silence
+        isn't mistaken for the check being off."""
+        plan = self.plan
+        if plan is None or not plan.centering_measured or plan.centered_pages():
+            return
+        reasons = plan.centering_left_alone
+        others = {why: count for why, count in reasons.items() if why != "already centered"}
+        detail = ("; left alone: " + ", ".join(f"{count} {why}" for why, count in
+                                               sorted(others.items(), key=lambda item: -item[1]))
+                  if others else "")
+        self.statusBar().showMessage("Centering check: the art is centered on every page" + detail + ".", 12000)
 
     def _centering_checking(self) -> bool:
         return (self.plan is not None and not self.plan.centering_measured

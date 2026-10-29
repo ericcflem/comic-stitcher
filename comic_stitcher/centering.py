@@ -34,7 +34,8 @@ PREVIEW_WIDTH = 850          # Pixels across the measuring preview.
 BG_TOL = 40                  # Gray-level difference that counts as "not background".
 EDGE_BG_MIN = 0.985          # Share of edge pixels that must be background (else full bleed).
 MIN_ART_WIDTH = 0.55         # Art narrower than this share of the page: a spot illustration.
-MIN_SHIFT = 0.01             # Shifts smaller than this share of the width are left alone.
+MIN_SHIFT = 0.005            # Shifts smaller than this share of the width are left alone (a
+                             # 175 px gutter against 135 moves the art 20 px: 1% of a 2000 px page).
 GAP_MIN = 0.005              # A plain gap (share of height) separating a header or footer from the art.
 BAND_ZONE = 0.08             # A header or footer starts or ends within this share of the top or bottom.
 BAND_MAX_H = 0.03            # A header or footer strip is at most this share of the height.
@@ -137,9 +138,9 @@ def analyze(preview: Image.Image) -> dict:
     edge = np.concatenate([gray[:b].ravel(), gray[-b:].ravel(), gray[:, :b].ravel(), gray[:, -b:].ravel()])
     bg = float(np.median(edge))
     if float(np.mean(np.abs(edge - bg) < 25)) < EDGE_BG_MIN:
-        return {**result, "skip": "full-bleed"}
-    if not (bg > 225 or bg < 30):
-        return {**result, "skip": "coloured background"}
+        return {**result, "skip": "art to the edges"}
+    if not (bg > 210 or bg < 45):  # White or black, give or take paper and scanning.
+        return {**result, "skip": "colored background"}
     mask = _ink_mask(gray, bg)
     segments = _row_segments(mask, max(2, int(GAP_MIN * h)))
     if not segments:
@@ -185,23 +186,30 @@ def analyze(preview: Image.Image) -> dict:
 
 def measure_page(path: str) -> tuple[int, int, int] | None:
     """(shift in pixels, first row, end row) to center one page's art, at its
-    own size, or None to leave it. Top level, to run in another process."""
+    own size, or None to leave it."""
+    found = check_page(path)
+    return found if isinstance(found, tuple) else None
+
+
+def check_page(path: str) -> tuple[int, int, int] | str:
+    """measure_page's answer, or why the page is left alone. Top level, to run
+    in another process."""
     with Image.open(path) as image:
         if image.getexif().get(0x0112, 1) not in (1, None):
-            return None  # Turned by its EXIF orientation: leave it.
+            return "turned by its EXIF orientation"
         if image.width > image.height * SPREAD_RATIO:
-            return None  # A spread.
+            return "spread"
         width, height = image.size
         image.draft("RGB", (PREVIEW_WIDTH, round(height * PREVIEW_WIDTH / width)))
         source = image.convert("RGB") if image.mode not in ("RGB", "L") else image
         preview = source.resize((PREVIEW_WIDTH, max(1, round(height * PREVIEW_WIDTH / width))), Image.BOX)
     found = analyze(preview)
     if "skip" in found:
-        return None
+        return found["skip"]
     scale_x, scale_y = width / found["w"], height / found["h"]
     shift = round(found["shift"] * scale_x)
     if not shift:
-        return None
+        return "already centered"
     top, bottom = found["moving"]
     return shift, round(top * scale_y), min(height, round(bottom * scale_y))
 

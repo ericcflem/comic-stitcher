@@ -176,6 +176,7 @@ class CenteringWorker(QThread):
     """Measures where each page's art sits (centering.py) while the comic is
     reviewed, on helper processes at low priority."""
     done = Signal(object, object)  # The plan measured, and {page: (shift, first row, end row)}.
+    reasons = Signal(object)  # {why a page was left alone: how many pages}, before done.
     progress = Signal(int, int)  # Pages measured, of how many.
 
     def __init__(self, plan, workers: int):
@@ -187,24 +188,28 @@ class CenteringWorker(QThread):
     def run(self):
         from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
         from multiprocessing import get_context
-        from ..centering import measure_page
+        from collections import Counter
+        from ..centering import check_page
         started = time.monotonic()
-        found, failed = {}, 0
+        found, failed, left_alone = {}, 0, Counter()
         try:
             if self.workers == 1 or len(self.paths) < 16:  # Starting helper processes costs more.
                 for index, path in self.paths:
                     if self.isInterruptionRequested():
                         return
                     try:
-                        if (value := measure_page(path)) is not None:
+                        value = check_page(path)
+                        if isinstance(value, tuple):
                             found[index] = value
+                        else:
+                            left_alone[value] += 1
                     except Exception:
                         failed += 1
                     self.progress.emit(index + 1, len(self.paths))
             else:
                 with ProcessPoolExecutor(max_workers=min(self.workers, len(self.paths)),
                                          mp_context=get_context("spawn")) as pool:
-                    jobs = {pool.submit(measure_page, path): index for index, path in self.paths}
+                    jobs = {pool.submit(check_page, path): index for index, path in self.paths}
                     pending = set(jobs)
                     while pending:
                         if self.isInterruptionRequested():
@@ -214,17 +219,22 @@ class CenteringWorker(QThread):
                         finished, pending = wait(pending, timeout=0.5, return_when=FIRST_COMPLETED)
                         for future in finished:
                             try:
-                                if (value := future.result()) is not None:
+                                value = future.result()
+                                if isinstance(value, tuple):
                                     found[jobs[future]] = value
+                                else:
+                                    left_alone[value] += 1
                             except Exception:
                                 failed += 1  # An odd page is left as it is.
                         self.progress.emit(len(jobs) - len(pending), len(jobs))
         except Exception as exc:  # Only an offer; the comic is unaffected.
             diagnostics.note("Page centering check failed: %s", exc)
             return
-        diagnostics.note("Page centering: %d of %d pages off-center, %d unreadable, %.1f s",
-                         len(found), len(self.paths), failed, time.monotonic() - started)
+        diagnostics.note("Page centering: %d of %d pages off-center, %d unreadable, %.1f s; left alone: %s",
+                         len(found), len(self.paths), failed, time.monotonic() - started,
+                         ", ".join(f"{why} {count}" for why, count in left_alone.most_common()) or "none")
         if not self.isInterruptionRequested():
+            self.reasons.emit(dict(left_alone))
             self.done.emit(self.plan, found)
 
 
