@@ -23,6 +23,7 @@ make new files. Keep your originals until you have checked the results.
 11. [Settings](#settings)
 12. [Keyboard shortcuts](#keyboard-shortcuts)
 13. [Where things are saved](#where-things-are-saved)
+14. [If something goes wrong](#if-something-goes-wrong)
 
 ## The steps at a glance
 
@@ -437,3 +438,18 @@ The gear on the start screen opens Settings:
   diagnostic logs**.
 - **Pair review reports:** in a `review-reports` folder next to the logs. Open them
   from **Settings → Open pair review reports**.
+
+## If something goes wrong
+
+- **Not much disk space:** before importing a PDF or archive, exporting, or running the
+  queue, Comic Stitcher checks the drive. If it looks too full, it says how much is
+  needed and how much is free, and you choose whether to go ahead. Imported pages go
+  to your temporary folder, usually on drive C:; an export is built beside where the
+  comic is saved.
+- **A failed import or export** says what went wrong in plain words, such as a full
+  drive, a folder that can't be changed, or a file open in another program, and what
+  to do. The details are in the diagnostic log (**Settings → Open diagnostic logs**).
+- **A path longer than 260 characters** (Windows): Windows limits file paths to 260
+  characters unless its long path setting is on. The installer offers to turn it on,
+  and so does the message when a path is too long; both ask for administrator
+  permission. A shorter book name, or a folder nearer the top of the drive, works too.

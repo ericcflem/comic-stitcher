@@ -27,13 +27,15 @@ from .key_store import can_remember_key, forget_key, protect_key, retrieve_key
 from .window_outline import OutlinedDialog, OutlinedWindow, prefer_xwayland_on_gnome
 from .ui.common import (START_SIZE, PROGRESS_WIDTH, fit_height, ui_heading, ui_app_style,
     ui_primary, ProgressLabel, CurrentPageStack, tooltip_text, form_hint, interface_icon,
-    review_control)
+    review_control, readable_size)
 from .ui.workers import Worker, ReviewImageWorker, ThumbnailWorker
 from .ui.overlap import OverlapDialog
 from .ui.output_options import ARCHIVE_CHOICES, OutputOptionsDialog
 from .ui.pdf_dialog import PdfImportDialog
 from .ui.theme import tone
 from .rar_export import find_rar
+from .problems import enable_long_paths, long_paths_enabled
+from .space import drive_name, shortfall
 from .ui.crop_review import ScreenshotCropDialog
 from .ui.import_dialogs import ImportDropZone, REVIEW_MODES, ImportChoiceDialog
 from .ui.thumbnails import QueueList
@@ -713,9 +715,46 @@ class ComicWindow(ImportScreen, ScreenshotImport, PairReview, FinalReview, Expor
         self.worker.failure.connect(failure_handler or self._worker_error)
         self.worker.start()
 
+    def _show_problem(self, title: str, message: str) -> None:
+        """A failure in plain words; when it's Windows' 260-character path limit,
+        with a button that lifts it."""
+        dialog = QMessageBox(QMessageBox.Critical, title, message, parent=self)
+        dialog.setInformativeText(f"Details are in the diagnostic log: {diagnostics.log_path()}")
+        allow = None
+        if getattr(self.worker, "problem", "") == "long path" and not long_paths_enabled():
+            allow = dialog.addButton("Allow long paths…", QMessageBox.ActionRole)
+            allow.setToolTip(tooltip_text("Turns on Windows' long path setting, after Windows asks for "
+                                          "administrator permission. Then try again."))
+        dialog.addButton(QMessageBox.Ok)
+        dialog.exec()
+        if allow is not None and dialog.clickedButton() is allow:
+            if enable_long_paths():
+                QMessageBox.information(self, "Long paths allowed",
+                                        "Windows now allows long paths. Try again.")
+            else:
+                QMessageBox.warning(self, "Long paths not allowed",
+                                    "The setting wasn't changed. Windows may have been refused administrator "
+                                    "permission; a shorter book name or folder works too.")
+
+    def _space_ok(self, folder: Path, need: int, what: str) -> bool:
+        """Warn before starting when the drive looks too full; the user decides."""
+        free = shortfall(folder, need)
+        if free is None:
+            return True
+        diagnostics.note("Low disk space: %s needs about %d bytes in %s; %d free", what, need, folder, free)
+        dialog = QMessageBox(QMessageBox.Warning, "Not much disk space",
+                             f"{what} needs about {readable_size(need)} on {drive_name(folder)}, "
+                             f"which has {readable_size(free)} free.", parent=self)
+        dialog.setInformativeText("It may run out of space partway through. Free some space first, "
+                                  "or go ahead if you know there's enough.")
+        go = dialog.addButton("Continue anyway", QMessageBox.AcceptRole)
+        cancel = dialog.addButton(QMessageBox.Cancel)
+        dialog.setDefaultButton(cancel)
+        dialog.exec()
+        return dialog.clickedButton() is go
+
     def _worker_error(self, message):
-        QMessageBox.critical(self, "Comic Stitcher",
-                             f"{message}\n\nDiagnostic log: {diagnostics.log_path()}")
+        self._show_problem("Comic Stitcher", message)
         if self.progress_label.text().startswith("Creating"):
             self.pages.setCurrentWidget(self.export_page)
             self._compact_window()
