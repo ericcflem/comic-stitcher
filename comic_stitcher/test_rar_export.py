@@ -101,8 +101,9 @@ class RealRarTests(unittest.TestCase):
             self.assertEqual(output.suffix, ".cbr")
             self.assertTrue(output.read_bytes().startswith(RAR5_SIGNATURE))
             self.assertEqual(len(self.listing(output)), 3)
-            # Nothing left behind but the comic.
-            self.assertEqual(sorted(p.name for p in output.parent.iterdir()), ["Book", "Book.cbr"])
+            # Nothing left behind beside the pages but the comic.
+            self.assertEqual(sorted(p.name for p in output.parent.iterdir()),
+                             ["001.png", "002.png", "003.png", "Book.cbr"])
 
     def test_a_failure_is_reported_and_no_archive_published(self):
         with tempfile.TemporaryDirectory() as directory:

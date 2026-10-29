@@ -1558,8 +1558,8 @@
     },
     {
       "path": "comic_stitcher/test_rar_export.py",
-      "bytes": 5688,
-      "sha256": "b7ea96850226c614dfd173e09898a8a4afd379c57ec115447d69df917a6f9423"
+      "bytes": 5759,
+      "sha256": "4559baaf00d4ed4e5133a63def6e2868e23eed62d2a3c007acaf68c38e1071b8"
     },
     {
       "path": "comic_stitcher/test_reading_direction.py",
