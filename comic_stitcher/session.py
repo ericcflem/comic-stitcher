@@ -84,6 +84,7 @@ def save_session(source: Path, app_folder: Path, plan: BookPlan, *,
             "centering_measured": plan.centering_measured,
             "center_art": plan.center_art,
             "center_skipped": sorted(plan.center_skipped),
+            "centering_offered": plan.centering_offered,
             "comicinfo_xml": plan.comicinfo_xml,
             "include_comicinfo": plan.include_comicinfo,
             "possible_started": possible_started,
@@ -175,6 +176,7 @@ def _restore_centering(plan: BookPlan, data: dict) -> None:
     plan.centering_measured = bool(data.get("centering_measured", False))
     plan.center_art = bool(data.get("center_art", False))
     plan.center_skipped = set(skipped)
+    plan.centering_offered = bool(data.get("centering_offered", False))
 
 
 def _valid_removal(item: dict, page_count: int) -> bool:

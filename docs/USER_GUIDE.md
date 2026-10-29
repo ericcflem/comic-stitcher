@@ -183,8 +183,10 @@ When the comic looks right, choose **Continue to Export**.
 Printed comics often sit off-center on the page: the art is pushed to one side by the
 wider margin kept for the binding, left on one page and right on the next. While you
 review pairs, Comic Stitcher measures where the art sits on each page, in the
-background. If some pages are off-center, the final review says how many, with
-**Center the art**:
+background. If some pages are off-center, Comic Stitcher asks, once, whether to center
+the art, and the final review keeps a highlighted line saying how many pages, with
+**Center the art**. If the check is still running when you choose **Continue to
+Export**, it waits for it first (**Skip the check** goes on without it):
 
 - Checked, those pages are shown, and exported, with their art moved sideways to the
   middle. The strip it uncovers is filled with the page's own color, and the page

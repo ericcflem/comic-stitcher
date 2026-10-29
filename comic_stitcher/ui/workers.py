@@ -176,6 +176,7 @@ class CenteringWorker(QThread):
     """Measures where each page's art sits (centering.py) while the comic is
     reviewed, on helper processes at low priority."""
     done = Signal(object, object)  # The plan measured, and {page: (shift, first row, end row)}.
+    progress = Signal(int, int)  # Pages measured, of how many.
 
     def __init__(self, plan, workers: int):
         super().__init__()
@@ -199,6 +200,7 @@ class CenteringWorker(QThread):
                             found[index] = value
                     except Exception:
                         failed += 1
+                    self.progress.emit(index + 1, len(self.paths))
             else:
                 with ProcessPoolExecutor(max_workers=min(self.workers, len(self.paths)),
                                          mp_context=get_context("spawn")) as pool:
@@ -216,6 +218,7 @@ class CenteringWorker(QThread):
                                     found[jobs[future]] = value
                             except Exception:
                                 failed += 1  # An odd page is left as it is.
+                        self.progress.emit(len(jobs) - len(pending), len(jobs))
         except Exception as exc:  # Only an offer; the comic is unaffected.
             diagnostics.note("Page centering check failed: %s", exc)
             return

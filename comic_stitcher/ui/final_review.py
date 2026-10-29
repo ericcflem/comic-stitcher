@@ -4,7 +4,7 @@ from __future__ import annotations
 from PySide6.QtCore import QSignalBlocker, QSize, Qt, QThread, QTimer
 from PySide6.QtGui import QCursor, QPixmap
 from PySide6.QtWidgets import (QApplication, QCheckBox, QDialog, QHBoxLayout, QLabel, QMessageBox,
-    QPushButton, QScrollArea, QStackedWidget, QVBoxLayout, QWidget)
+    QProgressDialog, QPushButton, QScrollArea, QStackedWidget, QVBoxLayout, QWidget)
 from ..backend import BoundaryOverrideRequired, encoding_workers
 from .. import diagnostics
 from ..session import save_session
@@ -66,7 +66,7 @@ class FinalReview:
                                   ("Join as Spread", self.join_selected),
                                   ("Split Back Into Pages", self.split_selected),
                                   ("Back to Pair Review", self.return_review),
-                                  ("Continue to Export", self.show_export)):
+                                  ("Continue to Export", self.continue_to_export)):
             button = QPushButton(caption)
             button.clicked.connect(callback)
             controls.addWidget(button)
@@ -207,6 +207,8 @@ class FinalReview:
         self.rebuild_thumbnails()
         self.show_preview()
         self.preview_ready = True
+        if self.plan.centering_measured:
+            QTimer.singleShot(0, self._offer_centering)
         if self.screenshot_flagged_pages and not self.inferred_notice_shown:
             self.inferred_notice_shown = True
             QTimer.singleShot(0, lambda: QMessageBox.information(
@@ -477,9 +479,12 @@ class FinalReview:
         the background check has found pages that need it."""
         self.centering_row = QWidget()
         row = QHBoxLayout(self.centering_row)
-        row.setContentsMargins(0, 0, 0, 0)
+        self.centering_row.setObjectName("centeringRow")
+        self.centering_row.setStyleSheet("QWidget#centeringRow { background:#fff4d6; border:1px solid #e0b44a; "
+                                         "border-radius:6px; }")
+        row.setContentsMargins(10, 6, 10, 6)
         self.centering_label = QLabel()
-        self.centering_label.setStyleSheet("color:#52606d;")
+        self.centering_label.setStyleSheet("font-weight:600; color:#5c4300;")
         self.centering_label.setToolTip(tooltip_text(self.CENTERING_NOTE))
         self.center_art_box = QCheckBox("Center the art")
         self.center_art_box.setToolTip(tooltip_text(
@@ -510,6 +515,8 @@ class FinalReview:
             return
         worker = CenteringWorker(plan, max(1, encoding_workers(self.worker_count()) // 2))
         worker.done.connect(self._centering_done)
+        worker.progress.connect(self._centering_progress)
+        self.centering_measured_count = (0, len(plan.scan.pages))
         worker.finished.connect(lambda worker=worker: self.centering_checks.remove(worker)
                                 if worker in self.centering_checks else None)
         self.centering_checks.append(worker)
@@ -519,14 +526,84 @@ class FinalReview:
         for worker in self.centering_checks:
             worker.requestInterruption()
 
+    def _centering_progress(self, done, total):
+        self.centering_measured_count = (done, total)
+        waiting = getattr(self, "centering_wait", None)
+        if waiting is not None:
+            waiting.setMaximum(total)
+            waiting.setValue(done)
+
     def _centering_done(self, plan, found):
         if plan is not self.plan:
             return
         plan.centering = found
         plan.centering_measured = True
         self._save_review_report()
-        if self.pages.currentWidget() == self.preview and self.preview_ready:
+        waiting = getattr(self, "centering_wait", None)
+        if waiting is not None:
+            waiting.accept()  # Continue to Export was waiting for this; it carries on.
+        elif self.pages.currentWidget() == self.preview and self.preview_ready:
             self._update_centering_row()
+            self._offer_centering()
+
+    def _centering_checking(self) -> bool:
+        return (self.plan is not None and not self.plan.centering_measured
+                and any(worker.isRunning() for worker in self.centering_checks))
+
+    def _offer_centering(self) -> None:
+        """Ask once per comic, when pages are off-center: the line in the final
+        review is easy to miss."""
+        plan = self.plan
+        if plan is None or plan.centering_offered or plan.center_art:
+            return
+        pages = plan.centered_pages()
+        if not pages:
+            return
+        plan.centering_offered = True
+        total = sum(right is None for _, right in plan.entries())
+        dialog = QMessageBox(self)
+        dialog.setIcon(QMessageBox.Question)
+        dialog.setWindowTitle("Center the art?")
+        dialog.setText(f"The art on {len(pages)} of {total} pages sits off-center, "
+                       "probably because of print margins. Center it?")
+        dialog.setInformativeText(self.CENTERING_NOTE + " You can change this in the final review "
+                                  "until you export.")
+        center = dialog.addButton("Center the art", QMessageBox.AcceptRole)
+        dialog.addButton("Leave it as it is", QMessageBox.RejectRole)
+        dialog.setDefaultButton(center)
+        dialog.exec()
+        if dialog.clickedButton() == center:
+            self.center_art_box.setChecked(True)  # As if checked by hand: undoable, saved.
+        self._update_centering_row()
+
+    def continue_to_export(self):
+        """Continue to Export: first finish the centering check, if it's still
+        running, and offer centering, so the offer isn't missed."""
+        if self._centering_checking():
+            done, total = getattr(self, "centering_measured_count", (0, 0))
+            waiting = QProgressDialog("Checking whether the art is centered on each page…",
+                                      "Skip the check", 0, max(1, total), self)
+            waiting.setWindowTitle("One moment")
+            waiting.setWindowModality(Qt.WindowModal)
+            waiting.setMinimumDuration(0)
+            waiting.setAutoClose(False)  # Closed when the result is in, not at the last page.
+            waiting.setAutoReset(False)
+            waiting.setValue(done)
+            self.centering_wait = waiting
+            try:
+                finished = waiting.exec() == QDialog.Accepted or self.plan.centering_measured
+            finally:
+                self.centering_wait = None
+            if not finished:
+                self._stop_centering_checks()  # Skipped: export as it is.
+            self._update_centering_row()
+        if self.plan is not None and self.plan.centering_measured:
+            before = self.plan.center_art
+            self._offer_centering()
+            if self.plan.center_art != before:
+                self.show_preview()
+                return  # Centered just now: see the pages before exporting.
+        self.show_export()
 
     def _update_centering_row(self):
         plan = self.plan
