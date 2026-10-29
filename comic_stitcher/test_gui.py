@@ -791,16 +791,19 @@ class ThumbnailTest(unittest.TestCase):
                 window.close()
 
     def test_no_centering_check_when_turned_off(self):
-        window = ComicWindow()
-        self.addCleanup(window.close)
-        window.settings.setValue("check_centering", False)
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory)
             for i in range(2):
                 Image.new("RGB", (60, 80), (30 + i * 25, 20, 10)).save(folder / f"{i:03d}.png")
-            with patch("comic_stitcher.ui.final_review.CenteringWorker") as worker:
-                window.scan_done(scan_manual_folder(folder))
-            worker.assert_not_called()
+            window = ComicWindow()
+            try:  # Closed while its pages still exist, so nothing loads them afterwards.
+                window.settings.setValue("check_centering", False)
+                window.skip_pair_review = True
+                with patch("comic_stitcher.ui.final_review.CenteringWorker") as worker:
+                    window.scan_done(scan_manual_folder(folder))
+                worker.assert_not_called()
+            finally:
+                window.close()
 
     def test_sharp_yuv_option_is_per_size_and_needs_lossy_webp_and_cwebp(self):
         window = ComicWindow()

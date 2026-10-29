@@ -1518,8 +1518,8 @@
     },
     {
       "path": "comic_stitcher/test_gui.py",
-      "bytes": 189615,
-      "sha256": "b081ce38105b093bbf8999dcb5e3dabf08a4333b545114cf73a9e7fb606e11e3"
+      "bytes": 189790,
+      "sha256": "6cd3ab3702c9b726b9c9377ec83892f2ec42511b85f42c64f43257d84564c135"
     },
     {
       "path": "comic_stitcher/test_icons_resource.py",
