@@ -178,6 +178,35 @@ The final review shows the finished comic, with every page in the filmstrip.
 
 When the comic looks right, choose **Continue to Export**.
 
+### Centering the art
+
+Printed comics often sit off-center on the page: the art is pushed to one side by the
+wider margin kept for the binding, left on one page and right on the next. While you
+review pairs, Comic Stitcher measures where the art sits on each page, in the
+background. If some pages are off-center, Comic Stitcher asks, once, whether to center
+the art, and the final review keeps a highlighted line saying how many pages, with
+**Center the art**. If the check is still running when you choose **Continue to
+Export**, it waits for it first (**Skip the check** goes on without it):
+
+- Checked, those pages are shown, and exported, with their art moved sideways to the
+  middle. The strip it uncovers is filled with the page's own color, and the page
+  keeps its size.
+- Press **C** to go from one off-center page to the next. **Center this page**, shown
+  on each, leaves that page as it was when unchecked. **Undo last edit** undoes either.
+- The art is measured from the outermost panel sides, so a sound effect spilling past a
+  panel moves with the art without throwing the measurement off. Art is never moved
+  off the page.
+- Only white or black pages are centered (yellowed paper counts as white), and only
+  single pages: never a spread, art that runs to the page edges, or a page on a colored
+  background. Landscape books, such as strip collections, are checked too.
+- Once the check is done, the line at the top of the final review gives its answer. If
+  no page needs centering, it says so, and how many pages it left alone and why.
+
+Most pages will be better centered, but a few may not come out exactly right, so it's
+worth stepping through them with **C**. Moved pages are saved again at export, in the
+**Format for joined/rotated pages** (PNG unless you change it, so nothing is lost).
+To skip the check altogether, uncheck it in [Settings](#settings).
+
 ## Export
 
 The **Create your comic** screen sets how the finished comic is named and saved.
@@ -369,6 +398,9 @@ The gear on the start screen opens Settings:
   half the computer's processors. Fewer keeps the computer more responsive; more
   finishes sooner if there's enough memory.
 - **Show the original-file notice at startup.**
+- **Check whether each page's art is centered:** measures each comic's pages in the
+  background while you review pairs, so the final review can offer to [center the
+  art](#centering-the-art). Uncheck it if you never want that.
 - **Your ComicVine API key,** for ComicVine lookups. **Remember** keeps it, protected by
   Windows or by your desktop keyring on Linux. The key is never put in comics or logs.
 - **Optional CBR export:** the RAR program Comic Stitcher found for making CBRs, or
@@ -392,6 +424,7 @@ The gear on the start screen opens Settings:
 | Final review | Left / Right | Previous / next page |
 | | Space | Inspect the seam of two selected pages |
 | | M | Next page marked with ! |
+| | C | Next off-center page |
 | Crop review | Left / Right | Previous / next screenshot |
 | Queue | Ctrl + Up / Down / Home / End | Move the selected comic |
 

@@ -414,6 +414,15 @@ class BookPlan:
         self.proposed_layouts: dict[int, tuple[int, str]] = {}
         self.preview_history: list[dict] = []
         self.deferred_possible = False
+        # Centering art that print margins push aside (centering.py): each measured
+        # page's (shift, first row, end row), found in the background and not saved;
+        # whether this comic's art is centered; and pages left as they were.
+        self.centering: dict[int, tuple[int, int, int]] = {}
+        self.center_art = False
+        self.center_skipped: set[int] = set()
+        self.centering_measured = False  # Every page measured (none of them may need it).
+        self.centering_offered = False  # Asked once whether to center it.
+        self.centering_left_alone: dict[str, int] = {}  # Why pages weren't measured off-center (not saved).
         self._measured_neighbors = set(zip(range(len(scan.pages) - 1), range(1, len(scan.pages)), strict=True))
         self._measured_neighbors.update((c.left, c.right) for c in scan.candidates)
 
@@ -423,6 +432,7 @@ class BookPlan:
                 "page_order": self.page_order.copy(), "manual_rights": self.manual_rights.copy(),
                 "joined_rotations": copy.deepcopy(self.joined_rotations),
                 "join_overlaps": copy.deepcopy(self.join_overlaps),
+                "center_art": self.center_art, "center_skipped": sorted(self.center_skipped),
                 "_action": action, "_focus": focus, "_history_length": len(self.history)}
 
     def checkpoint_preview(self, action: str, focus: int) -> None:
@@ -439,9 +449,37 @@ class BookPlan:
         for name in ("rotations", "manual_rights", "joined_rotations"):
             setattr(self, name, copy.deepcopy(saved[name]))
         self.join_overlaps = copy.deepcopy(saved.get("join_overlaps", {}))
+        self.center_art = bool(saved.get("center_art", False))
+        self.center_skipped = set(saved.get("center_skipped", []))
         self.page_order = saved["page_order"].copy()
         del self.history[saved["_history_length"]:]
         return saved
+
+    def page_centering(self, left: int, right: int | None = None) -> tuple[int, int, int] | None:
+        """How a final page is centered: only a single page, with its art centered."""
+        if not self.center_art or right is not None or left in self.center_skipped:
+            return None
+        return self.centering.get(left)
+
+    def centered_pages(self) -> list[int]:
+        """Single pages in the comic whose art was measured off-center."""
+        return [left for left, right in self.entries() if right is None and left in self.centering]
+
+    def set_center_art(self, on: bool, focus: int = 0) -> None:
+        if on == self.center_art:
+            return
+        self.checkpoint_preview("centering", focus)
+        self.center_art = on
+
+    def set_page_centered(self, index: int, on: bool) -> None:
+        """Center one page's art, or leave it as it was."""
+        if on == (index not in self.center_skipped):
+            return
+        self.checkpoint_preview("centering", index)
+        if on:
+            self.center_skipped.discard(index)
+        else:
+            self.center_skipped.add(index)
 
     def neighbor_pairs(self) -> set[tuple[int, int]]:
         order = [i for i in self.page_order if i not in self.removed_pages]

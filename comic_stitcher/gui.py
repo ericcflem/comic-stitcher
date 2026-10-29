@@ -255,6 +255,15 @@ class ComicWindow(ImportScreen, ScreenshotImport, PairReview, FinalReview, Expor
         notice = QCheckBox("Show the original-file notice at startup")
         notice.setChecked(not self.settings.value("hide_source_notice", False, type=bool))
         layout.addWidget(notice)
+        centering = QCheckBox("Check whether each page's art is centered")
+        centering.setObjectName("check_centering")
+        centering.setChecked(self.settings.value("check_centering", True, type=bool))
+        centering.setToolTip(tooltip_text(
+            "Printed comics often sit off-center on the page, pushed aside by the margin for the binding. "
+            "Checked: while you review pairs, each page is measured in the background, and the final "
+            "review offers to center the art when pages need it. It takes a few seconds of computer "
+            "time for each comic; uncheck it if you never want it."))
+        layout.addWidget(centering)
         key_group = QGroupBox("Optional ComicVine lookup")
         key_form = QFormLayout(key_group)
         api_key = QLineEdit(self.comicvine_session_key)
@@ -317,6 +326,7 @@ class ComicWindow(ImportScreen, ScreenshotImport, PairReview, FinalReview, Expor
             self.comicvine_session_key = entered_key
             self.settings.setValue("workers", workers.value())
             self.settings.setValue("hide_source_notice", not notice.isChecked())
+            self.settings.setValue("check_centering", centering.isChecked())
             self.settings.setValue("rar_program", rar_choice["path"])
             self._update_rar_choice(recheck=True)
             self.refresh_export()
@@ -476,7 +486,8 @@ class ComicWindow(ImportScreen, ScreenshotImport, PairReview, FinalReview, Expor
                             ("Right", lambda: self._review_key("right")),
                             ("Escape", lambda: self._review_key("escape")),
                             ("B", lambda: self._review_key("boss")),
-                            ("M", lambda: self._review_key("marked"))):
+                            ("M", lambda: self._review_key("marked")),
+                            ("C", lambda: self._review_key("centered"))):
             shortcut = QShortcut(QKeySequence(key), self)
             shortcut.setContext(Qt.WindowShortcut)
             shortcut.activated.connect(action)
@@ -486,7 +497,7 @@ class ComicWindow(ImportScreen, ScreenshotImport, PairReview, FinalReview, Expor
         current = self.pages.currentWidget()
         for key, shortcut in self.shortcuts.items():
             shortcut.setEnabled(current == self.review or
-                                (current == self.preview and key in ("Left", "Right", "Space", "Escape", "M")) or
+                                (current == self.preview and key in ("Left", "Right", "Space", "Escape", "M", "C")) or
                                 (current == self.boss_page and key == "B"))
         if current == self.review:
             # The scan/progress page may still own keyboard focus while Qt is
@@ -511,6 +522,9 @@ class ComicWindow(ImportScreen, ScreenshotImport, PairReview, FinalReview, Expor
                 return
             if action == "marked":
                 self.next_marked_page()
+                return
+            if action == "centered":
+                self.next_centered_page()
                 return
         if screen == self.preview and action in ("left", "right"):
             self.navigate((1 if action == "left" else -1) if self.plan.scan.right_to_left
@@ -631,6 +645,7 @@ class ComicWindow(ImportScreen, ScreenshotImport, PairReview, FinalReview, Expor
             return  # Work is still under way; its own screen follows when it finishes.
         self._end_lossless_for_this_comic()
         self._stop_lossless_checks()
+        self._stop_centering_checks()
         if self.current_job is not None:  # Leaving a comic that was never settled: drop it.
             if self.current_job in self.queue_jobs:
                 self.queue_jobs.remove(self.current_job)
@@ -820,9 +835,11 @@ class ComicWindow(ImportScreen, ScreenshotImport, PairReview, FinalReview, Expor
             self.review_worker.stop()
             self.size_worker.stop()
             self._stop_lossless_checks()
+            self._stop_centering_checks()
             if (not self.thumb_worker.wait(3000) or not self.review_worker.wait(3000)
                     or not self.size_worker.wait(10000)
-                    or not all(worker.wait(10000) for worker in list(self.lossless_checks))):
+                    or not all(worker.wait(10000) for worker in list(self.lossless_checks))
+                    or not all(worker.wait(10000) for worker in list(self.centering_checks))):
                 event.ignore()
                 self.statusBar().showMessage("Finishing an image before closing…")
                 return

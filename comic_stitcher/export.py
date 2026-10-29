@@ -16,10 +16,11 @@ from pathlib import Path
 from typing import Callable
 import py7zr
 import numpy as np
-from PIL import Image, ImageFile, ImageOps
+from PIL import Image, ImageFile
 from io import BytesIO
 from .sharp_webp import OVERFLOW_MIN_METHOD, PARTITION0_OVERFLOW, save_sharp_webp, sharp_yuv_available
 from .pdf_export import PDF_IMAGE_SUFFIXES, verify_pdf, write_pdf
+from .centering import open_centered
 from .backend import (BookPlan, Page, _working_colour, check_sources, encoding_workers,
     rotated_image, safe_book_name, stitched_image)
 
@@ -98,7 +99,7 @@ def planned_names(plan: BookPlan, opt: ExportOptions, reduced: bool = False) -> 
     for index, (left, right) in enumerate(entries, opt.start):
         if opt.keep_originals and not reduced:
             suffix = (plan.scan.pages[left].path.suffix.lower() if right is None and left not in plan.rotations
-                      else {"png": ".png", "jpeg": ".jpg", "webp": ".webp"}[opt.spread_format])
+                      and plan.page_centering(left) is None else {"png": ".png", "jpeg": ".jpg", "webp": ".webp"}[opt.spread_format])
         else:
             suffix = {"jpeg": ".jpg", "webp": ".webp", "png": ".png"}[opt.format]
         stem = f"{index:0{width}d}"
@@ -220,11 +221,10 @@ def _save_image(image: Image.Image, path: Path, fmt: str, opt: ExportOptions) ->
 def _encode_entry(source: str, right: str | None, destination: str,
                   fmt: str | None, opt: ExportOptions, reduce: bool = False, rotation: int = 0,
                   png_destination: str | None = None, page_rotations: tuple[int, int] = (0, 0),
-                  overlap: tuple[int, str] = (0, "right")) -> None:
+                  overlap: tuple[int, str] = (0, "right"), centering: tuple[int, int, int] | None = None) -> None:
     """Top-level job so Windows spawn and PyInstaller can run it in a process."""
     if right is None:
-        with Image.open(source) as src:
-            image = ImageOps.exif_transpose(src)
+        image = open_centered(Path(source), centering)  # Centered as scanned, before any turn.
         if rotation:
             turned = rotated_image(image, rotation)
             image.close()
@@ -270,7 +270,8 @@ def pdf_format_problem(opt: ExportOptions) -> str | None:
 def _entry_format(plan: BookPlan, opt: ExportOptions, encoding_opt: ExportOptions,
                   left: int, right: int | None, reduce: bool) -> str | None:
     """The format a final page is encoded in, or None when its file is copied."""
-    copy = not reduce and right is None and left not in plan.rotations and opt.keep_originals
+    copy = (not reduce and right is None and left not in plan.rotations and opt.keep_originals
+            and plan.page_centering(left) is None)
     if (copy and opt.cbz and opt.archive_format == "pdf"
             and plan.scan.pages[left].path.suffix.lower() not in PDF_IMAGE_SUFFIXES):
         copy = False  # A PDF can't hold this page as it is (WebP, for example).
@@ -290,6 +291,10 @@ def _entry_rotations(plan: BookPlan, left: int) -> tuple[int, tuple[int, int]]:
 
 def _entry_overlap(plan: BookPlan, left: int) -> tuple[int, str]:
     return plan.join_overlaps.get(left, (0, "right"))
+
+
+def _entry_centering(plan: BookPlan, left: int, right: int | None) -> tuple[int, int, int] | None:
+    return plan.page_centering(left, right)
 
 
 def _oriented_size(page: Page, rotation: int = 0) -> tuple[int, int]:
@@ -333,7 +338,8 @@ ARCHIVE_ENTRY_OVERHEAD = 200  # Bytes of archive bookkeeping per stored file, ro
 def _estimate_sample(source: str, right: str | None, rotation: int, page_rotations: tuple[int, int],
                      full: tuple[str, ExportOptions] | None, reduced: tuple[str, ExportOptions] | None,
                      band: tuple[float, float] = (0.0, 1.0),
-                     overlap: tuple[int, str] = (0, "right")) -> tuple[tuple[int, int] | None, ...]:
+                     overlap: tuple[int, str] = (0, "right"),
+                     centering: tuple[int, int, int] | None = None) -> tuple[tuple[int, int] | None, ...]:
     """(encoded bytes, pixels) of part of one final page at full and/or reduced size.
 
     The page is prepared once, the way _encode_entry prepares it; then a
@@ -341,9 +347,7 @@ def _estimate_sample(source: str, right: str | None, rotation: int, page_rotatio
     resized and encoded in memory. Top level so it can run in another process.
     """
     if right is None:
-        with Image.open(source) as src:
-            image = ImageOps.exif_transpose(src)
-            image.load()
+        image = open_centered(Path(source), centering)
         if rotation:
             turned = rotated_image(image, rotation)
             if turned is not image:
@@ -506,7 +510,8 @@ def estimate_export_size(plan: BookPlan, opt: ExportOptions, samples: int = ESTI
                          for variant in ("full", "reduced"))
         top = (len(jobs) * 0.381966) % 1 * (1 - ESTIMATE_BAND)  # Spread band heights evenly.
         jobs.append((index, (str(source), str(partner) if partner else None, rotation, page_rotations,
-                             full, reduced, (top, ESTIMATE_BAND), _entry_overlap(plan, left))))
+                             full, reduced, (top, ESTIMATE_BAND), _entry_overlap(plan, left),
+                             _entry_centering(plan, left, right))))
 
     def estimate():
         result = {}
@@ -718,16 +723,17 @@ def export_book(plan: BookPlan, opt: ExportOptions,
             for (left, right), name in zip(entries, variant_names, strict=True):
                 fmt = _entry_format(plan, opt, encoding_opt, left, right, reduce)
                 jobs.append((*_entry_sources(plan, left, right), variant_work / name, fmt,
-                             *_entry_rotations(plan, left), _entry_overlap(plan, left)))
-            encode_count = sum(fmt is not None or keep_png for _, _, _, fmt, _, _, _ in jobs)
+                             *_entry_rotations(plan, left), _entry_overlap(plan, left),
+                             _entry_centering(plan, left, right)))
+            encode_count = sum(fmt is not None or keep_png for _, _, _, fmt, _, _, _, _ in jobs)
             if worker_count == 1 or encode_count <= 1:
-                for source, right, dest, fmt, rotation, page_rotations, overlap in jobs:
+                for source, right, dest, fmt, rotation, page_rotations, overlap, centering in jobs:
                     if fmt is None and not keep_png:
                         shutil.copyfile(source, dest)
                     else:
                         _encode_entry(str(source), str(right) if right else None, str(dest), fmt, encoding_opt, reduce, rotation,
                                       str(png_work / (dest.stem + ".png")) if keep_png else None, page_rotations,
-                                      overlap)
+                                      overlap, centering)
                     done()
             else:
                 # Spawn from the GUI worker; cap queued image jobs for large books.
@@ -735,7 +741,7 @@ def export_book(plan: BookPlan, opt: ExportOptions,
                                          mp_context=get_context("spawn")) as executor:
                     pending = set()
                     try:
-                        for source, right, dest, fmt, rotation, page_rotations, overlap in jobs:
+                        for source, right, dest, fmt, rotation, page_rotations, overlap, centering in jobs:
                             if fmt is None and not keep_png:
                                 shutil.copyfile(source, dest)
                                 done()
@@ -744,7 +750,7 @@ def export_book(plan: BookPlan, opt: ExportOptions,
                                                             str(right) if right else None,
                                                             str(dest), fmt, encoding_opt, reduce, rotation,
                                                             str(png_work / (dest.stem + ".png")) if keep_png else None, page_rotations,
-                                                            overlap))
+                                                            overlap, centering))
                             if len(pending) >= 2 * worker_count:
                                 finished, pending = wait(pending, return_when=FIRST_COMPLETED)
                                 for future in finished:

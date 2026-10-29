@@ -758,6 +758,138 @@ class ThumbnailTest(unittest.TestCase):
         self.assertIn("their names won't clash", window.page_notes_notice.informativeText())
         window.page_notes_notice.close()
 
+    def test_off_center_art_is_measured_in_the_background_and_offered(self):
+        from .test_centering import page
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            for i, (left, right) in enumerate(((200, 1550), (150, 1500), (175, 1525))):
+                page(left, right, rng_seed=i).save(folder / f"{i + 1:03d}.png")
+            window = ComicWindow()
+            asked = []
+
+            def answer(dialog):  # The pop-up offer: decline it the first time.
+                asked.append(dialog.text())
+                dialog.buttons()[[b.text() for b in dialog.buttons()].index("Leave it as it is")].click()
+            try:
+                window.show()
+                window.skip_pair_review = True
+                with patch.object(QMessageBox, "exec", answer):
+                    window.scan_done(scan_manual_folder(folder))
+                    self.wait_for(lambda: window.plan.centering_measured, seconds=60)
+                    self.wait_for(lambda: len(getattr(window, "thumb_buttons", [])) == 3)
+                    self.wait_for(lambda: not window.centering_row.isHidden() and asked)
+                self.assertEqual(asked, ["The art on 2 of 3 pages sits off-center, probably because of "
+                                         "print margins. Center it?"])
+                self.assertTrue(window.plan.centering_offered)
+                self.assertEqual(sorted(window.plan.centering), [0, 1])
+                self.assertIn("The art on 2 of 3 pages sits off-center", window.centering_label.text())
+                self.assertFalse(window.center_art_box.isChecked())
+                self.assertTrue(window.center_page_box.isHidden())
+                with patch.object(ComicWindow, "show_export") as export:
+                    window.continue_to_export()  # Asked once only: on to export.
+                export.assert_called_once()
+                self.assertEqual(len(asked), 1)
+                window.center_art_box.click()
+                self.assertTrue(window.plan.center_art)
+                window.preview_index = 2
+                window._review_key("centered")  # C: round to the first moved page.
+                self.assertEqual(window.preview_index, 0)
+                self.assertIn("Off-center page 1 of 2", window.statusBar().currentMessage())
+                self.assertFalse(window.center_page_box.isHidden())
+                window.center_page_box.click()  # Leave this one as it was.
+                self.assertEqual(window.plan.center_skipped, {0})
+                window.undo_preview_removal()
+                self.assertEqual(window.plan.center_skipped, set())
+            finally:
+                window.close()
+
+    def test_continue_to_export_waits_for_the_centering_check(self):
+        from PySide6.QtWidgets import QProgressDialog
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            for i in range(3):
+                Image.new("RGB", (60, 80), (30 + i * 25, 20, 10)).save(folder / f"{i:03d}.png")
+            window = ComicWindow()
+            try:
+                window.show()
+                with patch("comic_stitcher.ui.final_review.CenteringWorker"):
+                    window.skip_pair_review = True
+                    window.scan_done(scan_manual_folder(folder))
+                self.wait_for(lambda: len(getattr(window, "thumb_buttons", [])) == 3)
+                plan = window.plan
+                running = Mock(isRunning=Mock(return_value=True))
+                window.centering_checks = [running]
+                waited = []
+
+                def check_finishes(dialog):  # The result arrives while the dialog waits.
+                    waited.append(dialog.labelText())
+                    window._centering_done(plan, {1: (12, 0, 80)})
+                    return dialog.result()
+
+                def center(dialog):
+                    dialog.buttons()[[b.text() for b in dialog.buttons()].index("Center the art")].click()
+                with patch.object(QProgressDialog, "exec", check_finishes), \
+                        patch.object(QMessageBox, "exec", center), \
+                        patch.object(ComicWindow, "show_export") as export:
+                    window.continue_to_export()
+                self.assertEqual(waited, ["Checking whether the art is centered on each page…"])
+                self.assertTrue(plan.center_art)
+                export.assert_not_called()  # Centered just now: the pages are shown first.
+                with patch.object(ComicWindow, "show_export") as export:
+                    window.continue_to_export()
+                export.assert_called_once()
+                # Skipping the check goes on to export, without centering.
+                window._stop_centering_checks = Mock()
+                plan.centering_measured, plan.center_art, plan.centering_offered = False, False, False
+                with patch.object(QProgressDialog, "exec", lambda dialog: 0), \
+                        patch.object(ComicWindow, "show_export") as export:
+                    window.continue_to_export()
+                window._stop_centering_checks.assert_called_once()
+                export.assert_called_once()
+            finally:
+                window.centering_checks = []
+                window.close()
+
+    def test_the_centering_result_shows_when_nothing_needs_it(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            for i in range(3):
+                Image.new("RGB", (60, 80), (30 + i * 25, 20, 10)).save(folder / f"{i:03d}.png")
+            window = ComicWindow()
+            try:
+                window.show()
+                with patch("comic_stitcher.ui.final_review.CenteringWorker"):
+                    window.skip_pair_review = True
+                    window.scan_done(scan_manual_folder(folder))
+                self.wait_for(lambda: len(getattr(window, "thumb_buttons", [])) == 3)
+                self.assertEqual(window.centering_label.text(),  # Still checking.
+                                 "Checking whether the art is centered on each page…")
+                self.assertFalse(window.centering_row.property("quiet"))
+                window.plan.centering_left_alone = {"spread": 2, "already centered": 1}
+                window._centering_done(window.plan, {})
+                self.assertFalse(window.centering_row.isHidden())
+                self.assertEqual(window.centering_label.text(),
+                                 "Checked: the art is centered on every page (left alone: 2 spreads).")
+                self.assertTrue(window.centering_row.property("quiet"))
+                self.assertTrue(window.center_art_box.isHidden())
+            finally:
+                window.close()
+
+    def test_no_centering_check_when_turned_off(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            for i in range(2):
+                Image.new("RGB", (60, 80), (30 + i * 25, 20, 10)).save(folder / f"{i:03d}.png")
+            window = ComicWindow()
+            try:  # Closed while its pages still exist, so nothing loads them afterwards.
+                window.settings.setValue("check_centering", False)
+                window.skip_pair_review = True
+                with patch("comic_stitcher.ui.final_review.CenteringWorker") as worker:
+                    window.scan_done(scan_manual_folder(folder))
+                worker.assert_not_called()
+            finally:
+                window.close()
+
     def test_sharp_yuv_option_is_per_size_and_needs_lossy_webp_and_cwebp(self):
         window = ComicWindow()
         self.addCleanup(window.close)

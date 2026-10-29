@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Centering the art. Printed comics often sit off-center on the page, pushed
+  aside by the margin kept for the binding. While you review pairs, Comic
+  Stitcher measures where the art sits on each page, in the background; if
+  some pages are off-center, it asks once whether to center the art, and the
+  final review keeps a highlighted line with **Center the art**; **Continue to
+  Export** waits for a check that's still running. It
+  measures from the outermost panel sides (so a sound effect spilling past a
+  panel moves with the art without throwing it off), ignores specks in the
+  margins, works on white and black pages, and never moves art off the page.
+  **C** steps through the off-center pages, and **Center this page** leaves one
+  as it was. Most pages come out well centered, but a few may not. **Check
+  whether each page's art is centered** in Settings turns the check off. Built
+  from Eric's center_comic.py script.
 - CBR export, with your own RAR program. Only RARLAB's software may create RAR
   archives, so Comic Stitcher uses yours: `Rar.exe` from WinRAR on Windows, or
   RARLAB's `rar` on Linux, found where it's usually installed or chosen in
