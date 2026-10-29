@@ -196,8 +196,11 @@ Export**, it waits for it first (**Skip the check** goes on without it):
 - The art is measured from the outermost panel sides, so a sound effect spilling past a
   panel moves with the art without throwing the measurement off. Art is never moved
   off the page.
-- Only white or black pages are centered, and only single pages: never a spread, art
-  that runs to the page edges, or a page on a colored background.
+- Only white or black pages are centered (yellowed paper counts as white), and only
+  single pages: never a spread, art that runs to the page edges, or a page on a colored
+  background. Landscape books, such as strip collections, are checked too.
+- Once the check is done, the line at the top of the final review gives its answer. If
+  no page needs centering, it says so, and how many pages it left alone and why.
 
 Most pages will be better centered, but a few may not come out exactly right, so it's
 worth stepping through them with **C**. Moved pages are saved again at export, in the

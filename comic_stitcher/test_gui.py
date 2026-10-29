@@ -850,6 +850,29 @@ class ThumbnailTest(unittest.TestCase):
                 window.centering_checks = []
                 window.close()
 
+    def test_the_centering_result_shows_when_nothing_needs_it(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            for i in range(3):
+                Image.new("RGB", (60, 80), (30 + i * 25, 20, 10)).save(folder / f"{i:03d}.png")
+            window = ComicWindow()
+            try:
+                window.show()
+                with patch("comic_stitcher.ui.final_review.CenteringWorker"):
+                    window.skip_pair_review = True
+                    window.scan_done(scan_manual_folder(folder))
+                self.wait_for(lambda: len(getattr(window, "thumb_buttons", [])) == 3)
+                self.assertTrue(window.centering_row.isHidden())  # Not checked (yet).
+                window.plan.centering_left_alone = {"spread": 2, "already centered": 1}
+                window._centering_done(window.plan, {})
+                self.assertFalse(window.centering_row.isHidden())
+                self.assertEqual(window.centering_label.text(),
+                                 "Checked: the art is centered on every page (left alone: 2 spreads).")
+                self.assertTrue(window.centering_row.property("quiet"))
+                self.assertTrue(window.center_art_box.isHidden())
+            finally:
+                window.close()
+
     def test_no_centering_check_when_turned_off(self):
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory)

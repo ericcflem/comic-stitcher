@@ -40,7 +40,9 @@ GAP_MIN = 0.005              # A plain gap (share of height) separating a header
 BAND_ZONE = 0.08             # A header or footer starts or ends within this share of the top or bottom.
 BAND_MAX_H = 0.03            # A header or footer strip is at most this share of the height.
 CENTER_TOL = 0.006           # A strip within this share of the width of the middle is centered.
-SPREAD_RATIO = 1.05          # Pages this much wider than tall are spreads.
+SPREAD_RATIO = 1.05          # With nothing to compare: pages this much wider than tall are spreads.
+SPREAD_WIDTH = 1.6           # In a book: pages this much wider than its usual page are spreads
+                             # (so a landscape book, such as a strip collection, is still measured).
 SPECK_RUN = 0.008            # A column holds art only with an ink run this share of the height tall.
 FRAME_MIN_RUN = 0.12         # A panel side: a straight vertical edge this share of the art's height.
 PROTRUDE_MAX = 0.08          # Art past the outermost panel sides, up to this share of the width.
@@ -184,20 +186,28 @@ def analyze(preview: Image.Image) -> dict:
     return {**result, "shift": shift, "moving": (top, bottom), "frames": bool(frames)}
 
 
-def measure_page(path: str) -> tuple[int, int, int] | None:
+def spread_width(sizes) -> float | None:
+    """The width above which a page of this book is a spread: well over its
+    usual page width. None for a book too small to tell."""
+    widths = sorted(width for width, _ in sizes)
+    return SPREAD_WIDTH * widths[len(widths) // 2] if len(widths) >= 3 else None
+
+
+def measure_page(path: str, spread_from: float | None = None) -> tuple[int, int, int] | None:
     """(shift in pixels, first row, end row) to center one page's art, at its
     own size, or None to leave it."""
-    found = check_page(path)
+    found = check_page(path, spread_from)
     return found if isinstance(found, tuple) else None
 
 
-def check_page(path: str) -> tuple[int, int, int] | str:
-    """measure_page's answer, or why the page is left alone. Top level, to run
-    in another process."""
+def check_page(path: str, spread_from: float | None = None) -> tuple[int, int, int] | str:
+    """measure_page's answer, or why the page is left alone. A page wider than
+    `spread_from` (see spread_width), or without it wider than tall, is a
+    spread. Top level, to run in another process."""
     with Image.open(path) as image:
         if image.getexif().get(0x0112, 1) not in (1, None):
             return "turned by its EXIF orientation"
-        if image.width > image.height * SPREAD_RATIO:
+        if (image.width > spread_from) if spread_from else (image.width > image.height * SPREAD_RATIO):
             return "spread"
         width, height = image.size
         image.draft("RGB", (PREVIEW_WIDTH, round(height * PREVIEW_WIDTH / width)))

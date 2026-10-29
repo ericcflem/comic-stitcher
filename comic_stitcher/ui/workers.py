@@ -183,6 +183,8 @@ class CenteringWorker(QThread):
         super().__init__()
         self.plan = plan
         self.paths = [(index, str(page.path)) for index, page in enumerate(plan.scan.pages)]
+        from ..centering import spread_width
+        self.spread_from = spread_width([(page.width, page.height) for page in plan.scan.pages])
         self.workers = max(1, workers)
 
     def run(self):
@@ -198,7 +200,7 @@ class CenteringWorker(QThread):
                     if self.isInterruptionRequested():
                         return
                     try:
-                        value = check_page(path)
+                        value = check_page(path, self.spread_from)
                         if isinstance(value, tuple):
                             found[index] = value
                         else:
@@ -209,7 +211,7 @@ class CenteringWorker(QThread):
             else:
                 with ProcessPoolExecutor(max_workers=min(self.workers, len(self.paths)),
                                          mp_context=get_context("spawn")) as pool:
-                    jobs = {pool.submit(check_page, path): index for index, path in self.paths}
+                    jobs = {pool.submit(check_page, path, self.spread_from): index for index, path in self.paths}
                     pending = set(jobs)
                     while pending:
                         if self.isInterruptionRequested():

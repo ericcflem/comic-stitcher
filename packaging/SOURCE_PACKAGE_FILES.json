@@ -1313,8 +1313,8 @@
     },
     {
       "path": "comic_stitcher/centering.py",
-      "bytes": 11544,
-      "sha256": "07800f773704d27073680231bf86570437d180300948f9b046cde60838f1b404"
+      "bytes": 12306,
+      "sha256": "4181907c47901c0950c5be9a25d8963b36764d55464b7160bb02cd38fbfb433a"
     },
     {
       "path": "comic_stitcher/cmyk_profile.py",
@@ -1468,8 +1468,8 @@
     },
     {
       "path": "comic_stitcher/test_centering.py",
-      "bytes": 8162,
-      "sha256": "e7683d6326980027856060ee220380342e12d0e9dde2760fb6750df7097b4adc"
+      "bytes": 9151,
+      "sha256": "5ebb51d1894def0635e0668538e5b3384708e4d08ae53c46734cd8dd8dfb03eb"
     },
     {
       "path": "comic_stitcher/test_colour.py",
@@ -1518,8 +1518,8 @@
     },
     {
       "path": "comic_stitcher/test_gui.py",
-      "bytes": 193228,
-      "sha256": "70dea45414d092a6e1b46a7a57f4bd910a347875f2a146e200bcfa3fcde3dc40"
+      "bytes": 194536,
+      "sha256": "23f02788c2cce5ae7de75f945db2e18d22cabdd53d5ac896effcb954f5aa1f85"
     },
     {
       "path": "comic_stitcher/test_icons_resource.py",
@@ -1638,8 +1638,8 @@
     },
     {
       "path": "comic_stitcher/ui/final_review.py",
-      "bytes": 47319,
-      "sha256": "74ba80de72e84e1e679a69a22ca9da915b5b6d066d265f82fbb7128702bc2d8f"
+      "bytes": 48366,
+      "sha256": "7a51cf890e8766dd9dcacc0d811ee4286665c4b3bd86213ab2ea58e3c31bb4a4"
     },
     {
       "path": "comic_stitcher/ui/import_dialogs.py",
@@ -1693,8 +1693,8 @@
     },
     {
       "path": "comic_stitcher/ui/workers.py",
-      "bytes": 19583,
-      "sha256": "7f3dc0f00d057a663cba6622db2e65a63a33db172facc4858f45f154c4529d86"
+      "bytes": 19761,
+      "sha256": "a8912d82a9db48c37c2e49958ade389d1fe2df4c1f61ccffb73fdd97fe5201e6"
     },
     {
       "path": "comic_stitcher/window_outline.py",
@@ -1753,8 +1753,8 @@
     },
     {
       "path": "docs/USER_GUIDE.md",
-      "bytes": 21544,
-      "sha256": "e46bfd1b79f61a9ceec5e5ec0f177a2a43849889e471805d7774b3c8842803d4"
+      "bytes": 21808,
+      "sha256": "579a90542f7484de103fce9e68424054dd55d628927f69fe9ca5a0880977b68f"
     },
     {
       "path": "installer/RUNTIME_REFERENCES.md",

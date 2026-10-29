@@ -209,7 +209,6 @@ class FinalReview:
         self.preview_ready = True
         if self.plan.centering_measured:
             QTimer.singleShot(0, self._offer_centering)
-            QTimer.singleShot(0, self._report_centered)
         if self.screenshot_flagged_pages and not self.inferred_notice_shown:
             self.inferred_notice_shown = True
             QTimer.singleShot(0, lambda: QMessageBox.information(
@@ -481,8 +480,9 @@ class FinalReview:
         self.centering_row = QWidget()
         row = QHBoxLayout(self.centering_row)
         self.centering_row.setObjectName("centeringRow")
-        self.centering_row.setStyleSheet("QWidget#centeringRow { background:#fff4d6; border:1px solid #e0b44a; "
-                                         "border-radius:6px; }")
+        self.centering_row.setStyleSheet(
+            "QWidget#centeringRow { background:#fff4d6; border:1px solid #e0b44a; border-radius:6px; } "
+            "QWidget#centeringRow[quiet=\"true\"] { background:#eef3ee; border-color:#a9c3a9; }")
         row.setContentsMargins(10, 6, 10, 6)
         self.centering_label = QLabel()
         self.centering_label.setStyleSheet("font-weight:600; color:#5c4300;")
@@ -546,21 +546,24 @@ class FinalReview:
             waiting.accept()  # Continue to Export was waiting for this; it carries on.
         elif self.pages.currentWidget() == self.preview and self.preview_ready:
             self._update_centering_row()
-            self._report_centered()
             self._offer_centering()
 
-    def _report_centered(self) -> None:
-        """Say the check ran when it found nothing to center, so its silence
+    # Why pages were left alone, as "3 spreads": (one page, several).
+    LEFT_ALONE = {"spread": ("spread", "spreads"), "art to the edges": ("with art to the edges",) * 2,
+                  "colored background": ("on a colored background",) * 2, "blank": ("blank",) * 2,
+                  "spot illustration": ("spot illustration", "spot illustrations"),
+                  "only a header or footer": ("with only a header or footer",) * 2,
+                  "no art found": ("with no art found",) * 2,
+                  "turned by its EXIF orientation": ("turned by its EXIF orientation",) * 2}
+
+    def _centering_result(self) -> str:
+        """The check's answer when it found nothing to center, so its silence
         isn't mistaken for the check being off."""
-        plan = self.plan
-        if plan is None or not plan.centering_measured or plan.centered_pages():
-            return
-        reasons = plan.centering_left_alone
-        others = {why: count for why, count in reasons.items() if why != "already centered"}
-        detail = ("; left alone: " + ", ".join(f"{count} {why}" for why, count in
-                                               sorted(others.items(), key=lambda item: -item[1]))
-                  if others else "")
-        self.statusBar().showMessage("Centering check: the art is centered on every page" + detail + ".", 12000)
+        others = {why: count for why, count in self.plan.centering_left_alone.items() if why != "already centered"}
+        parts = [f"{count} {self.LEFT_ALONE.get(why, (why, why))[count != 1]}"
+                 for why, count in sorted(others.items(), key=lambda item: -item[1])]
+        return ("Checked: the art is centered on every page" +
+                (" (left alone: " + ", ".join(parts) + ")" if parts else "") + ".")
 
     def _centering_checking(self) -> bool:
         return (self.plan is not None and not self.plan.centering_measured
@@ -624,14 +627,23 @@ class FinalReview:
     def _update_centering_row(self):
         plan = self.plan
         checking = bool(self.centering_checks) and plan is not None and not plan.centering_measured
+        measured = plan is not None and plan.centering_measured
         pages = plan.centered_pages() if plan is not None else []
-        self.centering_row.setVisible(checking or bool(pages))
+        self.centering_row.setVisible(checking or measured)
+        # Amber while there's something to do or wait for; quiet once nothing needs it.
+        self.centering_row.setProperty("quiet", measured and not pages)
+        self.centering_row.style().unpolish(self.centering_row)
+        self.centering_row.style().polish(self.centering_row)
         if checking:
             self.centering_label.setText("Checking whether the art is centered on each page…")
         elif pages:
             total = sum(right is None for _, right in plan.entries())
             self.centering_label.setText(
                 f"The art on {len(pages)} of {total} pages sits off-center, probably because of print margins.")
+        elif measured:
+            self.centering_label.setText(self._centering_result())
+        self.centering_label.setStyleSheet("font-weight:600; color:%s;" % ("#2f5130" if measured and not pages
+                                                                          else "#5c4300"))
         self.center_art_box.setVisible(bool(pages))
         with QSignalBlocker(self.center_art_box):
             self.center_art_box.setChecked(plan is not None and plan.center_art)

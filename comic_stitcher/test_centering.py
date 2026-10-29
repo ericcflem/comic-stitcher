@@ -66,6 +66,23 @@ class MeasureTests(unittest.TestCase):
                 image.save(path)
                 self.assertEqual(check_page(str(path)), why)
 
+    def test_landscape_books_are_measured_and_their_spreads_left_alone(self):
+        from .centering import check_page, spread_width
+        # A strip collection: every page wider than tall (Peanuts), 20 px off-center.
+        wide = page(200, 1550).resize((2600, 1700))
+        sizes = [(2600, 1700)] * 5 + [(5200, 1700)]
+        self.assertEqual(spread_width(sizes), 1.6 * 2600)
+        self.assertIsNone(spread_width(sizes[:2]))  # Too few pages to tell.
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "page.png"
+            wide.save(path)
+            self.assertIsInstance(check_page(str(path), spread_width(sizes)), tuple)
+            self.assertEqual(check_page(str(path)), "spread")  # Alone, wider than tall looks like one.
+            double = Image.new("RGB", (5200, 1700), "white")
+            double.paste(wide, (0, 0))
+            double.save(path)
+            self.assertEqual(check_page(str(path), spread_width(sizes)), "spread")
+
     def test_lettering_past_a_panel_moves_but_is_not_measured(self):
         # A sound effect 90 px past the left panel side: the panels still decide.
         lettering = [((115, 400 + y, 260, 430 + y), (220, 30, 30)) for y in range(0, 300, 60)]
