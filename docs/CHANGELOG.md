@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Dark mode. When Windows or the Linux desktop is set to dark, Comic Stitcher
+  is dark throughout: the start screen's drop zone and Create your comic's
+  panels are dark gray instead of white, headings and hints are brighter, the
+  line icons (settings, previous, next, rotate and the rest) are drawn light,
+  a review button under the pointer keeps its label readable, and the
+  centering bar's text is light on a dark amber. Check boxes now look
+  different when checked: Comic Stitcher uses its own dark palette, the same on
+  Windows and Linux. The system's setting is read when Comic Stitcher starts.
+
 ## 0.12.0
 
 **New**

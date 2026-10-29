@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (QComboBox, QFormLayout, QLabel, QSizePolicy, QSta
 from ..backend import stitched_image, rotated_image
 from ..centering import open_centered
 from ..colour import standard_mode
+from .theme import apply_theme, tinted, tone
 
 
 def compact_filename_range(names):
@@ -37,7 +38,7 @@ def fit_height(window, width):
 def ui_heading(text, size=24):
     label = QLabel(text)
     label.setWordWrap(True)
-    label.setStyleSheet(f"font-size:{size}px; font-weight:700; color:#203c55;")
+    label.setStyleSheet(f"font-size:{size}px; font-weight:700; color:{tone('heading')};")
     return label
 
 
@@ -76,6 +77,7 @@ def ui_app_style(app):
         return
     app._button_order_style = _WindowsButtonOrder(QStyleFactory.create("Fusion"))
     app.setStyle(app._button_order_style)
+    apply_theme(app)  # Light or dark, as the system is set.
     probe = QComboBox()
     probe.addItem("Automatic")
     probe.setStyleSheet("QComboBox { min-height:24px; }")
@@ -90,7 +92,8 @@ def ui_primary(button):
     button.setStyleSheet("QPushButton { background:#1976cf; color:white; border:1px solid #1976cf; "
                         "border-radius:5px; padding:7px 14px; font-weight:600; } "
                         "QPushButton:hover { background:#1266b6; } "
-                        "QPushButton:disabled { background:#b9c5d0; border-color:#b9c5d0; }")
+                        f"QPushButton:disabled {{ background:{tone('primary_disabled')}; "
+                        f"border-color:{tone('primary_disabled')}; color:{tone('primary_disabled_text')}; }}")
 
 
 def ui_icon(widget, kind, size=72):
@@ -166,7 +169,7 @@ def interface_icon(name, zoomed=False):
     if QFile.exists(f":/comic-icons/{svg_name}.svg"):
         icon = QIcon(f":/comic-icons/{svg_name}.svg")
         if not icon.isNull():
-            return icon
+            return tinted(icon)  # Black line icons: in the text color in dark mode.
     return QIcon(f":/comic-icons/{name}.png")
 
 
@@ -187,7 +190,12 @@ def review_control(button, symbol, label, tip=None, icon_label=None):
     button.setAutoDefault(False)
     button.setDefault(False)
     button.setFixedSize(88, 68)
-    button.setStyleSheet("QPushButton { border:1px solid transparent; border-radius:6px; background:transparent; padding:0; } QPushButton:hover { background:#e4edf5; border-color:#718ea6; } QPushButton:pressed, QPushButton:checked { background:#d4e4f1; border-color:#718ea6; } QPushButton:disabled { color:#9aa5ae; }")
+    button.setStyleSheet(
+        "QPushButton { border:1px solid transparent; border-radius:6px; background:transparent; padding:0; } "
+        f"QPushButton:hover {{ background:{tone('control_hover')}; border-color:{tone('control_border')}; }} "
+        f"QPushButton:pressed, QPushButton:checked {{ background:{tone('control_pressed')}; "
+        f"border-color:{tone('control_border')}; }} "
+        f"QPushButton:disabled {{ color:{tone('control_disabled')}; }}")
     if not hasattr(button, "review_icon"):
         layout = QVBoxLayout(button)
         layout.setContentsMargins(4, 6, 4, 6)

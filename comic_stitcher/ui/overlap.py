@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (QHBoxLayout, QLabel, QPushButton, QScrollArea, QS
 from ..backend import measure_overlap, thin_border_between
 from ..window_outline import OutlinedDialog
 from .common import interface_icon, pixmap_from_pil, tooltip_text, ui_heading, ui_primary
+from .theme import tone
 
 
 class SideSwitch(QWidget):
@@ -50,8 +51,8 @@ class SideSwitch(QWidget):
         painter.drawRoundedRect(track, track.height() / 2, track.height() / 2)
         knob = track.height() - 4
         x = track.left() + 2 if self.side == "left" else track.right() - 2 - knob
-        painter.setPen(QPen(QColor("#d0d7de"), 1))
-        painter.setBrush(QColor("white"))
+        painter.setPen(QPen(QColor(tone("switch_track")), 1))
+        painter.setBrush(QColor(tone("switch_knob")))
         painter.drawEllipse(QRectF(x, track.top() + 2, knob, knob))
         if self.hasFocus():
             painter.setPen(QPen(QColor("#ffb300"), 1.5))
@@ -142,7 +143,7 @@ class OverlapDialog(OutlinedDialog):
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
         keys = QLabel("Keys: I together · O apart · ← → page on top · Enter seam line · Space done · Esc cancel")
-        keys.setStyleSheet("color:#5f6b76;")
+        keys.setStyleSheet(f"color:{tone('muted')};")
         layout.addWidget(keys)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         self.ok_button = buttons.button(QDialogButtonBox.Ok)
@@ -244,7 +245,8 @@ class OverlapDialog(OutlinedDialog):
         self.apart.setEnabled(self.pixels.value() > self.pixels.minimum())
         self.together.setEnabled(self.pixels.value() < self.pixels.maximum())
         for side, label in self.top_labels.items():
-            label.setStyleSheet("font-weight:600; color:#1976cf;" if side == self.top else "color:#5f6b76;")
+            label.setStyleSheet(f"font-weight:600; color:{tone('accent')};" if side == self.top
+                                else f"color:{tone('muted')};")
 
 
 class JoinedPairView(QWidget):

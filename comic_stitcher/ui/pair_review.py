@@ -12,6 +12,7 @@ from ..colour import standard_mode
 from ..review_report import save_report
 from ..session import save_session
 from .common import set_review_icon, review_control, qimage_from_pixels
+from .theme import tone
 from .overlap import OverlapDialog, JoinedPairView
 
 
@@ -55,8 +56,10 @@ class PairReview:
                 (rotate_right, "↷", "Rotate right", "Rotate clockwise"),
                 (self.yes_button, "✓", "Yes", "Approve pair (Y / Up)")):
             review_control(button, symbol, label, tip)
-        self.yes_button.setStyleSheet(self.yes_button.styleSheet() + "QPushButton:hover { background:#d6ecdf; }")
-        self.no_button.setStyleSheet(self.no_button.styleSheet() + "QPushButton:hover { background:#f7dddd; }")
+        self.yes_button.setStyleSheet(self.yes_button.styleSheet() +
+                                      f"QPushButton:hover {{ background:{tone('yes_hover')}; }}")
+        self.no_button.setStyleSheet(self.no_button.styleSheet() +
+                                     f"QPushButton:hover {{ background:{tone('no_hover')}; }}")
         box.insertLayout(1, controls)
         remove_row = QHBoxLayout()
         remove_row.addStretch()

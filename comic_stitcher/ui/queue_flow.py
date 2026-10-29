@@ -11,6 +11,7 @@ from .. import diagnostics
 from ..window_outline import OutlinedDialog
 from ..session import clear_session
 from .common import ui_primary, tooltip_text
+from .theme import tone
 from .thumbnails import QueueList
 from .queue import QueuedComic, export_queued_comic, queued_outputs
 
@@ -46,8 +47,9 @@ class QueueFlow:
         dialog.setWindowTitle("Queue")
         dialog.resize(760, 480)
         dialog.setStyleSheet("QListWidget { font-size:14px; } "
-                            "QListWidget::item { padding:10px; border-bottom:1px solid #d8e0e8; } "
-                            "QListWidget::item:selected { color:#102a43; background:#dceeff; }")
+                            f"QListWidget::item {{ padding:10px; border-bottom:1px solid {tone('list_line')}; }} "
+                            f"QListWidget::item:selected {{ color:{tone('list_selected_text')}; "
+                            f"background:{tone('list_selected')}; }}")
         layout = QVBoxLayout(dialog)
         note = QLabel("Comics are exported from the top down; drag one to change the order. Double-click "
                       "a comic to change its settings. Output files and folders will be saved alongside "

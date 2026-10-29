@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QFormLayout, QFram
     QLabel, QPushButton, QVBoxLayout)
 from ..window_outline import OutlinedWindow
 from .common import tooltip_text, ui_heading, ui_icon, ui_primary
+from .theme import tone
 
 
 class ImportDropZone(QFrame):
@@ -21,9 +22,9 @@ class ImportDropZone(QFrame):
         self.setAcceptDrops(True)
         self.setCursor(Qt.PointingHandCursor)
         self.setStyleSheet(
-            "ImportDropZone { background: #f5f8fb; border: 2px dashed #94a9bd; "
+            f"ImportDropZone {{ background: {tone('drop')}; border: 2px dashed {tone('drop_border')}; "
             "border-radius: 14px; } "
-            "ImportDropZone:hover { background: #eaf3fa; border-color: #397cac; } "
+            f"ImportDropZone:hover {{ background: {tone('drop_hover')}; border-color: {tone('accent')}; }} "
             "ImportDropZone QLabel { border: none; background: transparent; } ")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 20, 18, 20)
@@ -32,19 +33,19 @@ class ImportDropZone(QFrame):
         icon = QLabel()
         icon.setPixmap(ui_icon(self, "folder" if heading == "Folder of images" else "COMIC", 84))
         icon.setAlignment(Qt.AlignCenter)
-        icon.setStyleSheet("font-size: 84px; font-weight: 700; color: #397cac;")
+        icon.setStyleSheet(f"font-size: 84px; font-weight: 700; color: {tone('accent')};")
         icon.setMinimumHeight(100)
         icon.setAttribute(Qt.WA_TransparentForMouseEvents)
         layout.addWidget(icon)
         title = QLabel(heading)
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("font-size: 19px; font-weight: 600; color: #1d3348;")
+        title.setStyleSheet(f"font-size: 19px; font-weight: 600; color: {tone('title')};")
         title.setAttribute(Qt.WA_TransparentForMouseEvents)
         layout.addWidget(title)
         subtitle = QLabel(detail)
         subtitle.setWordWrap(True)
         subtitle.setAlignment(Qt.AlignCenter)
-        subtitle.setStyleSheet("color: #526577;")
+        subtitle.setStyleSheet(f"color: {tone('muted')};")
         subtitle.setAttribute(Qt.WA_TransparentForMouseEvents)
         layout.addWidget(subtitle)
         buttons = QHBoxLayout()

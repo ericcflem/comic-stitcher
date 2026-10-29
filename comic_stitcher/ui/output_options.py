@@ -9,6 +9,7 @@ from ..export import ExportOptions, copy_encoding_options, ENCODER_FIELDS
 from ..sharp_webp import sharp_yuv_available
 from ..window_outline import OutlinedWindow
 from .common import form_hint, tooltip_text
+from .theme import tone
 
 
 ARCHIVE_CHOICES = ("cbz", "cb7", "cbr", "pdf", "none")  # Order of the Archive format list.
@@ -220,7 +221,7 @@ class OutputOptionsDialog(OutlinedWindow, QDialog):
         self.for_pdf = pdf
         self.setWindowTitle("PDF page format" if pdf else "Output options")
         self.resize(650, 520)
-        self.setStyleSheet("QTabWidget::pane { border:1px solid #ccd5dd; } "
+        self.setStyleSheet(f"QTabWidget::pane {{ border:1px solid {tone('tab_border')}; }} "
                            "QFormLayout { spacing:12px; }")
         self.draft = replace(opt)
         self.keep_originals = opt.keep_originals
@@ -265,7 +266,7 @@ class OutputOptionsDialog(OutlinedWindow, QDialog):
                             + (" In a PDF, copied pages that aren't JPEG or PNG are converted to this "
                                "format." if pdf else ""))
             copied.setWordWrap(True)
-            copied.setStyleSheet("color:#617080;")
+            copied.setStyleSheet(f"color:{tone('muted')};")
             full_settings_box.addWidget(copied)
         self.jpeg_quality = QSpinBox()
         self.jpeg_quality.setRange(1, 100)

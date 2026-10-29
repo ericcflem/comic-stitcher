@@ -20,6 +20,7 @@ from .workers import SizeEstimateWorker, LosslessCheckWorker
 from .output_options import ARCHIVE_CHOICES, pdf_page_options, OutputOptionsDialog
 from .queue import QueuedComic, queued_outputs
 from ..rar_export import find_rar
+from .theme import tone
 
 
 class ExportScreen:
@@ -28,11 +29,11 @@ class ExportScreen:
     def _build_export(self):
         self.export_page = QWidget()
         self.export_page.setStyleSheet(
-            "QGroupBox { font-weight:600; font-size:15px; border:1px solid #cdd6de; "
-            "border-radius:8px; margin-top:26px; background:#f9fbfd; } "
+            f"QGroupBox {{ font-weight:600; font-size:15px; border:1px solid {tone('panel_border')}; "
+            f"border-radius:8px; margin-top:26px; background:{tone('panel')}; }} "
             "QGroupBox::title { subcontrol-origin:margin; subcontrol-position:top left; top:0px; left:12px; padding:0 4px; } "
-            "QWidget#exportBookContent, QWidget#exportBookViewport { background:#f9fbfd; } "
-            "QGroupBox QLabel, QGroupBox QCheckBox { font-weight:400; color:#000000; } "
+            f"QWidget#exportBookContent, QWidget#exportBookViewport {{ background:{tone('panel')}; }} "
+            f"QGroupBox QLabel, QGroupBox QCheckBox {{ font-weight:400; color:{tone('text')}; }} "
             "QLineEdit, QSpinBox { min-height:24px; } "
             "QScrollArea#exportSettings, QWidget#exportSettingsViewport, QWidget#exportSettingsContent "
             "{ background:transparent; }")
@@ -242,7 +243,7 @@ class ExportScreen:
         summary_row = QHBoxLayout()
         self.output_summary = QLabel()
         self.output_summary.setWordWrap(True)
-        self.output_summary.setStyleSheet("color:#203c55; padding:6px; font-size:13px;")
+        self.output_summary.setStyleSheet(f"color:{tone('heading')}; padding:6px; font-size:13px;")
         summary_row.addWidget(self.output_summary, 1)
         # Move the existing options control out of its form row.
         options_row = form.takeRow(self.output_options_button)
@@ -262,7 +263,7 @@ class ExportScreen:
         self.estimate_size.toggled.connect(self._estimate_toggled)
         estimate_row.addWidget(self.estimate_size)
         self.size_estimate = QLabel("")
-        self.size_estimate.setStyleSheet("color:#203c55; padding-left:6px;")
+        self.size_estimate.setStyleSheet(f"color:{tone('heading')}; padding-left:6px;")
         estimate_row.addWidget(self.size_estimate, 1)
         output_box.addLayout(estimate_row)
         # Shown when lossless WebP would make the comic far smaller (clean line art).
@@ -271,7 +272,7 @@ class ExportScreen:
         lossless_row.setContentsMargins(0, 0, 0, 0)
         self.lossless_hint = QLabel("")
         self.lossless_hint.setWordWrap(True)
-        self.lossless_hint.setStyleSheet("color:#1b5e20; padding-left:6px;")
+        self.lossless_hint.setStyleSheet(f"color:{tone('good')}; padding-left:6px;")
         lossless_row.addWidget(self.lossless_hint, 1)
         self.lossless_button = QPushButton("Use lossless WebP")
         self.lossless_button.setToolTip(tooltip_text(
