@@ -811,9 +811,11 @@ class ThumbnailTest(unittest.TestCase):
                 Image.new("RGB", (60, 80), (30 + i * 25, 20, 10)).save(folder / f"{i:03d}.png")
             window = ComicWindow()
             try:
+                window.show()
                 with patch("comic_stitcher.ui.final_review.CenteringWorker"):
                     window.skip_pair_review = True
                     window.scan_done(scan_manual_folder(folder))
+                self.wait_for(lambda: len(getattr(window, "thumb_buttons", [])) == 3)
                 plan = window.plan
                 running = Mock(isRunning=Mock(return_value=True))
                 window.centering_checks = [running]
