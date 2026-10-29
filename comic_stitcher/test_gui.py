@@ -875,6 +875,37 @@ class ThumbnailTest(unittest.TestCase):
             finally:
                 window.close()
 
+    def test_dark_mode_colors_palette_and_icons(self):
+        from PySide6.QtGui import QPalette
+        from .ui import theme
+        from .ui.common import interface_icon
+        original = self.app.palette()
+        theme.apply_theme(self.app, dark=True)
+        try:
+            self.assertTrue(theme.is_dark())
+            palette = self.app.palette()
+            # Check boxes: the box (Base) is dark and its tick (Text) light, unlike the blue highlight.
+            self.assertLess(palette.color(QPalette.ColorRole.Base).lightness(), 70)
+            self.assertGreater(palette.color(QPalette.ColorRole.Text).lightness(), 200)
+            window = ComicWindow()
+            try:
+                self.assertIn(theme.TONES["drop"][1], window.import_zone.styleSheet())
+                self.assertIn(theme.TONES["panel"][1], window.export_page.styleSheet())
+                self.assertNotIn("#f9fbfd", window.export_page.styleSheet())
+                self.assertIn(theme.TONES["control_hover"][1], window.next_preview_button.styleSheet())
+            finally:
+                window.close()
+            # Line icons are drawn in the light text color.
+            image = interface_icon("settings").pixmap(64, 64).toImage()
+            inked = [image.pixelColor(x, y) for x in range(64) for y in range(64)
+                     if image.pixelColor(x, y).alpha() > 200]
+            self.assertTrue(inked)
+            self.assertTrue(all(colour.lightness() > 200 for colour in inked))
+        finally:
+            theme.apply_theme(self.app, dark=False)
+            self.app.setPalette(original)
+        self.assertEqual(theme.tone("drop"), theme.TONES["drop"][0])
+
     def test_no_centering_check_when_turned_off(self):
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory)

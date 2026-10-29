@@ -12,6 +12,7 @@ from .common import (tooltip_text, review_control, qimage_from_pixels, page_pixm
     FitImage, DropMarker)
 from .overlap import OverlapDialog, JoinedPairView
 from .workers import CenteringWorker
+from .theme import tone
 from .thumbnails import (DRAG_SCROLL_ZONE, DRAG_SCROLL_MIN, DRAG_SCROLL_MAX, DRAG_SCROLL_INTERVAL,
     ThumbnailStrip, PageThumbnail)
 
@@ -26,7 +27,7 @@ class FinalReview:
         box.addWidget(self.preview_heading)
         self._build_centering_row(box)
         self.thumbnail_status = QLabel()
-        self.thumbnail_status.setStyleSheet("color:#52606d;")
+        self.thumbnail_status.setStyleSheet(f"color:{tone('muted')};")
         self.thumbnail_status.hide()
         center = QHBoxLayout()
         self.main_image, self.compare_image = FitImage(), FitImage()
@@ -457,7 +458,7 @@ class FinalReview:
         marked = a in self.screenshot_flagged_pages or (
             b is not None and b in self.screenshot_flagged_pages)
         if marked:
-            return "border:4px solid #ed3c9b;" + ("background:#d7f4dd;" if selected else "")
+            return "border:4px solid #ed3c9b;" + (f"background:{tone('selected_page')};" if selected else "")
         return "border:3px solid #4a9e66;" if selected else ""
 
     def rotate_preview_page(self, delta: int):
@@ -481,11 +482,13 @@ class FinalReview:
         row = QHBoxLayout(self.centering_row)
         self.centering_row.setObjectName("centeringRow")
         self.centering_row.setStyleSheet(
-            "QWidget#centeringRow { background:#fff4d6; border:1px solid #e0b44a; border-radius:6px; } "
-            "QWidget#centeringRow[quiet=\"true\"] { background:#eef3ee; border-color:#a9c3a9; }")
+            f"QWidget#centeringRow {{ background:{tone('notice')}; border:1px solid {tone('notice_border')}; "
+            "border-radius:6px; } "
+            f"QWidget#centeringRow[quiet=\"true\"] {{ background:{tone('settled')}; "
+            f"border-color:{tone('settled_border')}; }}")
         row.setContentsMargins(10, 6, 10, 6)
         self.centering_label = QLabel()
-        self.centering_label.setStyleSheet("font-weight:600; color:#5c4300;")
+        self.centering_label.setStyleSheet(f"font-weight:600; color:{tone('notice_text')};")
         self.centering_label.setToolTip(tooltip_text(self.CENTERING_NOTE))
         self.center_art_box = QCheckBox("Center the art")
         self.center_art_box.setToolTip(tooltip_text(
@@ -642,8 +645,8 @@ class FinalReview:
                 f"The art on {len(pages)} of {total} pages sits off-center, probably because of print margins.")
         elif measured:
             self.centering_label.setText(self._centering_result())
-        self.centering_label.setStyleSheet("font-weight:600; color:%s;" % ("#2f5130" if measured and not pages
-                                                                          else "#5c4300"))
+        self.centering_label.setStyleSheet("font-weight:600; color:%s;" % tone(
+            "settled_text" if measured and not pages else "notice_text"))
         self.center_art_box.setVisible(bool(pages))
         with QSignalBlocker(self.center_art_box):
             self.center_art_box.setChecked(plan is not None and plan.center_art)

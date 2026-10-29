@@ -32,6 +32,7 @@ from .ui.workers import Worker, ReviewImageWorker, ThumbnailWorker
 from .ui.overlap import OverlapDialog
 from .ui.output_options import ARCHIVE_CHOICES, OutputOptionsDialog
 from .ui.pdf_dialog import PdfImportDialog
+from .ui.theme import tone
 from .rar_export import find_rar
 from .ui.crop_review import ScreenshotCropDialog
 from .ui.import_dialogs import ImportDropZone, REVIEW_MODES, ImportChoiceDialog
@@ -601,12 +602,12 @@ class ComicWindow(ImportScreen, ScreenshotImport, PairReview, FinalReview, Expor
         self.progress_source.setAlignment(Qt.AlignCenter)
         self.progress_source.setWordWrap(True)
         self.progress_source.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
-        self.progress_source.setStyleSheet("color:#617080; font-size:13px;")
+        self.progress_source.setStyleSheet(f"color:{tone('muted')}; font-size:13px;")
         box.addWidget(self.progress_source)
         self.progress_label = ProgressLabel()
         self.progress_label.setAlignment(Qt.AlignCenter)
         self.progress_label.setWordWrap(True)
-        self.progress_label.setStyleSheet("font-size:19px; font-weight:700; color:#203c55;")
+        self.progress_label.setStyleSheet(f"font-size:19px; font-weight:700; color:{tone('heading')};")
         self.progress_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         for label in (self.progress_source, self.progress_label):
             label.text_changed.connect(self._progress_text_changed)
@@ -617,7 +618,7 @@ class ComicWindow(ImportScreen, ScreenshotImport, PairReview, FinalReview, Expor
         self.progress_bar.setMinimumHeight(26)
         self.progress_caption = QLabel("Overall progress")
         self.progress_caption.setAlignment(Qt.AlignCenter)
-        self.progress_caption.setStyleSheet("color:#617080;")
+        self.progress_caption.setStyleSheet(f"color:{tone('muted')};")
         box.addWidget(self.progress_caption)
         self.done_button = QPushButton("Process another comic")
         self.done_button.clicked.connect(self.new_comic)
