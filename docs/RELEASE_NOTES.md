@@ -1,4 +1,4 @@
-# Comic Stitcher 0.11.0
+# Comic Stitcher 0.12.0
 
 Comic Stitcher prepares comic archives. Import PDFs, comic archives, image folders
 or centered screenshots; review suggested page pairs; join split spreads; and
@@ -6,21 +6,19 @@ check the finished comic before exporting. Original input files are preserved.
 
 ## What's new
 
-- **A User Guide** explains each step and setting, with every keyboard shortcut.
-  It's installed with the app, and the README is shorter.
-- **Pages worth a look** are pointed out after import: gaps in the file
-  numbering, where a page may be missing, and names that differ only in
-  capitalisation. They're marked with a pink ! in the final review; **M** goes
-  from one to the next.
-- **Save the cover and ComicInfo.xml beside the comic,** as well as inside it.
-- **More lossless WebP suggestions:** for PNG pages and folders of pages too,
-  and fixed so that changing the format or quality no longer hides it.
-- **Easier dragging:** a page dragged to either end of the final review's strip
-  keeps scrolling, and the queue shows the pink drop line everywhere.
-- **Tighter windows,** and fixes for a resumed review's blank final review and
-  for buttons left over from a finished export.
-- **For builders:** the build tools are in `packaging/`, and the code's folder
-  is `comic_stitcher`.
+- **Center the art.** Printed comics often sit off-center, pushed aside by the
+  margin kept for the binding. While you review pairs, Comic Stitcher checks
+  every page in the background and, when pages are off-center, offers to move
+  the art to the middle. It measures from the panels, so a sound effect
+  spilling past one doesn't throw it off. Most pages come out well centered;
+  **C** steps through them so you can check, and any page can be left as it was.
+- **CBR export** with your own RAR program (WinRAR's `Rar.exe`, or `rar` on
+  Linux), found automatically or chosen in Settings. RAR4, for older comic
+  readers, needs RAR 6 or older.
+- **Remove a joined spread** in one step in the final review.
+- **Overlapping halves** found by the scan are reviewed with the Likely pairs.
+- **Drop tab colors:** eleven swatches or any color you pick, solid and edged
+  so the tab no longer disappears against a white window.
 
 The full list is in [CHANGELOG.md](CHANGELOG.md).
 

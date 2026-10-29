@@ -1,4 +1,4 @@
-# Comic Stitcher 0.11.0 — source package
+# Comic Stitcher 0.12.0 — source package
 
 For an introduction and installation, read [README.md](../README.md); for using
 the app, read the [User Guide](USER_GUIDE.md).

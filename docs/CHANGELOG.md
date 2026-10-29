@@ -1,16 +1,19 @@
 # Changelog
 
-## Unreleased
+## 0.12.0
+
+**New**
 
 - Centering the art. Printed comics often sit off-center on the page, pushed
   aside by the margin kept for the binding. While you review pairs, Comic
   Stitcher measures where the art sits on each page, in the background; if
   some pages are off-center, it asks once whether to center the art, and the
   final review keeps a highlighted line with **Center the art**; **Continue to
-  Export** waits for a check that's still running. It
-  measures from the outermost panel sides (so a sound effect spilling past a
+  Export** waits for a check that's still running. It measures from the
+  outermost panel sides (so a sound effect spilling past a
   panel moves with the art without throwing it off), ignores specks in the
-  margins, works on white and black pages, and never moves art off the page.
+  margins, works on white, yellowed and black pages and on landscape books (such as
+  strip collections), and never moves art off the page.
   **C** steps through the off-center pages, and **Center this page** leaves one
   as it was. Most pages come out well centered, but a few may not. **Check
   whether each page's art is centered** in Settings turns the check off. Built
@@ -23,13 +26,9 @@
   uncompressed, as in a CBZ, and the archive is tested before it's saved. CBRs
   are RAR5; **Use the older RAR4 format** is for comic readers that can't open
   RAR5, and needs RAR 6 or older (RAR 7 stopped making RAR4).
-- Drop tab: choose its color from a row of swatches (Ubuntu's ten accent
-  colors and a dark gray), or any color with **Custom…**, in **Drop tab
-  settings…**. Blue is the default. "Match system accent" is gone: on Windows
-  the usual accent is nearly white, and the tab vanished against a white
-  window; a tab set to it turns blue, and one set to Gray turns dark gray. The
-  closed tab is also solid now, not see-through, with a thin edge that sets it
-  off from whatever is behind it.
+
+**Review**
+
 - Final review: **Remove** works on a joined spread too, removing both of its
   pages at once; before, it did nothing until the spread was split. **Undo
   last edit**, or going back in pair review, brings the spread back as it was,
@@ -38,6 +37,16 @@
   lined up by the scan, is now among the Likely pairs, reviewed first. Finding
   the repeated strip as good as proves it's a spread; before, it waited among
   the Possible pairs, since a repeated strip doesn't match at the seam.
+
+**Drop tab**
+
+- Drop tab: choose its color from a row of swatches (Ubuntu's ten accent
+  colors and a dark gray), or any color with **Custom…**, in **Drop tab
+  settings…**. Blue is the default. "Match system accent" is gone: on Windows
+  the usual accent is nearly white, and the tab vanished against a white
+  window; a tab set to it turns blue, and one set to Gray turns dark gray. The
+  closed tab is also solid now, not see-through, with a thin edge that sets it
+  off from whatever is behind it.
 
 ## 0.11.0
 
