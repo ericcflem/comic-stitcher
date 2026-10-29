@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- CBR export, with your own RAR program. Only RARLAB's software may create RAR
+  archives, so Comic Stitcher uses yours: `Rar.exe` from WinRAR on Windows, or
+  RARLAB's `rar` on Linux, found where it's usually installed or chosen in
+  Settings (**Optional CBR export**). **CBR (RAR)** then appears under
+  **Archive format**, and is left out when there's no RAR. Pages are stored
+  uncompressed, as in a CBZ, and the archive is tested before it's saved. CBRs
+  are RAR5; **Use the older RAR4 format** is for comic readers that can't open
+  RAR5, and needs RAR 6 or older (RAR 7 stopped making RAR4).
 - Drop tab: choose its color from a row of swatches (Ubuntu's ten accent
   colors and a dark gray), or any color with **Custom…**, in **Drop tab
   settings…**. Blue is the default. "Match system accent" is gone: on Windows

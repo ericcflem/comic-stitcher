@@ -204,14 +204,23 @@ The **Create your comic** screen sets how the finished comic is named and saved.
 - **Archive format:**
   - **CBZ:** the most widely supported comic format.
   - **CB7:** a 7z comic archive; check that your comic reader opens it.
+  - **CBR:** a RAR comic archive, offered when you have RARLAB's RAR program (see
+    below).
   - **PDF:** one image per page. A PDF holds JPEG or PNG pages, so you're asked which.
     PDF stays chosen until Comic Stitcher closes, then your usual format returns.
   - **No archive:** saves the finished pages in a folder.
 
-  Comic Stitcher can't make CBR files. RAR is a closed format: only RARLAB's own
-  WinRAR and RAR programs may create RAR archives, and the UnRAR tool Comic
-  Stitcher uses can only open them. CBZ is the usual replacement, and comic readers
-  that open CBR open CBZ too.
+  RAR is a closed format: only RARLAB's own WinRAR and RAR programs may create RAR
+  archives, and the UnRAR tool Comic Stitcher uses can only open them. So Comic
+  Stitcher makes a CBR with your own copy: `Rar.exe`, which comes with WinRAR, on
+  Windows, or RARLAB's `rar` on Linux (`sudo apt install rar` on Ubuntu). It finds
+  it where it's usually installed, or you can choose it in [Settings](#settings).
+  WinRAR is a trial, then paid, from RARLAB. Without it, CBR isn't in the list; CBZ
+  is the usual replacement, and comic readers that open CBR open CBZ too.
+
+  CBRs are made in the RAR5 format. If your comic reader can't open one, check
+  **Use the older RAR4 format**, below CBR. RAR 7 and later make only RAR5, so this
+  needs RAR or WinRAR 6 or older.
 - **Save comic in front-to-back page order** (back-to-front comics only): checked, the
   comic starts with the front cover; unchecked, it keeps the back-to-front order.
 - **Also keep lossless PNG pages:** also saves the final pages as PNG files in a folder,
@@ -362,6 +371,9 @@ The gear on the start screen opens Settings:
 - **Show the original-file notice at startup.**
 - **Your ComicVine API key,** for ComicVine lookups. **Remember** keeps it, protected by
   Windows or by your desktop keyring on Linux. The key is never put in comics or logs.
+- **Optional CBR export:** the RAR program Comic Stitcher found for making CBRs, or
+  **Browse…** to choose one (on Windows, `Rar.exe` in WinRAR's folder). **Find
+  automatically** goes back to looking for it.
 - **Open diagnostic logs** and **Open pair review reports** open their folders.
 - **About and credits…**
 
