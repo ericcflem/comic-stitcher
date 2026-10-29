@@ -1407,6 +1407,11 @@
       "sha256": "dc46ab958d5e9eac0e239524a96060fa2fe8bf0815b929ce390ecc180fc9ba10"
     },
     {
+      "path": "comic_stitcher/rar_export.py",
+      "bytes": 5730,
+      "sha256": "ca1150f654e29e313ae1b36ba754938296f48e9fada49d111d6ee8f4b826dba5"
+    },
+    {
       "path": "comic_stitcher/review_report.py",
       "bytes": 5139,
       "sha256": "1de7f2ea54a8dcf673f012758d2362de40bf39a63407a56245cbb6694fe06e82"
@@ -1550,6 +1555,11 @@
       "path": "comic_stitcher/test_pdf_resolution.py",
       "bytes": 6162,
       "sha256": "b97ce21c583c93f60eeb47514c459ecec09430071098ed6deddd7ffb2661dcab"
+    },
+    {
+      "path": "comic_stitcher/test_rar_export.py",
+      "bytes": 5688,
+      "sha256": "b7ea96850226c614dfd173e09898a8a4afd379c57ec115447d69df917a6f9423"
     },
     {
       "path": "comic_stitcher/test_reading_direction.py",
