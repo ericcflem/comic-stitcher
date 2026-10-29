@@ -6,7 +6,7 @@ import json
 from dataclasses import replace
 from pathlib import Path
 from PySide6.QtCore import Qt, QThread, QTimer, QSignalBlocker
-from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QFormLayout, QFrame,
+from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout, QFrame,
     QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QScrollArea, QSizePolicy,
     QVBoxLayout, QWidget, QGroupBox)
 from ..backend import check_sources, safe_book_name
@@ -21,6 +21,7 @@ from .output_options import ARCHIVE_CHOICES, pdf_page_options, OutputOptionsDial
 from .queue import QueuedComic, queued_outputs
 from ..rar_export import find_rar
 from ..space import export_need
+from ..problems import cannot_write
 from .theme import tone
 
 
@@ -892,6 +893,8 @@ class ExportScreen:
         """Check this comic's settings before moving on; False (after saying why) if they won't do."""
         if self.current_job is None:
             return True
+        if not self._writable_output():
+            return False
         opt = self.options_from_screen()
         try:
             self._preflight_export(opt)
@@ -965,8 +968,36 @@ class ExportScreen:
             self.include_comicinfo.setChecked(opt.comicinfo_xml is not None)
         self.metadata_button.setEnabled(opt.comicinfo_xml is not None)
 
+    def _writable_output(self) -> bool:
+        """Make sure the comic can be saved where it's going (beside its original),
+        or let the user choose another folder; False if they'd rather not."""
+        while True:
+            folder = self.plan.scan.output_folder or self.plan.scan.folder
+            problem = cannot_write(folder)
+            if problem is None:
+                return True
+            diagnostics.note("Cannot save in %s: %s", folder, problem.text)
+            dialog = QMessageBox(QMessageBox.Warning, "Choose where to save",
+                                 f"This comic can't be saved in its usual place, beside the original:\n\n"
+                                 f"{folder}", parent=self)
+            dialog.setInformativeText(problem.text.split("\n\n")[0] +
+                                      "\n\nChoose another folder to save it in.")
+            choose = dialog.addButton("Choose folder…", QMessageBox.AcceptRole)
+            dialog.addButton(QMessageBox.Cancel)
+            dialog.setDefaultButton(choose)
+            dialog.exec()
+            if dialog.clickedButton() is not choose:
+                return False
+            chosen = QFileDialog.getExistingDirectory(self, "Save the comic in", str(Path.home()))
+            if not chosen:
+                return False
+            self.plan.scan.output_folder = Path(chosen)
+            diagnostics.note("Saving in a chosen folder instead: %s", chosen)
+
     def start_export(self, checked=False):
         """Export the comic on screen by itself (Start export with nothing else queued)."""
+        if not checked and not self._writable_output():
+            return
         opt = self.options_from_screen()
         if not checked:
             try:

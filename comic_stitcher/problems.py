@@ -120,6 +120,20 @@ def message_for(exc: BaseException) -> tuple[str, str]:
     return (problem.text, problem.kind) if problem else (str(exc), "other")
 
 
+def cannot_write(folder: Path) -> Problem | None:
+    """Why nothing can be saved in `folder`, found by saving (and removing) a
+    small file there; None when it can. Read-only folders, discs, folders
+    Windows' Controlled folder access protects, and folders that are gone all
+    show up this way, before any work is done."""
+    import tempfile
+    try:
+        with tempfile.NamedTemporaryFile(dir=folder, prefix=".comic-stitcher-check-"):
+            pass
+    except OSError as exc:
+        return explain(exc) or Problem(str(exc))
+    return None
+
+
 def long_paths_enabled() -> bool:
     """Whether Windows' long path setting is on (always True elsewhere)."""
     if os.name != "nt":

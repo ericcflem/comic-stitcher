@@ -446,6 +446,9 @@ The gear on the start screen opens Settings:
   needed and how much is free, and you choose whether to go ahead. Imported pages go
   to your temporary folder, usually on drive C:; an export is built beside where the
   comic is saved.
+- **Can't save beside the original:** if the original is somewhere Comic Stitcher
+  can't save (a read-only or protected folder, or a disc), it says so before starting
+  and asks you to choose another folder for that comic.
 - **A failed import or export** says what went wrong in plain words, such as a full
   drive, a folder that can't be changed, or a file open in another program, and what
   to do. The details are in the diagnostic log (**Settings → Open diagnostic logs**).

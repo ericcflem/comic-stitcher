@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- When a comic can't be saved beside its original (a read-only or protected
+  folder, a disc, a shared folder you can only read), Comic Stitcher says so
+  before starting and asks you to choose another folder, for that comic only.
+  Before, the export failed.
 - Problems in plain words. When an import or export fails because of the
   drive or a file, the message says what happened and what to do instead of
   Python's own text ("[WinError 5] Access is denied"): the drive is full; the

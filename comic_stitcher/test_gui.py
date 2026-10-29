@@ -2547,6 +2547,42 @@ class ThumbnailTest(unittest.TestCase):
             finally:
                 window.close()
 
+    def test_another_folder_is_offered_when_the_usual_one_cannot_be_written(self):
+        from .problems import Problem
+        from PySide6.QtWidgets import QFileDialog
+        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as elsewhere:
+            folder = Path(directory) / "Book"
+            folder.mkdir()
+            for i in range(2):
+                Image.new("RGB", (60, 80), "white").save(folder / f"{i:03d}.png")
+            window = ComicWindow()
+            try:
+                window.scan_done(scan_manual_folder(folder))
+                window.show_export()
+                answers = iter([Problem("Comic Stitcher isn't allowed to change this location.", "access"), None])
+                shown = []
+
+                def choose(dialog):
+                    shown.append(dialog.text())
+                    next(b for b in dialog.buttons() if b.text() == "Choose folder…").click()
+                with patch("comic_stitcher.ui.export_screen.cannot_write", side_effect=lambda f: next(answers)), \
+                        patch.object(QMessageBox, "exec", choose), \
+                        patch.object(QFileDialog, "getExistingDirectory", return_value=elsewhere), \
+                        patch.object(ComicWindow, "_run_worker") as run:
+                    window.start_export()
+                self.assertIn("can't be saved in its usual place", shown[0])
+                self.assertEqual(window.plan.scan.output_folder, Path(elsewhere))
+                run.assert_called_once()
+                # Cancelled: nothing starts.
+                with patch("comic_stitcher.ui.export_screen.cannot_write",
+                           return_value=Problem("Not allowed.", "access")), \
+                        patch.object(QMessageBox, "exec", lambda dialog: dialog.button(QMessageBox.Cancel).click()), \
+                        patch.object(ComicWindow, "_run_worker") as run:
+                    window.start_export()
+                run.assert_not_called()
+            finally:
+                window.close()
+
     def test_queue_renames_duplicate_output_before_confirmation(self):
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory)

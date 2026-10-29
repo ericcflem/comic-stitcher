@@ -12,7 +12,7 @@ from PIL import Image
 
 from .backend import BookPlan, scan_manual_folder
 from .export import ExportOptions
-from .problems import explain, message_for
+from .problems import cannot_write, explain, message_for
 from .space import export_need, import_need, shortfall
 
 
@@ -51,6 +51,26 @@ class ExplainTests(unittest.TestCase):
                                (362, "cloud"), (206, "long path")):
             with self.subTest(winerror):
                 self.assertEqual(explain(OSError(None, "message", "C:\\Comics\\Book.cbz", winerror)).kind, kind)
+
+
+class WritableTests(unittest.TestCase):
+    def test_a_folder_that_takes_files_and_ones_that_dont(self):
+        with tempfile.TemporaryDirectory() as folder:
+            self.assertIsNone(cannot_write(Path(folder)))
+            self.assertEqual(list(Path(folder).iterdir()), [])  # The check leaves nothing behind.
+            self.assertEqual(cannot_write(Path(folder) / "gone").kind, "missing")
+
+    @unittest.skipIf(os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
+                     "needs a folder this user can't write to")
+    def test_read_only_folder(self):
+        with tempfile.TemporaryDirectory() as folder:
+            locked = Path(folder) / "locked"
+            locked.mkdir()
+            locked.chmod(0o555)
+            try:
+                self.assertEqual(cannot_write(locked).kind, "access")
+            finally:
+                locked.chmod(0o755)
 
 
 class SpaceTests(unittest.TestCase):
