@@ -11,7 +11,7 @@ from ..window_outline import OutlinedWindow
 from .common import form_hint, tooltip_text
 
 
-ARCHIVE_CHOICES = ("cbz", "cb7", "pdf", "none")  # Order of the Archive format list.
+ARCHIVE_CHOICES = ("cbz", "cb7", "cbr", "pdf", "none")  # Order of the Archive format list.
 
 
 PDF_PAGES_NOTE = ("A PDF holds JPEG and PNG pages, so choose one of those for this comic's pages. "

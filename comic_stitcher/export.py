@@ -36,7 +36,9 @@ class ExportOptions:
     jpeg_quality: int = 90
     webp_quality: int = 90
     cbz: bool = True  # Whether to create an archive (see archive_format).
-    archive_format: str = "cbz"  # cbz (ZIP), cb7 (7z) or pdf
+    archive_format: str = "cbz"  # cbz (ZIP), cb7 (7z), cbr (RAR) or pdf
+    rar_program: str = ""  # RARLAB's RAR, which makes a CBR (see rar_export).
+    rar4: bool = False  # A CBR in the older RAR4 format, for readers without RAR5.
     keep_images: bool = False
     save_cover: bool = False  # Also save the front cover as an image beside the comic.
     save_comicinfo: bool = False  # Also save ComicInfo.xml beside the archive.
@@ -398,14 +400,14 @@ def lossless_alternative(opt: ExportOptions) -> ExportOptions | None:
 
     Clean line art (black-and-white strips, for example) is often several times
     smaller as lossless WebP than as JPEG or lossy WebP, with no loss at all.
-    Scans and full-colour art usually aren't, which the estimate shows. CBZ and
-    CB7 archives and folders of pages (no archive) qualify, but not a PDF, whose
+    Scans and full-colour art usually aren't, which the estimate shows. CBZ, CB7
+    and CBR archives and folders of pages (no archive) qualify, but not a PDF, whose
     pages are JPEG or PNG; and only when the full-size copy's encoded pages use
     a lossy format or PNG. PNG is lossless too, but lossless WebP is often a
     quarter to a third smaller with the very same pixels; whether the reader
     opens WebP is the user's call.
     """
-    if (opt.cbz and opt.archive_format not in ("cbz", "cb7")) or opt.size_output not in ("full", "both"):
+    if (opt.cbz and opt.archive_format not in ("cbz", "cb7", "cbr")) or opt.size_output not in ("full", "both"):
         return None
     field_name = "spread_format" if opt.keep_originals else "format"
     chosen = getattr(opt, field_name)
@@ -650,8 +652,11 @@ def export_outputs(plan: BookPlan, folder: Path, title: str, opt: ExportOptions)
 
 def export_book(plan: BookPlan, opt: ExportOptions,
                 progress: Callable[[int, int], None] | None = None) -> Path | tuple[Path, Path]:
-    if opt.archive_format not in ("cbz", "cb7", "pdf"):
-        raise ValueError("Choose CBZ, CB7 or PDF as the archive format.")
+    if opt.archive_format not in ("cbz", "cb7", "cbr", "pdf"):
+        raise ValueError("Choose CBZ, CB7, CBR or PDF as the archive format.")
+    if opt.cbz and opt.archive_format == "cbr" and not opt.rar_program:
+        raise ValueError("A CBR is made with RARLAB's RAR program, which wasn't found. "
+                         "Choose it in Settings, or choose another archive format.")
     if opt.cbz and opt.archive_format == "pdf" and pdf_format_problem(opt):
         raise ValueError(pdf_format_problem(opt))
     if opt.format not in ("jpeg", "webp", "png") or opt.spread_format not in ("png", "jpeg", "webp"):
@@ -782,6 +787,10 @@ def export_book(plan: BookPlan, opt: ExportOptions,
                             zf.write(variant_work / name, arcname=name)
                     with zipfile.ZipFile(temporary_archive) as zf:
                         valid = zf.namelist() == archive_names and zf.testzip() is None
+                elif opt.archive_format == "cbr":
+                    from .rar_export import write_cbr
+                    write_cbr(opt.rar_program, variant_work, archive_names, temporary_archive, opt.rar4)
+                    valid = True  # write_cbr tests the archive and counts its files.
                 else:
                     # Images are already compressed; COPY stores them without
                     # wasting time recompressing them with LZMA2.

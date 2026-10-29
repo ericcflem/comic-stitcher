@@ -682,6 +682,45 @@ class ThumbnailTest(unittest.TestCase):
         finally:
             second.close()
 
+    def test_cbr_is_offered_only_with_rar_and_rar4_only_with_rar_6_or_older(self):
+        from .gui import ARCHIVE_CHOICES
+        from .rar_export import RarProgram
+        cbr = ARCHIVE_CHOICES.index("cbr")
+        with patch("comic_stitcher.ui.export_screen.find_rar", return_value=None):
+            window = ComicWindow()
+        try:
+            self.assertTrue(window.archive_format.view().isRowHidden(cbr))
+            self.assertFalse(window.archive_format.model().item(cbr).isEnabled())
+        finally:
+            window.close()
+        for version, rar4 in (((7, 13), False), ((6, 24), True)):
+            program = RarProgram("/opt/rar/rar", version)
+            with self.subTest(version=version), \
+                    patch("comic_stitcher.ui.export_screen.find_rar", return_value=program):
+                window = ComicWindow()
+                try:
+                    self.assertFalse(window.archive_format.view().isRowHidden(cbr))
+                    self.assertTrue(window.rar4.isHidden())
+                    window.archive_format.setCurrentIndex(cbr)
+                    self.assertFalse(window.rar4.isHidden())
+                    self.assertEqual(window.rar4.isEnabled(), rar4)
+                    window.rar4.setChecked(True)
+                    opt = window.options_from_screen()
+                    self.assertEqual((opt.archive_format, opt.rar_program, opt.rar4),
+                                     ("cbr", "/opt/rar/rar", rar4))
+                    window.archive_format.setCurrentIndex(ARCHIVE_CHOICES.index("cbz"))
+                    self.assertTrue(window.rar4.isHidden())
+                    self.assertEqual(window.options_from_screen().rar_program, "")
+                finally:
+                    window.close()
+        # CBR remembered, then RAR gone: back to CBZ.
+        with patch("comic_stitcher.ui.export_screen.find_rar", return_value=None):
+            window = ComicWindow()
+        try:
+            self.assertEqual(window.archive_format.currentIndex(), ARCHIVE_CHOICES.index("cbz"))
+        finally:
+            window.close()
+
     def test_page_notes_listed_marked_and_found_with_m(self):
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory)

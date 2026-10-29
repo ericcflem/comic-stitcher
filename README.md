@@ -31,7 +31,7 @@ Comic Stitcher imports:
 - **Folders of page images:** `JPEG`, `PNG`, `WebP`, `BMP` and `TIFF`.
 - **Folders of screenshots** from a reading app or emulator, with black borders at the sides, which are measured, cropped and split into pages.
 
-It exports `CBZ`, `CB7`, `PDF`, or a folder of pages, in JPEG, WebP or PNG, at full size, reduced size, or both.
+It exports `CBZ`, `CB7`, `PDF` (and `CBR`, with your own RAR program), or a folder of pages, in JPEG, WebP or PNG, at full size, reduced size, or both.
 
 - **Batches:** Drop several comics, or a folder of them, to review each in turn and export them all from a queue.
 - **Drop tab:** An optional strip on the screen's edge to drop comics onto, without finding the window first.
@@ -42,7 +42,7 @@ It exports `CBZ`, `CB7`, `PDF`, or a folder of pages, in JPEG, WebP or PNG, at f
 ## Installation & Requirements
 
 - **Windows:** The official Windows installer includes the Python runtime and all necessary dependencies. No external installations of ImageMagick, Ghostscript, Poppler, or FFmpeg are required.
-- **UnRAR:** RAR/CBR import relies on the companion UnRAR utility bundled with the installer. Exporting to CBR/RAR is not supported.
+- **UnRAR:** RAR/CBR import relies on the companion UnRAR utility bundled with the installer. Exporting to CBR uses your own WinRAR, if you have it, since only RARLAB's software may create RAR archives.
 - **cwebp:** WebP's sharp color conversion uses Google's `cwebp.exe` from libwebp, bundled with the installer.
 - **System Dependencies:** If needed, the installer will prompt to install the Microsoft Visual C++ x64 runtime.
 - **Uninstalling:** Remove Comic Stitcher from **Settings > Apps** or **Control Panel**. It then asks whether to remove your settings, logs and a remembered ComicVine key too; choose **No** to keep them for a reinstall.

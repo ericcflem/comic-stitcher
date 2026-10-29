@@ -32,6 +32,7 @@ from .ui.workers import Worker, ReviewImageWorker, ThumbnailWorker
 from .ui.overlap import OverlapDialog
 from .ui.output_options import ARCHIVE_CHOICES, OutputOptionsDialog
 from .ui.pdf_dialog import PdfImportDialog
+from .rar_export import find_rar
 from .ui.crop_review import ScreenshotCropDialog
 from .ui.import_dialogs import ImportDropZone, REVIEW_MODES, ImportChoiceDialog
 from .ui.thumbnails import QueueList
@@ -279,6 +280,8 @@ class ComicWindow(ImportScreen, ScreenshotImport, PairReview, FinalReview, Expor
         key_link = QLabel('<a href="https://comicvine.gamespot.com/api/">Get an API key / ComicVine API terms</a>')
         key_link.setOpenExternalLinks(True); key_form.addRow("", key_link)
         layout.addWidget(key_group)
+        rar_group, rar_choice = self._rar_settings(dialog)
+        layout.addWidget(rar_group)
         for label, action in (("Open diagnostic logs", self.open_diagnostic_logs), ("Open pair review reports", self.open_review_reports)):
             button = QPushButton(label)
             button.clicked.connect(action)
@@ -314,7 +317,65 @@ class ComicWindow(ImportScreen, ScreenshotImport, PairReview, FinalReview, Expor
             self.comicvine_session_key = entered_key
             self.settings.setValue("workers", workers.value())
             self.settings.setValue("hide_source_notice", not notice.isChecked())
+            self.settings.setValue("rar_program", rar_choice["path"])
+            self._update_rar_choice(recheck=True)
             self.refresh_export()
+
+    def _rar_settings(self, dialog):
+        """Settings' CBR group: the RAR program found, or one chosen with Browse….
+        Returns the group and a dict whose "path" is the choice ("" = find it)."""
+        group = QGroupBox("Optional CBR export")
+        box = QVBoxLayout(group)
+        status = QLabel()
+        status.setWordWrap(True)
+        status.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        box.addWidget(status)
+        choice = {"path": self.settings.value("rar_program", "", type=str)}
+
+        def show():
+            program = find_rar(choice["path"])
+            if program:
+                how = "Chosen" if choice["path"] else "Found"
+                status.setText(f"{how}: {program.label}, {program.path}")
+            elif choice["path"]:
+                status.setText(f"{choice['path']} isn't RARLAB's RAR program (5.0 or newer), "
+                               "so CBR can't be made with it.")
+            else:
+                status.setText("No RAR program was found, so CBR isn't offered. "
+                               + ("Install WinRAR, or choose its Rar.exe." if os.name == "nt" else
+                                  "Install RARLAB's rar ('sudo apt install rar' on Ubuntu), or choose it."))
+            find.setEnabled(bool(choice["path"]))
+
+        def browse():
+            start = str(Path(choice["path"]).parent) if choice["path"] else (
+                os.environ.get("ProgramFiles", "") if os.name == "nt" else "/usr/bin")
+            path, _ = QFileDialog.getOpenFileName(
+                dialog, "Choose RAR's console program", start,
+                "Rar.exe (Rar.exe rar.exe);;All files (*)" if os.name == "nt" else "")
+            if path:
+                if find_rar(path) is None:
+                    QMessageBox.warning(dialog, "Not RAR",
+                                        "That isn't RARLAB's RAR program, version 5.0 or newer. On Windows it's "
+                                        "Rar.exe in WinRAR's folder (not WinRAR.exe, and not UnRAR.exe, which "
+                                        "can only extract).")
+                    return
+                choice["path"] = path
+                show()
+
+        row = QHBoxLayout()
+        choose = QPushButton("Browse…")
+        choose.clicked.connect(browse)
+        find = QPushButton("Find automatically")
+        find.clicked.connect(lambda: (choice.update(path=""), show()))
+        row.addWidget(choose)
+        row.addWidget(find)
+        row.addStretch()
+        box.addLayout(row)
+        group.setToolTip(tooltip_text(
+            "Only RARLAB's own RAR can make RAR archives, so Comic Stitcher uses yours, if you have it: "
+            "Rar.exe, which comes with WinRAR, or rar on Linux. WinRAR is a trial, then paid, from RARLAB."))
+        show()
+        return group, choice
 
     def _merge_worker_settings(self):
         """Earlier versions kept three worker counts (PDF rendering, screenshots,

@@ -19,6 +19,7 @@ from .common import EXPORT_HINT, ui_heading, ui_primary, tooltip_text, form_hint
 from .workers import SizeEstimateWorker, LosslessCheckWorker
 from .output_options import ARCHIVE_CHOICES, pdf_page_options, OutputOptionsDialog
 from .queue import QueuedComic, queued_outputs
+from ..rar_export import find_rar
 
 
 class ExportScreen:
@@ -60,7 +61,7 @@ class ExportScreen:
         self.book_name.textChanged.connect(self.refresh_export)
         form.addRow("Book name", self.book_name)
         form_hint(form, self.book_name,
-                  "Sets the finished archive's name (plus .cbz or .cb7) and the processed-image folder name. "
+                  "Sets the finished archive's name (plus .cbz, .cb7 or .cbr) and the processed-image folder name. "
                   "If you choose Book name + number below, it also prefixes each numbered image filename. "
                   "When creating both sizes, the output names gain Full and Reduced suffixes.")
         self.naming = QComboBox()
@@ -119,23 +120,27 @@ class ExportScreen:
                   "A reduced copy must encode its pages in the chosen reduced-copy format. "
                   "Screenshot crops and splits have already been prepared as PNG pages before export.")
         self.archive_format = QComboBox()
-        self.archive_format.addItems(["CBZ (ZIP)", "CB7 (7-Zip)", "PDF", "No archive"])
+        self.archive_format.addItems(["CBZ (ZIP)", "CB7 (7-Zip)", "CBR (RAR)", "PDF", "No archive"])
+        self.rar = find_rar(self.settings.value("rar_program", "", type=str))
         saved_archive = str(self.settings.value("archive_format", "cbz"))
-        if saved_archive not in ARCHIVE_CHOICES or saved_archive == "pdf":
-            saved_archive = "cbz"  # PDF is never the remembered choice.
+        if (saved_archive not in ARCHIVE_CHOICES or saved_archive == "pdf"
+                or (saved_archive == "cbr" and self.rar is None)):
+            saved_archive = "cbz"  # PDF is never the remembered choice; CBR needs RAR.
         self.archive_format.setCurrentIndex(ARCHIVE_CHOICES.index(saved_archive))
         self.archive_previous = saved_archive
         self.archive_format.currentIndexChanged.connect(self._archive_changed)
         form.addRow("Archive format", self.archive_format)
         form_hint(form, self.archive_format,
-                  "CBZ packages images as a ZIP archive; CB7 uses a 7z container; PDF puts one image "
-                  "on each page. All three store the already-encoded images in reading order without "
-                  "changing their quality. A PDF holds JPEG and PNG pages, so choosing it asks which to "
+                  "CBZ packages images as a ZIP archive; CB7 uses a 7z container; CBR is a RAR archive, "
+                  "made with your own RAR program (WinRAR on Windows), and offered when it's found; PDF "
+                  "puts one image on each page. All four store the already-encoded images in reading "
+                  "order without changing their quality. A PDF holds JPEG and PNG pages, so choosing it asks which to "
                   "use; it is kept until Comic Stitcher closes, then your usual archive format returns. "
                   "Choose No archive to save the finished pages in a folder instead, in the "
                   "format you chose (one folder for each size).")
         for index, description in enumerate(("Most widely supported comic archive; images stored inside ZIP.",
                                               "7z comic archive; verify that your comic reader supports CB7.",
+                                              "RAR comic archive, made with your RAR program.",
                                               "A PDF with one page per image, in JPEG or PNG. "
                                               "ComicInfo.xml has no place in a PDF.",
                                               "No archive: save the finished pages in a folder, in the chosen format.")):
@@ -153,6 +158,12 @@ class ExportScreen:
         self.front_to_back.hide()
         self.front_to_back.toggled.connect(self.refresh_export)
         form.addRow("", self.front_to_back)
+        self.rar4 = QCheckBox("Use the older RAR4 format (if your comic reader can't open the CBR)")
+        self.rar4.setChecked(self.settings.value("rar4", False, type=bool))
+        self.rar4.hide()
+        self.rar4.toggled.connect(self.refresh_export)
+        form.addRow("", self.rar4)
+        self._update_rar_choice()
         self._archive_changed()
         form_hint(form, self.keep_images,
                   "Also save lossless PNG copies of the final pages, after joining, rotation, and any resizing "
@@ -493,6 +504,27 @@ class ExportScreen:
     def _archive_choice(self):
         return ARCHIVE_CHOICES[self.archive_format.currentIndex()]
 
+    def _update_rar_choice(self, recheck: bool = False):
+        """CBR is listed only when RAR is found (or chosen in Settings); RAR4 only
+        when that RAR can still make it (RAR 6 and older)."""
+        if recheck:
+            self.rar = find_rar(self.settings.value("rar_program", "", type=str))
+        row = ARCHIVE_CHOICES.index("cbr")
+        self.archive_format.view().setRowHidden(row, self.rar is None)
+        item = self.archive_format.model().item(row)
+        if item is not None:
+            item.setEnabled(self.rar is not None)
+        if self.rar is None and self._archive_choice() == "cbr":
+            self.archive_format.setCurrentIndex(ARCHIVE_CHOICES.index("cbz"))
+        older = self.rar is not None and self.rar.can_make_rar4
+        self.rar4.setEnabled(older)
+        self.rar4.setToolTip(tooltip_text(
+            "CBRs are made in the RAR5 format, which current comic readers open. Some older readers "
+            "only open RAR4: check this if yours can't open the CBR." if older else
+            f"Your RAR program ({self.rar.label if self.rar else 'not found'}) makes only the RAR5 format: "
+            "RAR 7 dropped RAR4. RAR or WinRAR 6 or older can make RAR4."))
+        self.rar4.setVisible(self._archive_choice() == "cbr")
+
     def _use_pdf_options(self, pdf: bool):
         """Switch between the usual output options and PDF's own for this session."""
         if pdf:
@@ -518,6 +550,8 @@ class ExportScreen:
         self.archive_previous = choice
         if choice != "pdf":
             self.settings.setValue("archive_format", choice)
+        if hasattr(self, "rar4"):
+            self.rar4.setVisible(choice == "cbr")
         self.refresh_export()
 
     def _update_save_comicinfo(self, opt):
@@ -548,6 +582,9 @@ class ExportScreen:
         self.opt.keep_originals = self.handling.currentIndex() == 1
         self.opt.cbz = self._archive_choice() != "none"
         self.opt.archive_format = self._archive_choice() if self.opt.cbz else "cbz"
+        cbr = self.opt.cbz and self.opt.archive_format == "cbr"
+        self.opt.rar_program = self.rar.path if cbr and self.rar else ""
+        self.opt.rar4 = cbr and self.rar4.isEnabled() and self.rar4.isChecked()
         self.opt.keep_images = self.keep_images.isChecked()
         self.opt.save_cover = self.save_cover.isChecked()
         self.opt.save_comicinfo = self.save_comicinfo.isChecked()
@@ -826,6 +863,8 @@ class ExportScreen:
         self.settings.setValue("save_comicinfo", self.save_comicinfo.isChecked())
         if self.plan is not None and self.plan.scan.right_to_left:
             self.settings.setValue("front_to_back", opt.front_to_back)
+        if opt.cbz and opt.archive_format == "cbr" and self.rar4.isEnabled():
+            self.settings.setValue("rar4", opt.rar4)
         self.settings.sync()
 
     def export_screen_continue(self):
@@ -917,6 +956,9 @@ class ExportScreen:
         self.save_cover.setChecked(opt.save_cover)
         self.save_comicinfo.setChecked(opt.save_comicinfo)
         self.front_to_back.setChecked(opt.front_to_back)
+        if opt.archive_format == "cbr":
+            self.rar4.setChecked(opt.rar4)
+        self.rar4.setVisible(choice == "cbr")
         with QSignalBlocker(self.include_comicinfo):
             self.include_comicinfo.setChecked(opt.comicinfo_xml is not None)
         self.metadata_button.setEnabled(opt.comicinfo_xml is not None)
@@ -966,7 +1008,7 @@ class ExportScreen:
         while True:
             candidate = f"{base} - Test {index}"
             names = (f"{candidate}{suffix}{ext}" for suffix in ("", " - Full", " - Reduced")
-                     for ext in (".cbz", ".cb7", ".pdf", " - PNG pages", " - JPEG pages", " - WebP pages", " - Pages",
+                     for ext in (".cbz", ".cb7", ".cbr", ".pdf", " - PNG pages", " - JPEG pages", " - WebP pages", " - Pages",
                                  " - Cover.jpg", " - Cover.webp", " - Cover.png", " - ComicInfo.xml"))
             if not any((folder / name).exists() for name in names):
                 break
