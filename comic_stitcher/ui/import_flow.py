@@ -15,6 +15,7 @@ from ..detector import collect_images
 from ..archive_import import ARCHIVE_EXTS, import_archive
 from ..pdf_import import import_pdf
 from ..pdf_jpegs import check_pdf_jpegs
+from ..space import import_need
 from ..session import cached_folder_scan, clear_session, read_session, restore_plan, session_path
 from ..screenshot_import import looks_like_screenshot_folder
 from .pdf_dialog import PdfImportDialog
@@ -279,6 +280,13 @@ class ImportScreen:
             except (KeyError, TypeError, ValueError, OSError) as exc:
                 diagnostics.note("Saved folder scan unusable: %s", exc)
                 self.pending_session = None
+        if folder.is_file() and folder.suffix.lower() in ARCHIVE_EXTS | {".pdf"} and not self._space_ok(
+                Path(tempfile.gettempdir()), import_need(folder, pdf_dpi or 300, extract_jpegs),
+                "Importing this comic"):
+            self.pending_session = None
+            self.pages.setCurrentIndex(0)
+            self._compact_window()
+            return
         self.progress_label.setText(f"{'Reading pages in' if manual_mode else 'Scanning'} {folder.name}…")
         diagnostics.note("%s import started: %s", "Manual" if manual_mode else "Suggested", folder)
         self.progress_bar.setValue(0)

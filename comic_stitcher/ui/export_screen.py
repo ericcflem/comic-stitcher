@@ -20,6 +20,7 @@ from .workers import SizeEstimateWorker, LosslessCheckWorker
 from .output_options import ARCHIVE_CHOICES, pdf_page_options, OutputOptionsDialog
 from .queue import QueuedComic, queued_outputs
 from ..rar_export import find_rar
+from ..space import export_need
 from .theme import tone
 
 
@@ -974,6 +975,9 @@ class ExportScreen:
                 QMessageBox.warning(self, "Cannot export", str(exc))
                 return
             self._remember_export_preferences(opt)
+        folder = self.plan.scan.output_folder or self.plan.scan.folder
+        if not self._space_ok(folder, export_need(self.plan, opt), "Creating this comic"):
+            return
         self._cancel_size_estimate("")
         self.size_worker.release()  # Export needs the processor.
         self.progress_label.setText("Creating comic…")

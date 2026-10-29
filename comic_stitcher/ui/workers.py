@@ -12,6 +12,7 @@ from PySide6.QtCore import QThread, Signal
 from ..backend import stitched_image, rotated_image, encoding_workers
 from ..export import estimate_export_size, ESTIMATE_SAMPLES, lossless_alternative, lossless_check
 from .. import diagnostics
+from ..problems import message_for
 from ..pdf_import import measure_pdf_pages, suggest_from_pages
 from .common import pixels_from_pil
 
@@ -25,13 +26,15 @@ class Worker(QThread):
         super().__init__()
         self.fn = fn
         self.args = args
+        self.problem = "other"  # What kind of failure, so the window can offer a fix.
 
     def run(self):
         try:
             self.result.emit(self.fn(*self.args, progress=self.progress.emit))
         except Exception as exc:
             diagnostics.exception("Scan or export failed")
-            self.failure.emit(str(exc))
+            message, self.problem = message_for(exc)  # In plain words; the log keeps the original.
+            self.failure.emit(message)
 
 
 class SizeEstimateWorker(QThread):

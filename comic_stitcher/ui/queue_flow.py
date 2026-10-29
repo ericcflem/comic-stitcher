@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (QFileDialog, QHBoxLayout, QLabel, QListWidgetItem
     QPushButton, QVBoxLayout)
 from ..export import copy_encoding_options
 from .. import diagnostics
+from ..space import export_need
 from ..window_outline import OutlinedDialog
 from ..session import clear_session
 from .common import ui_primary, tooltip_text
@@ -189,12 +190,29 @@ class QueueFlow:
         if (not self.queue_jobs or self.active_queue_job is not None or
                 self.worker and self.worker.isRunning()):
             return
+        if not self._queue_space_ok():
+            return
         self.batch_import_active = False
         self.queue_completed = 0
         self.queue_results.clear()
         self._show_progress_page()
         self._compact_window()
         self._start_next_queued_export()
+
+    def _queue_space_ok(self) -> bool:
+        """Every queued comic's output, added up for each drive it's saved on."""
+        needs = {}
+        for job in self.queue_jobs:
+            folder = job.plan.scan.output_folder or job.plan.scan.folder
+            try:
+                drive = folder.stat().st_dev
+                need = export_need(job.plan, job.options)
+            except (OSError, ValueError):
+                continue  # The export reports it, if it's a real problem.
+            known = needs.setdefault(drive, [folder, 0])
+            known[1] += need
+        return all(self._space_ok(folder, need, f"The {len(self.queue_jobs)} queued comics' exports")
+                   for folder, need in needs.values())
 
     def _start_next_queued_export(self):
         if not self.queue_jobs:
@@ -264,10 +282,10 @@ class QueueFlow:
 
     def _queued_export_failed(self, message):
         diagnostics.note("Queued export stopped: %s", message)
-        QMessageBox.warning(self, "Queue stopped",
-                            f"Could not create {self.active_queue_job.options.book_name}: {message}\n\n"
-                            "This comic and the remaining jobs are still in the queue. "
-                            "Correct the issue and start the queue again.")
+        self._show_problem("Queue stopped",
+                           f"Could not create {self.active_queue_job.options.book_name}.\n\n{message}\n\n"
+                           "This comic and the remaining jobs are still in the queue. "
+                           "Correct the issue and start the queue again.")
         self.active_queue_job = None
         self.pages.setCurrentIndex(0)
         self._compact_window()

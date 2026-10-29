@@ -71,9 +71,13 @@ Name: foldermenu; Description: "Add Open in Comic Stitcher to folder menus (sing
 
 Name: droptab; Description: "Show a drop tab on the right edge of the screen and start it when I sign in"; GroupDescription: "Drop tab:"
 
+; Offered only while Windows' 260-character path limit is on. Comic Stitcher handles long paths itself.
+Name: longpaths; Description: "Allow file paths longer than 260 characters (a Windows setting; asks for administrator permission)"; GroupDescription: "Windows:"; Check: LongPathsOff
+
 [Run]
 ; The tab records its own sign-in entry, so turning it off from its menu is respected.
 Filename: "{app}\ComicStitcher.exe"; Parameters: "--drop-tab --enable-autostart"; Flags: nowait; Tasks: droptab
+Filename: "{sys}\reg.exe"; Parameters: "add ""HKLM\SYSTEM\CurrentControlSet\Control\FileSystem"" /v LongPathsEnabled /t REG_DWORD /d 1 /f"; Verb: "runas"; Flags: shellexec runhidden waituntilterminated; StatusMsg: "Allowing long file paths…"; Tasks: longpaths
 Filename: "{app}\ComicStitcher.exe"; Description: "Launch Comic Stitcher"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
@@ -114,3 +118,4 @@ Root: HKCU; Subkey: "Software\Classes\Directory\shell\ComicStitcher\command"; Va
 #include Root + "installer\microsoft_runtime.iss"
 #include Root + "installer\microsoft_terms.iss"
 #include Root + "installer\uninstall_settings.iss"
+#include Root + "installer\long_paths.iss"

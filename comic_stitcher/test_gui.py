@@ -2511,16 +2511,41 @@ class ThumbnailTest(unittest.TestCase):
                 window.book_name.setText("Retry Me")
                 window._queue_window_action("another")
                 (folder / "000.png").unlink()
-                with patch.object(QMessageBox, "warning") as warning:
+                shown = []
+                with patch.object(QMessageBox, "exec", lambda dialog: shown.append(dialog.text())):
                     window.start_queue()
                     self.wait_for(lambda: window.active_queue_job is None and
                                   window.pages.currentIndex() == 0 and
                                   window.queue_start_button.isEnabled(), seconds=10)
                 self.assertEqual(len(window.queue_jobs), 1)
-                self.assertIn("Retry Me", warning.call_args.args[2])
+                self.assertIn("Retry Me", shown[0])
             finally:
                 with patch.object(QMessageBox, "question", return_value=QMessageBox.Yes):
                     window.close()
+
+    def test_low_disk_space_is_warned_before_exporting(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            for i in range(2):
+                Image.new("RGB", (60, 80), "white").save(folder / f"{i:03d}.png")
+            window = ComicWindow()
+            try:
+                window.scan_done(scan_manual_folder(folder))
+                window.show_export()
+                shown = []
+
+                def cancel(dialog):
+                    shown.append(dialog.text())
+                    dialog.button(QMessageBox.Cancel).click()
+                with patch("comic_stitcher.gui.shortfall", return_value=10 * 2 ** 20), \
+                        patch.object(QMessageBox, "exec", cancel), \
+                        patch.object(ComicWindow, "_run_worker") as run:
+                    window.start_export()
+                run.assert_not_called()  # Cancelled: nothing started.
+                self.assertIn("Creating this comic needs about", shown[0])
+                self.assertIn("free", shown[0])
+            finally:
+                window.close()
 
     def test_queue_renames_duplicate_output_before_confirmation(self):
         with tempfile.TemporaryDirectory() as directory:
