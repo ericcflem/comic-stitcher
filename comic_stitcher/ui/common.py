@@ -10,6 +10,7 @@ from PySide6.QtGui import QImage, QPixmap, QPainter, QColor, QPen, QIcon
 from PySide6.QtWidgets import (QComboBox, QFormLayout, QLabel, QSizePolicy, QStackedWidget,
     QVBoxLayout, QWidget, QStyle, QDialogButtonBox, QProxyStyle, QStyleFactory)
 from ..backend import stitched_image, rotated_image
+from ..centering import open_centered
 from ..colour import standard_mode
 
 
@@ -233,7 +234,20 @@ def pixmap_from_pil(image: Image.Image, max_size: tuple[int, int]) -> QPixmap:
     return QPixmap.fromImage(qimage_from_pil(image, max_size))
 
 
-def page_pixmap(path: Path, size: tuple[int, int] = (1800, 2200), rotation: int = 0) -> QPixmap:
+def page_pixmap(path: Path, size: tuple[int, int] = (1800, 2200), rotation: int = 0,
+                centering: tuple[int, int, int] | None = None) -> QPixmap:
+    if centering:  # Centered as scanned, then turned, as export does it.
+        image = open_centered(path, centering)
+        try:
+            if rotation:
+                turned = rotated_image(image, rotation)
+                try:
+                    return pixmap_from_pil(turned, size)
+                finally:
+                    turned.close()
+            return pixmap_from_pil(image, size)
+        finally:
+            image.close()
     with Image.open(path) as im:
         if rotation:
             oriented = ImageOps.exif_transpose(im)

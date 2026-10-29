@@ -433,6 +433,7 @@ class ImportScreen:
         if jpeg_sources:
             self.statusBar().showMessage("JPEG source pages detected: unjoined pages can be copied without re-encoding.")
         self._start_lossless_check()  # Ready, usually, by the time Create your comic opens.
+        self._start_centering_check()  # Measured while the pairs are reviewed.
         if self.skip_pair_review and not resumed:
             self.statusBar().showMessage(f"{len(scan.pages)} pages; pair review skipped")
         elif scan.manual_mode:

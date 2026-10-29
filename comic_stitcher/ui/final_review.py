@@ -1,16 +1,17 @@
 """Final review: the finished comic page by page, the thumbnail strip and page edits."""
 from __future__ import annotations
 
-from PySide6.QtCore import QSize, Qt, QTimer
+from PySide6.QtCore import QSignalBlocker, QSize, Qt, QThread, QTimer
 from PySide6.QtGui import QCursor, QPixmap
-from PySide6.QtWidgets import (QApplication, QDialog, QHBoxLayout, QLabel, QMessageBox,
+from PySide6.QtWidgets import (QApplication, QCheckBox, QDialog, QHBoxLayout, QLabel, QMessageBox,
     QPushButton, QScrollArea, QStackedWidget, QVBoxLayout, QWidget)
-from ..backend import BoundaryOverrideRequired
+from ..backend import BoundaryOverrideRequired, encoding_workers
 from .. import diagnostics
 from ..session import save_session
 from .common import (tooltip_text, review_control, qimage_from_pixels, page_pixmap, spread_pixmap,
     FitImage, DropMarker)
 from .overlap import OverlapDialog, JoinedPairView
+from .workers import CenteringWorker
 from .thumbnails import (DRAG_SCROLL_ZONE, DRAG_SCROLL_MIN, DRAG_SCROLL_MAX, DRAG_SCROLL_INTERVAL,
     ThumbnailStrip, PageThumbnail)
 
@@ -23,6 +24,7 @@ class FinalReview:
         box = QVBoxLayout(self.preview)
         self.preview_heading = QLabel()
         box.addWidget(self.preview_heading)
+        self._build_centering_row(box)
         self.thumbnail_status = QLabel()
         self.thumbnail_status.setStyleSheet("color:#52606d;")
         self.thumbnail_status.hide()
@@ -371,7 +373,8 @@ class FinalReview:
                     self.preview_pair.hide()
                     self.main_image.show()
                     self.main_image.show_pixmap(page_pixmap(self.plan.scan.pages[first[0]].path,
-                                                            rotation=self.plan.rotations.get(first[0], 0))
+                                                            rotation=self.plan.rotations.get(first[0], 0),
+                                                            centering=self.plan.page_centering(first[0]))
                                                 if first[1] is None else spread_pixmap(
                                                     self.plan.scan.pages[first[0]].path,
                                                     self.plan.scan.pages[first[1]].path,
@@ -381,7 +384,8 @@ class FinalReview:
                                                                overlap=self.plan.join_overlaps.get(first[0], (0, "right"))))
                     self.compare_image.show()
                     self.compare_image.show_pixmap(page_pixmap(self.plan.scan.pages[second[0]].path,
-                                                               rotation=self.plan.rotations.get(second[0], 0))
+                                                               rotation=self.plan.rotations.get(second[0], 0),
+                                                               centering=self.plan.page_centering(second[0]))
                                                    if second[1] is None else spread_pixmap(
                                                        self.plan.scan.pages[second[0]].path,
                                                        self.plan.scan.pages[second[1]].path,
@@ -394,7 +398,8 @@ class FinalReview:
                 self.main_image.show()
                 self.compare_image.hide()
                 self.main_image.show_pixmap(page_pixmap(self.plan.scan.pages[a].path,
-                                                        rotation=self.plan.rotations.get(a, 0)) if b is None
+                                                        rotation=self.plan.rotations.get(a, 0),
+                                                        centering=self.plan.page_centering(a)) if b is None
                                             else spread_pixmap(self.plan.scan.pages[a].path,
                                                                self.plan.scan.pages[b].path,
                                                                rotation=self.plan.rotations.get(a, 0),
@@ -415,6 +420,7 @@ class FinalReview:
                                      (" · ! Check unusual-width screenshot" if a in self.screenshot_flagged_pages or
                                       (b is not None and b in self.screenshot_flagged_pages) else "") +
                                      height_warning)
+        self._update_centering_row()
         highlighted = {self.preview_index}
         if self.comparing:
             highlighted.update(self.comparing)
@@ -460,6 +466,123 @@ class FinalReview:
         self._save_review_report()
         self.rebuild_thumbnails()
         self.show_preview()
+
+    # Centering the art -------------------------------------------------------
+    CENTERING_NOTE = ("Most pages will be better centered, but a few may not come out exactly right, "
+                      "such as pages where art or lettering spills past the panels. Press C to go from "
+                      "one moved page to the next and check them; any page can be left as it was.")
+
+    def _build_centering_row(self, box):
+        """The offer to center art that print margins push aside, shown once
+        the background check has found pages that need it."""
+        self.centering_row = QWidget()
+        row = QHBoxLayout(self.centering_row)
+        row.setContentsMargins(0, 0, 0, 0)
+        self.centering_label = QLabel()
+        self.centering_label.setStyleSheet("color:#52606d;")
+        self.centering_label.setToolTip(tooltip_text(self.CENTERING_NOTE))
+        self.center_art_box = QCheckBox("Center the art")
+        self.center_art_box.setToolTip(tooltip_text(
+            "Moves the art on these pages sideways to the middle of the page, filling the strip it "
+            "uncovers with the page's own color. Only single pages; spreads are left as they are. "
+            "Moved pages are saved again at export, in the format for joined and rotated pages. "
+            + self.CENTERING_NOTE))
+        self.center_art_box.toggled.connect(self._center_art_toggled)
+        self.center_page_box = QCheckBox("Center this page")
+        self.center_page_box.setToolTip(tooltip_text("Uncheck to leave this page's art where it was."))
+        self.center_page_box.toggled.connect(self._center_page_toggled)
+        for box_ in (self.center_art_box, self.center_page_box):
+            box_.setFocusPolicy(Qt.NoFocus)  # Space stays the seam key.
+        row.addWidget(self.centering_label)
+        row.addWidget(self.center_art_box)
+        row.addWidget(self.center_page_box)
+        row.addStretch()
+        self.centering_row.hide()
+        box.addWidget(self.centering_row)
+        self.centering_checks = []
+
+    def _start_centering_check(self):
+        """Measure every page in the background while the comic is reviewed."""
+        self._stop_centering_checks()
+        plan = self.plan
+        if (plan is None or plan.centering_measured or plan.scan.screenshot_source is not None
+                or not self.settings.value("check_centering", True, type=bool)):
+            return
+        worker = CenteringWorker(plan, max(1, encoding_workers(self.worker_count()) // 2))
+        worker.done.connect(self._centering_done)
+        worker.finished.connect(lambda worker=worker: self.centering_checks.remove(worker)
+                                if worker in self.centering_checks else None)
+        self.centering_checks.append(worker)
+        worker.start(QThread.Priority.LowPriority)
+
+    def _stop_centering_checks(self):
+        for worker in self.centering_checks:
+            worker.requestInterruption()
+
+    def _centering_done(self, plan, found):
+        if plan is not self.plan:
+            return
+        plan.centering = found
+        plan.centering_measured = True
+        self._save_review_report()
+        if self.pages.currentWidget() == self.preview and self.preview_ready:
+            self._update_centering_row()
+
+    def _update_centering_row(self):
+        plan = self.plan
+        checking = bool(self.centering_checks) and plan is not None and not plan.centering_measured
+        pages = plan.centered_pages() if plan is not None else []
+        self.centering_row.setVisible(checking or bool(pages))
+        if checking:
+            self.centering_label.setText("Checking whether the art is centered on each page…")
+        elif pages:
+            total = sum(right is None for _, right in plan.entries())
+            self.centering_label.setText(
+                f"The art on {len(pages)} of {total} pages sits off-center, probably because of print margins.")
+        self.center_art_box.setVisible(bool(pages))
+        with QSignalBlocker(self.center_art_box):
+            self.center_art_box.setChecked(plan is not None and plan.center_art)
+        entries = plan.entries() if plan is not None else []
+        current = entries[self.preview_index] if 0 <= self.preview_index < len(entries) else (None, None)
+        on_page = bool(pages) and plan.center_art and current[1] is None and current[0] in plan.centering
+        self.center_page_box.setVisible(on_page and not self.comparing)
+        if on_page:
+            with QSignalBlocker(self.center_page_box):
+                self.center_page_box.setChecked(current[0] not in plan.center_skipped)
+
+    def _center_art_toggled(self, on):
+        entries = self.plan.entries()
+        self.plan.set_center_art(on, entries[self.preview_index][0] if entries else 0)
+        self._save_review_report()
+        self.show_preview()
+
+    def _center_page_toggled(self, on):
+        left, right = self.plan.entries()[self.preview_index]
+        if right is None:
+            self.plan.set_page_centered(left, on)
+            self._save_review_report()
+            self.show_preview()
+
+    def next_centered_page(self):
+        """C in the final review: the next page whose art is centered (or would be)."""
+        if self.plan is None:
+            return
+        pages = set(self.plan.centered_pages())
+        moved = [index for index, (a, b) in enumerate(self.plan.entries()) if b is None and a in pages]
+        if not moved:
+            self.statusBar().showMessage("No pages are off-center.", 4000)
+            return
+        target = next((i for i in moved if i > self.preview_index), moved[0])
+        self.comparing = None
+        self.preview_index = self.selected_first = target
+        self.show_preview(follow=True)
+        left = self.plan.entries()[target][0]
+        shift = self.plan.centering[left][0]
+        state = ("left as it was" if left in self.plan.center_skipped or not self.plan.center_art
+                 else "centered")
+        self.statusBar().showMessage(f"Off-center page {moved.index(target) + 1} of {len(moved)}: "
+                                     f"art {abs(shift)} px {'left' if shift > 0 else 'right'} of the middle, "
+                                     f"{state}", 8000)
 
     def marked_entries(self):
         """Final pages marked with a pink !: unusual-width screenshots and

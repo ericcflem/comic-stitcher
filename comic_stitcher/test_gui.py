@@ -758,6 +758,50 @@ class ThumbnailTest(unittest.TestCase):
         self.assertIn("their names won't clash", window.page_notes_notice.informativeText())
         window.page_notes_notice.close()
 
+    def test_off_center_art_is_measured_in_the_background_and_offered(self):
+        from .test_centering import page
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            for i, (left, right) in enumerate(((200, 1550), (150, 1500), (175, 1525))):
+                page(left, right, rng_seed=i).save(folder / f"{i + 1:03d}.png")
+            window = ComicWindow()
+            try:
+                window.show()
+                window.skip_pair_review = True
+                window.scan_done(scan_manual_folder(folder))
+                self.wait_for(lambda: window.plan.centering_measured, seconds=60)
+                self.wait_for(lambda: len(getattr(window, "thumb_buttons", [])) == 3)
+                self.wait_for(lambda: not window.centering_row.isHidden())
+                self.assertEqual(sorted(window.plan.centering), [0, 1])
+                self.assertIn("The art on 2 of 3 pages sits off-center", window.centering_label.text())
+                self.assertFalse(window.center_art_box.isChecked())
+                self.assertTrue(window.center_page_box.isHidden())
+                window.center_art_box.click()
+                self.assertTrue(window.plan.center_art)
+                window.preview_index = 2
+                window._review_key("centered")  # C: round to the first moved page.
+                self.assertEqual(window.preview_index, 0)
+                self.assertIn("Off-center page 1 of 2", window.statusBar().currentMessage())
+                self.assertFalse(window.center_page_box.isHidden())
+                window.center_page_box.click()  # Leave this one as it was.
+                self.assertEqual(window.plan.center_skipped, {0})
+                window.undo_preview_removal()
+                self.assertEqual(window.plan.center_skipped, set())
+            finally:
+                window.close()
+
+    def test_no_centering_check_when_turned_off(self):
+        window = ComicWindow()
+        self.addCleanup(window.close)
+        window.settings.setValue("check_centering", False)
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            for i in range(2):
+                Image.new("RGB", (60, 80), (30 + i * 25, 20, 10)).save(folder / f"{i:03d}.png")
+            with patch("comic_stitcher.ui.final_review.CenteringWorker") as worker:
+                window.scan_done(scan_manual_folder(folder))
+            worker.assert_not_called()
+
     def test_sharp_yuv_option_is_per_size_and_needs_lossy_webp_and_cwebp(self):
         window = ComicWindow()
         self.addCleanup(window.close)

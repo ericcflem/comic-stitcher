@@ -172,6 +172,59 @@ class LosslessCheckWorker(QThread):
             self.done.emit(self.plan, share)
 
 
+class CenteringWorker(QThread):
+    """Measures where each page's art sits (centering.py) while the comic is
+    reviewed, on helper processes at low priority."""
+    done = Signal(object, object)  # The plan measured, and {page: (shift, first row, end row)}.
+
+    def __init__(self, plan, workers: int):
+        super().__init__()
+        self.plan = plan
+        self.paths = [(index, str(page.path)) for index, page in enumerate(plan.scan.pages)]
+        self.workers = max(1, workers)
+
+    def run(self):
+        from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
+        from multiprocessing import get_context
+        from ..centering import measure_page
+        started = time.monotonic()
+        found, failed = {}, 0
+        try:
+            if self.workers == 1 or len(self.paths) < 16:  # Starting helper processes costs more.
+                for index, path in self.paths:
+                    if self.isInterruptionRequested():
+                        return
+                    try:
+                        if (value := measure_page(path)) is not None:
+                            found[index] = value
+                    except Exception:
+                        failed += 1
+            else:
+                with ProcessPoolExecutor(max_workers=min(self.workers, len(self.paths)),
+                                         mp_context=get_context("spawn")) as pool:
+                    jobs = {pool.submit(measure_page, path): index for index, path in self.paths}
+                    pending = set(jobs)
+                    while pending:
+                        if self.isInterruptionRequested():
+                            for future in pending:
+                                future.cancel()
+                            return
+                        finished, pending = wait(pending, timeout=0.5, return_when=FIRST_COMPLETED)
+                        for future in finished:
+                            try:
+                                if (value := future.result()) is not None:
+                                    found[jobs[future]] = value
+                            except Exception:
+                                failed += 1  # An odd page is left as it is.
+        except Exception as exc:  # Only an offer; the comic is unaffected.
+            diagnostics.note("Page centering check failed: %s", exc)
+            return
+        diagnostics.note("Page centering: %d of %d pages off-center, %d unreadable, %.1f s",
+                         len(found), len(self.paths), failed, time.monotonic() - started)
+        if not self.isInterruptionRequested():
+            self.done.emit(self.plan, found)
+
+
 class ReviewImageWorker(QThread):
     """Decode one pair at a time, discarding queued pairs after navigation."""
 

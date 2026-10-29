@@ -80,6 +80,10 @@ def save_session(source: Path, app_folder: Path, plan: BookPlan, *,
             "removed_pages": sorted(plan.removed_pages),
             "rotations": {str(left): degrees for left, degrees in plan.rotations.items()},
             "deferred_possible": plan.deferred_possible,
+            "centering": {str(i): list(value) for i, value in plan.centering.items()},
+            "centering_measured": plan.centering_measured,
+            "center_art": plan.center_art,
+            "center_skipped": sorted(plan.center_skipped),
             "comicinfo_xml": plan.comicinfo_xml,
             "include_comicinfo": plan.include_comicinfo,
             "possible_started": possible_started,
@@ -148,6 +152,29 @@ def cached_folder_scan(source: Path, data: dict) -> Scan:
                 page_notes=[(tuple(int(i) for i in noted), str(text))
                             for noted, text in cache.get("page_notes", [])
                             if all(0 <= int(i) < len(pages) for i in noted)])
+
+
+def _restore_centering(plan: BookPlan, data: dict) -> None:
+    """The art-centering measurements and choices, which older saved reviews lack."""
+    pages = len(plan.scan.pages)
+    centering = {}
+    for key, value in data.get("centering", {}).items():
+        index = int(key)
+        if (not 0 <= index < pages or not isinstance(value, list) or len(value) != 3
+                or any(type(v) is not int for v in value)):
+            raise ValueError("Saved page centering is invalid.")
+        shift, top, bottom = value
+        page = plan.scan.pages[index]
+        if not (shift and abs(shift) < page.width and 0 <= top < bottom <= page.height):
+            raise ValueError("Saved page centering is invalid.")
+        centering[index] = (shift, top, bottom)
+    skipped = data.get("center_skipped", [])
+    if not isinstance(skipped, list) or any(type(i) is not int or not 0 <= i < pages for i in skipped):
+        raise ValueError("Saved page centering is invalid.")
+    plan.centering = centering
+    plan.centering_measured = bool(data.get("centering_measured", False))
+    plan.center_art = bool(data.get("center_art", False))
+    plan.center_skipped = set(skipped)
 
 
 def _valid_removal(item: dict, page_count: int) -> bool:
@@ -255,21 +282,24 @@ def restore_plan(scan: Scan, data: dict, *, restore_undo: bool = True) -> BookPl
         raise ValueError("Saved spread overlaps are invalid.")
     plan.join_overlaps = overlaps
     plan.deferred_possible = bool(data["deferred_possible"])
+    _restore_centering(plan, data)
     if restore_undo:
         snapshots = data.get("preview_history", [])
         if not isinstance(snapshots, list) or len(snapshots) > 100:
             raise ValueError("Saved final-review undo history is invalid.")
         expected = {"decisions", "manual_pairs", "removed_pages", "rotations", "page_order",
                     "manual_rights", "joined_rotations", "_action", "_focus", "_history_length"}
+        optional = {"join_overlaps", "center_art", "center_skipped"}  # Not in older saved reviews.
         for saved in snapshots:
-            if (not isinstance(saved, dict) or not expected <= set(saved) <= expected | {"join_overlaps"} or
+            if (not isinstance(saved, dict) or not expected <= set(saved) <= expected | optional or
                     saved["_action"] not in ("page move", "page swap", "rotation", "join", "split", "page removal",
-                                             "spread overlap") or
+                                             "spread overlap", "centering") or
                     type(saved["_focus"]) is not int or not 0 <= saved["_focus"] < len(scan.pages) or
                     type(saved["_history_length"]) is not int or not 0 <= saved["_history_length"] <= len(history)):
                 raise ValueError("Saved final-review undo history is invalid.")
             # Snapshots saved before overlaps existed had none.
-            previous = restore_plan(scan, {**data, "join_overlaps": {}, **saved,
+            previous = restore_plan(scan, {**data, "join_overlaps": {}, "center_art": False, "center_skipped": [],
+                                           **saved,
                                            "history": data["history"][:saved["_history_length"]]},
                                     restore_undo=False)
             plan.preview_history.append(previous.preview_snapshot(saved["_action"], saved["_focus"]))
