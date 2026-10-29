@@ -862,7 +862,9 @@ class ThumbnailTest(unittest.TestCase):
                     window.skip_pair_review = True
                     window.scan_done(scan_manual_folder(folder))
                 self.wait_for(lambda: len(getattr(window, "thumb_buttons", [])) == 3)
-                self.assertTrue(window.centering_row.isHidden())  # Not checked (yet).
+                self.assertEqual(window.centering_label.text(),  # Still checking.
+                                 "Checking whether the art is centered on each page…")
+                self.assertFalse(window.centering_row.property("quiet"))
                 window.plan.centering_left_alone = {"spread": 2, "already centered": 1}
                 window._centering_done(window.plan, {})
                 self.assertFalse(window.centering_row.isHidden())
