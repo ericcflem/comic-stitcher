@@ -5,6 +5,9 @@ setting does. For installation, see the [README](../README.md).
 
 Most settings also explain themselves: rest the mouse on one to see a tooltip.
 
+In Comic Stitcher, press **F1** to open this guide, or **?** for the keyboard shortcuts.
+Both are also under the **?** button beside the settings gear.
+
 **Your originals are never changed.** Cropping, joining, rotating and converting all
 make new files. Keep your originals until you have checked the results.
 
@@ -428,6 +431,8 @@ The gear on the start screen opens Settings:
 | | C | Next off-center page |
 | Crop review | Left / Right | Previous / next screenshot |
 | Queue | Ctrl + Up / Down / Home / End | Move the selected comic |
+| Anywhere | F1 | This guide |
+| | ? | The keyboard shortcuts |
 
 ## Where things are saved
 
