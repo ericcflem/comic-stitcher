@@ -978,9 +978,9 @@ class ExportScreen:
                 return True
             diagnostics.note("Cannot save in %s: %s", folder, problem.text)
             dialog = QMessageBox(QMessageBox.Warning, "Choose where to save",
-                                 f"This comic can't be saved in its usual place, beside the original:\n\n"
+                                 f"This comic can't be saved in the same folder as the original:\n\n"
                                  f"{folder}", parent=self)
-            dialog.setInformativeText(problem.text.split("\n\n")[0] +
+            dialog.setInformativeText(problem.reason.split("\n\n")[0] +
                                       "\n\nChoose another folder to save it in.")
             choose = dialog.addButton("Choose folder…", QMessageBox.AcceptRole)
             dialog.addButton(QMessageBox.Cancel)

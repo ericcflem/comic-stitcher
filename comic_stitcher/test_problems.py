@@ -33,7 +33,7 @@ class ExplainTests(unittest.TestCase):
                 (OSError(errno.ENOSPC, "No space left on device", "/comics/Book/007.png"), "disk full",
                  "isn't enough free space"),
                 (PermissionError(errno.EACCES, "Permission denied", "/media/disc/Book"), "access",
-                 "isn't allowed to change this location"),
+                 "is unable to save to this location"),
                 (FileNotFoundError(errno.ENOENT, "No such file or directory", "/comics/gone.png"), "missing",
                  "is gone"),
                 (OSError(errno.ENAMETOOLONG, "File name too long", "/x"), "long path", "260 characters")):

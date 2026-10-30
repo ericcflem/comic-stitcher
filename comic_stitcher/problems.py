@@ -34,9 +34,10 @@ _NOT_FOUND = {2, 3}                          # File, or folder on its path, not 
 class Problem:
     """What went wrong, in plain words; `kind` lets the window offer a fix."""
 
-    def __init__(self, text: str, kind: str = "other"):
+    def __init__(self, text: str, kind: str = "other", reason: str = ""):
         self.text = text
         self.kind = kind
+        self.reason = reason or text  # Why, without what to do (where the window offers that).
 
     def __str__(self):
         return self.text
@@ -103,10 +104,10 @@ def explain(exc: BaseException) -> Problem | None:
         protected = (" Windows' Controlled folder access, part of Windows Security, can also keep "
                      "programs it doesn't know out of folders such as Documents and Pictures."
                      if os.name == "nt" else "")
-        return Problem("Comic Stitcher isn't allowed to change this location: it may be read-only, "
-                       "on a disc, or in a protected folder." + protected +
-                       " Choose another folder, or copy the comic somewhere you can save, and try again."
-                       + where, "access")
+        reason = ("Comic Stitcher is unable to save to this location. It may be read-only, on a "
+                  "disc, or in a protected folder." + protected)
+        return Problem(reason + " Choose another folder, or copy the comic somewhere you can save, "
+                       "and try again." + where, "access", reason)
     if winerror in _NOT_FOUND or code == errno.ENOENT:
         return Problem("A file or folder Comic Stitcher was using is gone: it may have been moved, "
                        "renamed or deleted, or its drive disconnected, while Comic Stitcher was "

@@ -2559,7 +2559,7 @@ class ThumbnailTest(unittest.TestCase):
             try:
                 window.scan_done(scan_manual_folder(folder))
                 window.show_export()
-                answers = iter([Problem("Comic Stitcher isn't allowed to change this location.", "access"), None])
+                answers = iter([Problem("Comic Stitcher is unable to save to this location.", "access"), None])
                 shown = []
 
                 def choose(dialog):
@@ -2570,7 +2570,7 @@ class ThumbnailTest(unittest.TestCase):
                         patch.object(QFileDialog, "getExistingDirectory", return_value=elsewhere), \
                         patch.object(ComicWindow, "_run_worker") as run:
                     window.start_export()
-                self.assertIn("can't be saved in its usual place", shown[0])
+                self.assertIn("can't be saved in the same folder as the original", shown[0])
                 self.assertEqual(window.plan.scan.output_folder, Path(elsewhere))
                 run.assert_called_once()
                 # Cancelled: nothing starts.
