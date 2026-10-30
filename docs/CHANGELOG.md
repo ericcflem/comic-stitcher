@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Help, offline: a **?** button beside the settings gear opens the User Guide
+  (also **F1**, on any screen) and a keyboard shortcuts window (also **?**).
+  The guide opens in a window of its own, in Comic Stitcher's light or dark
+  look, with working contents links and **Find**; nothing needs the internet.
 - When a comic can't be saved beside its original (a read-only or protected
   folder, a disc, a shared folder you can only read), Comic Stitcher says so
   before starting and asks you to choose another folder, for that comic only.

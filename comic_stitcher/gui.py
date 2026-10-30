@@ -14,7 +14,7 @@ from PySide6.QtCore import QEvent, QSettings, QSize, Qt, QTimer, QUrl
 from PySide6.QtGui import QFontMetrics, QDesktopServices, QPixmap, QShortcut, QKeySequence, QIcon
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QFileDialog,
     QFormLayout, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox, QProgressBar,
-    QPushButton, QSizePolicy, QSpinBox, QVBoxLayout, QWidget, QGroupBox)
+    QMenu, QPushButton, QSizePolicy, QSpinBox, QVBoxLayout, QWidget, QGroupBox)
 
 from .backend import BookPlan, encoding_workers
 from .export import ExportOptions
@@ -33,6 +33,7 @@ from .ui.overlap import OverlapDialog
 from .ui.output_options import ARCHIVE_CHOICES, OutputOptionsDialog
 from .ui.pdf_dialog import PdfImportDialog
 from .ui.theme import tone
+from .ui.help import show_guide, show_shortcuts
 from .rar_export import find_rar
 from .problems import enable_long_paths, long_paths_enabled
 from .space import drive_name, shortfall
@@ -495,6 +496,13 @@ class ComicWindow(ImportScreen, ScreenshotImport, PairReview, FinalReview, Expor
             shortcut.setContext(Qt.WindowShortcut)
             shortcut.activated.connect(action)
             self.shortcuts[key] = shortcut
+        # Help, on every screen (a text box keeps a typed "?" for itself).
+        self.help_shortcuts = []
+        for key, action in (("F1", self.show_user_guide), ("?", self.show_keyboard_shortcuts)):
+            shortcut = QShortcut(QKeySequence(key), self)
+            shortcut.setContext(Qt.WindowShortcut)
+            shortcut.activated.connect(action)
+            self.help_shortcuts.append(shortcut)
 
     def _update_shortcuts(self, *_):
         current = self.pages.currentWidget()
@@ -544,6 +552,12 @@ class ComicWindow(ImportScreen, ScreenshotImport, PairReview, FinalReview, Expor
         elif not self.seam and action in ("back", "left"):
             self.review_back()
 
+    def show_user_guide(self):
+        self.help_window = show_guide(self)
+
+    def show_keyboard_shortcuts(self):
+        self.shortcuts_window = show_shortcuts(self)
+
     def _build_start(self):
         start = QWidget()
         box = QVBoxLayout(start)
@@ -562,6 +576,19 @@ class ComicWindow(ImportScreen, ScreenshotImport, PairReview, FinalReview, Expor
         gear.setAccessibleName("Settings")
         gear.clicked.connect(self.show_settings)
         self.settings_button = gear
+        # Help, offline: the User Guide (F1) and the keyboard shortcuts (?).
+        help_button = QPushButton("?")
+        help_button.setFlat(True)
+        help_button.setFixedSize(40, 40)
+        help_button.setStyleSheet("QPushButton { font-size:24px; font-weight:700; } "
+                                  "QPushButton::menu-indicator { width:0; } QToolTip { font-size:12px; }")
+        help_button.setToolTip("Help: the User Guide (F1) and keyboard shortcuts (?)")
+        help_button.setAccessibleName("Help")
+        help_menu = QMenu(help_button)
+        help_menu.addAction("User Guide\tF1", self.show_user_guide)
+        help_menu.addAction("Keyboard shortcuts\t?", self.show_keyboard_shortcuts)
+        help_button.setMenu(help_menu)
+        self.help_button = help_button
         # Retain these state controls for the later workflow, but choose them
         # in the confirmation dialog instead of crowding the opening screen.
         self.review_mode = QComboBox(start)
@@ -579,6 +606,7 @@ class ComicWindow(ImportScreen, ScreenshotImport, PairReview, FinalReview, Expor
         box.addWidget(self.import_zone, 1)
         queue_row = QHBoxLayout()
         queue_row.addWidget(gear)
+        queue_row.addWidget(self.help_button)
         queue_row.addStretch()
         self.queue_view_button = QPushButton("View queue…")
         self.queue_view_button.clicked.connect(self.show_queue)

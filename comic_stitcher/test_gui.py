@@ -906,6 +906,44 @@ class ThumbnailTest(unittest.TestCase):
             self.app.setPalette(original)
         self.assertEqual(theme.tone("drop"), theme.TONES["drop"][0])
 
+    def test_help_opens_the_guide_and_shortcuts_offline(self):
+        from .ui.help import guide_path, shortcuts_markdown, slug
+        self.assertTrue(guide_path().is_file(), guide_path())
+        self.assertEqual(slug("Batches and the queue"), "batches-and-the-queue")
+        self.assertEqual(slug("Input Formats & Import Options"), "input-formats--import-options")
+        self.assertTrue(shortcuts_markdown(guide_path().read_text(encoding="utf-8")).startswith("## Keyboard"))
+        window = ComicWindow()
+        try:
+            self.assertEqual([a.text() for a in window.help_button.menu().actions()],
+                             ["User Guide\tF1", "Keyboard shortcuts\t?"])
+            window.show_user_guide()
+            guide = window.help_window
+            self.assertEqual(guide.windowTitle(), "Comic Stitcher User Guide")
+            text = guide.browser.toPlainText()
+            self.assertIn("The steps at a glance", text)
+            # Contents links lead to the headings, which carry GitHub's anchors.
+            names = set()
+            block = guide.browser.document().begin()
+            while block.isValid():
+                fragment = block.begin().fragment()
+                if fragment.isValid():
+                    names.update(fragment.charFormat().anchorNames())
+                block = block.next()
+            self.assertIn("keyboard-shortcuts", names)
+            self.assertIn("centering-the-art", names)
+            guide.find_box.setText("Center the art")
+            guide.find_next()
+            self.assertEqual(guide.browser.textCursor().selectedText(), "Center the art")
+            guide.close()
+            window.show_keyboard_shortcuts()
+            shortcuts = window.shortcuts_window
+            self.assertEqual(shortcuts.windowTitle(), "Keyboard shortcuts")
+            self.assertIn("Next off-center page", shortcuts.browser.toPlainText())
+            self.assertNotIn("The steps at a glance", shortcuts.browser.toPlainText())
+            shortcuts.close()
+        finally:
+            window.close()
+
     def test_no_centering_check_when_turned_off(self):
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory)

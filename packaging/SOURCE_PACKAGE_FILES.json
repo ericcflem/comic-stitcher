@@ -1373,8 +1373,8 @@
     },
     {
       "path": "comic_stitcher/gui.py",
-      "bytes": 48615,
-      "sha256": "368728561d8ea0d2482106e4466a0f9065188945964f277a3e9a4fa188354bb7"
+      "bytes": 50079,
+      "sha256": "c83ba5aa432d931bc220263b65e8c91ca2a0070101a1f5d702572ff5ce900469"
     },
     {
       "path": "comic_stitcher/icons_resource.py",
@@ -1528,8 +1528,8 @@
     },
     {
       "path": "comic_stitcher/test_gui.py",
-      "bytes": 199581,
-      "sha256": "93caf01db7bcf271459a74d2dfda07c792f8d2f40ea3e91208ee5b6540ed29c1"
+      "bytes": 201641,
+      "sha256": "f500ed8b78aa7897523517a113d5b2b6eff8cf594cf8e4ac8c51b17c45f5493c"
     },
     {
       "path": "comic_stitcher/test_icons_resource.py",
@@ -1657,6 +1657,11 @@
       "sha256": "2dcf7c382c0fb546dfaf1091168f9179effd2e4cbf190b2dee7ea6dc56987ef3"
     },
     {
+      "path": "comic_stitcher/ui/help.py",
+      "bytes": 5593,
+      "sha256": "06ab55dfc190b644061449066b2c4ca25f773834a5e2706fda56032d15418c59"
+    },
+    {
       "path": "comic_stitcher/ui/import_dialogs.py",
       "bytes": 8346,
       "sha256": "edadf80379a40d5e8fc5aa76c4408e519fa83619251eda20f3833914786403ac"
@@ -1728,8 +1733,8 @@
     },
     {
       "path": "docs/CHANGELOG.md",
-      "bytes": 25074,
-      "sha256": "ce8bdec85a70618cb5b762d5b4543def02b94ee6f88ce7facaa7ea01bb73cfc4"
+      "bytes": 25383,
+      "sha256": "fb09dd3899d67d6251836ac262da96f2ad109690df7874263cf9b62b2038f138"
     },
     {
       "path": "docs/NATIVE_SOURCE_REBUILD.md",
@@ -1773,8 +1778,8 @@
     },
     {
       "path": "docs/USER_GUIDE.md",
-      "bytes": 23068,
-      "sha256": "f25236fc58592b82c7c6b4ae22fa4e75c666daafd3bdd2ccd1bac8224b8154fc"
+      "bytes": 23285,
+      "sha256": "2ee3409aba37f6243eac5bfe60c9a647997d195a630d91693ed5c543f2d7658b"
     },
     {
       "path": "installer/RUNTIME_REFERENCES.md",
