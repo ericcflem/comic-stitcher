@@ -178,7 +178,7 @@ def linux_desktop_entry(command):
     exec_line = " ".join(_desktop_quote(argument) for argument in command)
     # TryExec: once the program is gone (an AppImage deleted, say), the desktop
     # skips the entry instead of failing to start it at every sign-in.
-    try_exec = f"TryExec={command[0]}\n" if os.path.isabs(command[0]) else ""
+    try_exec = f"TryExec={command[0]}\n" if command[0].startswith("/") else ""
     return ("[Desktop Entry]\n"
             "Type=Application\n"
             "Name=Comic Stitcher drop tab\n"
