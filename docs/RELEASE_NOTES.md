@@ -1,4 +1,4 @@
-# Comic Stitcher 0.12.0
+# Comic Stitcher 0.13.0
 
 Comic Stitcher prepares comic archives. Import PDFs, comic archives, image folders
 or centered screenshots; review suggested page pairs; join split spreads; and
@@ -6,19 +6,21 @@ check the finished comic before exporting. Original input files are preserved.
 
 ## What's new
 
-- **Center the art.** Printed comics often sit off-center, pushed aside by the
-  margin kept for the binding. While you review pairs, Comic Stitcher checks
-  every page in the background and, when pages are off-center, offers to move
-  the art to the middle. It measures from the panels, so a sound effect
-  spilling past one doesn't throw it off. Most pages come out well centered;
-  **C** steps through them so you can check, and any page can be left as it was.
-- **CBR export** with your own RAR program (WinRAR's `Rar.exe`, or `rar` on
-  Linux), found automatically or chosen in Settings. RAR4, for older comic
-  readers, needs RAR 6 or older.
-- **Remove a joined spread** in one step in the final review.
-- **Overlapping halves** found by the scan are reviewed with the Likely pairs.
-- **Drop tab colors:** eleven swatches or any color you pick, solid and edged
-  so the tab no longer disappears against a white window.
+- **Dark mode.** When Windows or your Linux desktop is set to dark, so is Comic
+  Stitcher: dark panels, brighter text, light icons, and check boxes you can
+  tell apart.
+- **Help, offline.** A **?** button beside the settings gear, **F1** on any
+  screen, opens the User Guide in its own window, with contents links and
+  Find; **?** shows the keyboard shortcuts.
+- **Problems in plain words.** A full drive, a folder that can't be changed, a
+  file open in another program, a OneDrive file that's only online, or an
+  unreachable network drive is explained, with what to do.
+- **Disk space is checked first,** before importing, exporting or running the
+  queue, with a warning if the drive looks too full.
+- **Saving somewhere else** when the original's folder can't be written to (a
+  disc, say): Comic Stitcher asks for another folder instead of failing.
+- **Long paths on Windows:** the installer offers to allow paths over 260
+  characters, and so does the message if one is too long.
 
 The full list is in [CHANGELOG.md](CHANGELOG.md).
 

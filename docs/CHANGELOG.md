@@ -1,35 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.13.0
 
-- Code tidying: leftovers from splitting up the window's code removed (unused
-  imports, two unused variables and an unused helper), and every change is
-  now checked for them automatically. No change in behaviour.
-- Help, offline: a **?** button beside the settings gear opens the User Guide
-  (also **F1**, on any screen) and a keyboard shortcuts window (also **?**).
-  The guide opens in a window of its own, in Comic Stitcher's light or dark
-  look, with working contents links and **Find**; nothing needs the internet.
-- The settings and help buttons are outlined and shaded under the pointer, like
-  the review buttons, so they look clickable.
-- When a comic can't be saved beside its original (a read-only or protected
-  folder, a disc, a shared folder you can only read), Comic Stitcher says so
-  before starting and asks you to choose another folder, for that comic only.
-  Before, the export failed.
-- Problems in plain words. When an import or export fails because of the
-  drive or a file, the message says what happened and what to do instead of
-  Python's own text ("[WinError 5] Access is denied"): the drive is full; the
-  folder can't be changed (read-only, a disc, or a folder protected by
-  Windows' Controlled folder access); a file is open in another program; a
-  OneDrive file isn't on this computer; a network location is unreachable; a
-  file was moved away; or a path is over Windows' 260-character limit. The
-  original message is still in the diagnostic log.
-- Long paths on Windows. The installer offers to turn on Windows' setting for
-  file paths over 260 characters (asking for administrator permission), when
-  it's off, and a too-long path's message has **Allow long paths…**.
-- Disk space is checked before importing a PDF or archive (its pages go to the
-  temporary folder, usually on drive C:), before an export, and before the
-  queue runs. When the drive looks too full, Comic Stitcher says how much is
-  needed and free, and you choose whether to go ahead.
+**Look and help**
+
 - Dark mode. When Windows or the Linux desktop is set to dark, Comic Stitcher
   is dark throughout: the start screen's drop zone and Create your comic's
   panels are dark gray instead of white, headings and hints are brighter, the
@@ -38,6 +12,40 @@
   centering bar's text is light on a dark amber. Check boxes now look
   different when checked: Comic Stitcher uses its own dark palette, the same on
   Windows and Linux. The system's setting is read when Comic Stitcher starts.
+- Help, offline: a **?** button beside the settings gear opens the User Guide
+  (also **F1**, on any screen) and a keyboard shortcuts window (also **?**).
+  The guide opens in a window of its own, in Comic Stitcher's light or dark
+  look, with working contents links and **Find**; nothing needs the internet.
+- The settings and help buttons are outlined and shaded under the pointer, like
+  the review buttons, so they look clickable.
+
+**When things go wrong**
+
+- Problems in plain words. When an import or export fails because of the
+  drive or a file, the message says what happened and what to do instead of
+  Python's own text ("[WinError 5] Access is denied"): the drive is full; the
+  folder can't be changed (read-only, a disc, or a folder protected by
+  Windows' Controlled folder access); a file is open in another program; a
+  OneDrive file isn't on this computer; a network location is unreachable; a
+  file was moved away; or a path is over Windows' 260-character limit. The
+  original message is still in the diagnostic log.
+- Disk space is checked before importing a PDF or archive (its pages go to the
+  temporary folder, usually on drive C:), before an export, and before the
+  queue runs. When the drive looks too full, Comic Stitcher says how much is
+  needed and free, and you choose whether to go ahead.
+- When a comic can't be saved beside its original (a read-only or protected
+  folder, a disc, a shared folder you can only read), Comic Stitcher says so
+  before starting and asks you to choose another folder, for that comic only.
+  Before, the export failed.
+- Long paths on Windows. The installer offers to turn on Windows' setting for
+  file paths over 260 characters (asking for administrator permission), when
+  it's off, and a too-long path's message has **Allow long paths…**.
+
+**Source**
+
+- Code tidying: leftovers from splitting up the window's code removed (unused
+  imports, two unused variables and an unused helper), and every change is
+  now checked for them automatically. No change in behaviour.
 
 ## 0.12.0
 
