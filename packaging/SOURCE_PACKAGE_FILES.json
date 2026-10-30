@@ -12,6 +12,11 @@
       "sha256": "0301ee5087fac6667a04476c7842dbf6a3b9ff0c16dc1d207339ae2e3edd871b"
     },
     {
+      "path": ".github/workflows/appimage.yml",
+      "bytes": 2538,
+      "sha256": "3912f10673bccb9e0367b0e42979106f64135d63bb7421f53fd7bcdccb8a8590"
+    },
+    {
       "path": ".github/workflows/tests.yml",
       "bytes": 8062,
       "sha256": "a7dc97250f45a7dc2ed422c37df4c51e529dae78e3131b4e2b0eeb4da935b942"
@@ -1302,6 +1307,11 @@
       "sha256": "67ed9e6c825f8bc163c797734ea76d4cda277f44f6b40dd718ee502f8c514ac0"
     },
     {
+      "path": "comic_stitcher/appimage.py",
+      "bytes": 9182,
+      "sha256": "34be86832f4d0b8e9d4b407f2aee8f8e649231afb1a48bcf2618186e8f7cc729"
+    },
+    {
       "path": "comic_stitcher/archive_import.py",
       "bytes": 15465,
       "sha256": "e771c828d9de5661991a350a4fe1e04413c1e348cbead16b1d51f72573b28505"
@@ -1363,8 +1373,8 @@
     },
     {
       "path": "comic_stitcher/drop_tab_support.py",
-      "bytes": 8673,
-      "sha256": "b5b1cc26a9f1b026e63e948c285073db44f23f06250076297e65c4bdabee14df"
+      "bytes": 8912,
+      "sha256": "5e5b70f709d96570b3d60fa185ed50f9ac8c04ba46cd32304e6d49a77f3d57f4"
     },
     {
       "path": "comic_stitcher/export.py",
@@ -1373,8 +1383,8 @@
     },
     {
       "path": "comic_stitcher/gui.py",
-      "bytes": 50273,
-      "sha256": "478d723a87d4a01fb3fa15a80afa8238af1633f918bd3e6f5bcb59db9e336e8e"
+      "bytes": 55818,
+      "sha256": "fc38b895a12e03c17e855c71d08306be472013d755636d2674c7b39b571ee97d"
     },
     {
       "path": "comic_stitcher/icons_resource.py",
@@ -1460,6 +1470,11 @@
       "path": "comic_stitcher/startup_notice.py",
       "bytes": 6965,
       "sha256": "a98ac76ec86e0a1ba1da0d5c1dfa12744bdbcc7dd080edb562a33603f703db1e"
+    },
+    {
+      "path": "comic_stitcher/test_appimage.py",
+      "bytes": 6493,
+      "sha256": "02cdaf1394064cc004774d978c910d476c14b07e58016425fb8d26fce8ab7dc9"
     },
     {
       "path": "comic_stitcher/test_audit_fixes.py",
@@ -1828,8 +1843,8 @@
     },
     {
       "path": "launch.py",
-      "bytes": 523,
-      "sha256": "0b3bfec193bcde920e72a99cf9725b60f2150c0c81e4fa164cd46c86828b0241"
+      "bytes": 1201,
+      "sha256": "6cafa8c8f77be414e59214587f17221c1abbc9c7a38acacbc7207e989d771cc0"
     },
     {
       "path": "linux/install.sh",
@@ -1855,6 +1870,26 @@
       "path": "linux/uninstall.sh",
       "bytes": 5126,
       "sha256": "753fbd84eea55fc6356b443b8e146953b223a1a7159ccc773da7b1fc5ae22e2e"
+    },
+    {
+      "path": "packaging/appimage/AppRun",
+      "bytes": 523,
+      "sha256": "591c13cef7c3473858af6f072eb5db9e0b91e6bc776127833ca2079b2f238376"
+    },
+    {
+      "path": "packaging/appimage/README.md",
+      "bytes": 1607,
+      "sha256": "b167e06c6743b82a484573f2918b9e32b679e5045fa1f2e7b349d75af5077e69"
+    },
+    {
+      "path": "packaging/appimage/build_appimage.sh",
+      "bytes": 3329,
+      "sha256": "8adea05d64017d7dfc7630f2e85945466a4e43850b93fe4a6972daa94cd93d58"
+    },
+    {
+      "path": "packaging/appimage/comic-stitcher.desktop",
+      "bytes": 516,
+      "sha256": "5305d49e617739725a430b41a831ad4f6ed20aa936a0cc7481817f80a1185d1f"
     },
     {
       "path": "packaging/build_hooks/hook-PySide6.QtGui.py",

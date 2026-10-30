@@ -19,5 +19,12 @@ Not yet decided or done:
 - Libraries: built from `requirements.txt`'s ranges, not hash-pinned wheels as the
   Windows release is.
 - UnRAR and cwebp: taken from the system, as with `install.sh`.
-- Desktop integration (app menu, Open With, the Files folder menu): none of its own.
 - Licence notices: copied as they are; no generated index yet.
+
+Desktop integration (`comic_stitcher/appimage.py`): on first start the AppImage
+asks once whether to add itself to the app menu (with its icon, the drop tab's
+entry, Open With for comics, and Open in Comic Stitcher in the Files folder
+menu), and Settings has Add to app menu / Remove from app menu. Removing can also
+remove the settings, logs and saved reviews. Every entry has `TryExec`, so it
+hides itself once the AppImage is deleted, and the Files script removes itself;
+if the AppImage is moved, the entries follow it at its next start.

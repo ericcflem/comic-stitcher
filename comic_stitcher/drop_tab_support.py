@@ -176,11 +176,14 @@ def linux_autostart_path(environ=None):
 
 def linux_desktop_entry(command):
     exec_line = " ".join(_desktop_quote(argument) for argument in command)
+    # TryExec: once the program is gone (an AppImage deleted, say), the desktop
+    # skips the entry instead of failing to start it at every sign-in.
+    try_exec = f"TryExec={command[0]}\n" if os.path.isabs(command[0]) else ""
     return ("[Desktop Entry]\n"
             "Type=Application\n"
             "Name=Comic Stitcher drop tab\n"
             "Comment=Drag comics to the right edge of the screen to open them in Comic Stitcher\n"
-            f"Exec={exec_line}\n"
+            f"Exec={exec_line}\n{try_exec}"
             "Terminal=false\n"
             "NoDisplay=true\n"
             "X-GNOME-Autostart-enabled=true\n")

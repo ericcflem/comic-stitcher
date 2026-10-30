@@ -31,8 +31,10 @@ from .ui.workers import Worker, ReviewImageWorker, ThumbnailWorker
 from .ui.theme import tone
 from .ui.help import show_guide, show_shortcuts
 from .rar_export import find_rar
-from .problems import enable_long_paths, long_paths_enabled
+from .problems import enable_long_paths, long_paths_enabled, message_for
 from .space import drive_name, shortfall
+from .appimage import (add_integration, appimage_path, bundled_icon, follow_move, integrated_path,
+    purge_user_data, remove_integration)
 from .ui.import_dialogs import ImportDropZone, REVIEW_MODES
 from .ui.queue import QueuedComic
 from .ui.import_flow import ImportScreen
@@ -165,7 +167,116 @@ class ComicWindow(ImportScreen, ScreenshotImport, PairReview, FinalReview, Expor
         self._install_shortcuts()
         self.pages.currentChanged.connect(self._update_shortcuts)
         self._update_shortcuts()
-        QTimer.singleShot(0, self.show_startup_notice)
+        QTimer.singleShot(0, self._startup_dialogs)
+
+    def _startup_dialogs(self):
+        """One after another, never stacked."""
+        self.show_startup_notice()
+        self._appimage_start()
+
+    def _appimage_start(self):
+        """Running as an AppImage: keep its menu entries pointing at it if it was
+        moved, and offer once to add them."""
+        appimage = appimage_path()
+        if appimage is None:
+            return
+        try:
+            if follow_move():
+                diagnostics.note("AppImage moved; its menu entries now point to %s", appimage)
+                self.statusBar().showMessage("Comic Stitcher's menu entries now point to the AppImage's "
+                                             "new place.", 8000)
+        except OSError:
+            diagnostics.exception("Could not update the AppImage's menu entries")
+        if integrated_path() is not None or self.settings.value("appimage/offered", False, type=bool):
+            return
+        self.settings.setValue("appimage/offered", True)
+        dialog = QMessageBox(QMessageBox.Question, "Add Comic Stitcher to your app menu?",
+                             "Add Comic Stitcher to your app menu?", parent=self)
+        dialog.setInformativeText(
+            "It gets its icon in the dock, a menu entry for the drop tab, Open With for comics, "
+            "and Open in Comic Stitcher in the Files folder menu, all pointing at this AppImage. "
+            "If you move or delete the AppImage, they follow it or disappear. You can change this "
+            "in Settings.")
+        add = dialog.addButton("Add to app menu", QMessageBox.AcceptRole)
+        dialog.addButton("Not now", QMessageBox.RejectRole)
+        dialog.setDefaultButton(add)
+        dialog.exec()
+        if dialog.clickedButton() is add:
+            self._add_appimage_integration(appimage)
+
+    def _add_appimage_integration(self, appimage):
+        try:
+            add_integration(appimage, bundled_icon())
+        except OSError as exc:
+            self._show_problem("Could not add to the app menu", message_for(exc)[0])
+            return
+        diagnostics.note("AppImage added to the app menu: %s", appimage)
+        self.statusBar().showMessage("Comic Stitcher is in your app menu now.", 8000)
+
+    def _appimage_settings(self, dialog):
+        """Settings' AppImage group, shown only when running as one."""
+        appimage = appimage_path()
+        if appimage is None:
+            return None
+        group = QGroupBox("AppImage")
+        box = QVBoxLayout(group)
+        status = QLabel()
+        status.setWordWrap(True)
+        status.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        box.addWidget(status)
+        row = QHBoxLayout()
+        toggle = QPushButton()
+        row.addWidget(toggle)
+        row.addStretch()
+        box.addLayout(row)
+
+        def show():
+            added = integrated_path() is not None
+            status.setText(f"Running from {appimage}.\n" + (
+                "In your app menu, with Open With and the Files folder menu." if added else
+                "Not in your app menu."))
+            toggle.setText("Remove from app menu…" if added else "Add to app menu")
+
+        def change():
+            if integrated_path() is None:
+                self._add_appimage_integration(appimage)
+            else:
+                self._remove_appimage_integration(dialog)
+            show()
+        toggle.clicked.connect(change)
+        show()
+        return group
+
+    def _remove_appimage_integration(self, parent):
+        ask = QMessageBox(QMessageBox.Question, "Remove from app menu?",
+                          "Remove Comic Stitcher's app menu entries, its Open With and Files folder menu "
+                          "items, and the drop tab's start at sign-in?", parent=parent)
+        purge = QCheckBox("Also remove my settings, logs and saved reviews (and a remembered ComicVine key)")
+        ask.setCheckBox(purge)
+        ask.setInformativeText("Then the AppImage can simply be deleted, leaving nothing behind.")
+        remove = ask.addButton("Remove", QMessageBox.DestructiveRole)
+        ask.addButton(QMessageBox.Cancel)
+        ask.exec()
+        if ask.clickedButton() is not remove:
+            return
+        try:
+            remove_integration()
+        except OSError as exc:
+            self._show_problem("Could not remove from the app menu", message_for(exc)[0])
+            return
+        if not purge.isChecked():
+            self.statusBar().showMessage("Removed from your app menu.", 8000)
+            return
+        forget_key(self.settings.value("comicvine_key_protected", ""))
+        self.settings.clear()
+        self.settings.sync()
+        purge_user_data()
+        QMessageBox.information(parent, "Removed",
+                                "Comic Stitcher's menu entries, settings, logs and saved reviews are gone. "
+                                "It will close now; delete the AppImage too and nothing is left.")
+        self._purged = True
+        parent.close()
+        QTimer.singleShot(0, self.close)
 
     def show_startup_notice(self):
         if self.settings.value("hide_source_notice", False, type=bool):
@@ -289,6 +400,9 @@ class ComicWindow(ImportScreen, ScreenshotImport, PairReview, FinalReview, Expor
         layout.addWidget(key_group)
         rar_group, rar_choice = self._rar_settings(dialog)
         layout.addWidget(rar_group)
+        appimage_group = self._appimage_settings(dialog)
+        if appimage_group is not None:
+            layout.addWidget(appimage_group)
         for label, action in (("Open diagnostic logs", self.open_diagnostic_logs), ("Open pair review reports", self.open_review_reports)):
             button = QPushButton(label)
             button.clicked.connect(action)
@@ -899,7 +1013,8 @@ class ComicWindow(ImportScreen, ScreenshotImport, PairReview, FinalReview, Expor
             event.ignore()
         else:
             self.preview_checkpoint_timer.stop()
-            if self.replay_count == 0:
+            purged = getattr(self, "_purged", False)
+            if self.replay_count == 0 and not purged:
                 self._save_preview_position()
             self.thumb_worker.stop()
             self.review_worker.stop()
@@ -922,6 +1037,10 @@ class ComicWindow(ImportScreen, ScreenshotImport, PairReview, FinalReview, Expor
             self.queue_jobs.clear()
             if self.screenshot_stage_dir is not None and self.replay_count > 0:
                 shutil.rmtree(self.screenshot_stage_dir, ignore_errors=True)
+            if purged:  # Anything saved while closing goes too.
+                self.settings.clear()
+                self.settings.sync()
+                purge_user_data()
             super().closeEvent(event)
 
 
