@@ -1373,8 +1373,8 @@
     },
     {
       "path": "comic_stitcher/drop_tab_support.py",
-      "bytes": 8912,
-      "sha256": "5e5b70f709d96570b3d60fa185ed50f9ac8c04ba46cd32304e6d49a77f3d57f4"
+      "bytes": 8913,
+      "sha256": "0a3d710963476ec4747784dcf3c47a93e315c5229520021e487aea509c26f206"
     },
     {
       "path": "comic_stitcher/export.py",
