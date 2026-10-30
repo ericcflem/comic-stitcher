@@ -34,9 +34,10 @@ _NOT_FOUND = {2, 3}                          # File, or folder on its path, not 
 class Problem:
     """What went wrong, in plain words; `kind` lets the window offer a fix."""
 
-    def __init__(self, text: str, kind: str = "other"):
+    def __init__(self, text: str, kind: str = "other", reason: str = ""):
         self.text = text
         self.kind = kind
+        self.reason = reason or text  # Why, without what to do (where the window offers that).
 
     def __str__(self):
         return self.text
@@ -103,10 +104,10 @@ def explain(exc: BaseException) -> Problem | None:
         protected = (" Windows' Controlled folder access, part of Windows Security, can also keep "
                      "programs it doesn't know out of folders such as Documents and Pictures."
                      if os.name == "nt" else "")
-        return Problem("Comic Stitcher isn't allowed to change this location: it may be read-only, "
-                       "on a disc, or in a protected folder." + protected +
-                       " Choose another folder, or copy the comic somewhere you can save, and try again."
-                       + where, "access")
+        reason = ("Comic Stitcher is unable to save to this location. It may be read-only, on a "
+                  "disc, or in a protected folder." + protected)
+        return Problem(reason + " Choose another folder, or copy the comic somewhere you can save, "
+                       "and try again." + where, "access", reason)
     if winerror in _NOT_FOUND or code == errno.ENOENT:
         return Problem("A file or folder Comic Stitcher was using is gone: it may have been moved, "
                        "renamed or deleted, or its drive disconnected, while Comic Stitcher was "
@@ -118,6 +119,28 @@ def message_for(exc: BaseException) -> tuple[str, str]:
     """The message to show for a failure, and its kind."""
     problem = explain(exc)
     return (problem.text, problem.kind) if problem else (str(exc), "other")
+
+
+def cannot_write(folder: Path) -> Problem | None:
+    """Why nothing can be saved in `folder`, found by saving (and removing) a
+    small file there; None when it can. Read-only folders, discs, folders
+    Windows' Controlled folder access protects, and folders that are gone all
+    show up this way, before any work is done."""
+    # One try with a name of its own, not tempfile: on Windows, tempfile takes
+    # "access denied" in a folder it thinks is writable (a mounted disc image,
+    # say) for a name already taken, and tries again, practically forever.
+    import uuid
+    probe = Path(folder) / f".comic-stitcher-check-{uuid.uuid4().hex}"
+    try:
+        handle = os.open(probe, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o600)
+    except OSError as exc:
+        return explain(exc) or Problem(str(exc))
+    os.close(handle)
+    try:
+        probe.unlink()
+    except OSError:
+        pass  # Saved, so it's writable; a leftover check file is harmless.
+    return None
 
 
 def long_paths_enabled() -> bool:

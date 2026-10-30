@@ -12,7 +12,7 @@ from PIL import Image
 
 from .backend import BookPlan, scan_manual_folder
 from .export import ExportOptions
-from .problems import explain, message_for
+from .problems import cannot_write, explain, message_for
 from .space import export_need, import_need, shortfall
 
 
@@ -33,7 +33,7 @@ class ExplainTests(unittest.TestCase):
                 (OSError(errno.ENOSPC, "No space left on device", "/comics/Book/007.png"), "disk full",
                  "isn't enough free space"),
                 (PermissionError(errno.EACCES, "Permission denied", "/media/disc/Book"), "access",
-                 "isn't allowed to change this location"),
+                 "is unable to save to this location"),
                 (FileNotFoundError(errno.ENOENT, "No such file or directory", "/comics/gone.png"), "missing",
                  "is gone"),
                 (OSError(errno.ENAMETOOLONG, "File name too long", "/x"), "long path", "260 characters")):
@@ -51,6 +51,37 @@ class ExplainTests(unittest.TestCase):
                                (362, "cloud"), (206, "long path")):
             with self.subTest(winerror):
                 self.assertEqual(explain(OSError(None, "message", "C:\\Comics\\Book.cbz", winerror)).kind, kind)
+
+
+class WritableTests(unittest.TestCase):
+    def test_a_folder_that_takes_files_and_ones_that_dont(self):
+        with tempfile.TemporaryDirectory() as folder:
+            self.assertIsNone(cannot_write(Path(folder)))
+            self.assertEqual(list(Path(folder).iterdir()), [])  # The check leaves nothing behind.
+            self.assertEqual(cannot_write(Path(folder) / "gone").kind, "missing")
+
+    def test_access_denied_is_tried_once(self):
+        # Windows' tempfile retried "access denied" in a mounted disc image practically forever.
+        calls = []
+
+        def refuse(*args, **kwargs):
+            calls.append(args[0])
+            raise PermissionError(13, "Permission denied", str(args[0]))
+        with tempfile.TemporaryDirectory() as folder, patch("comic_stitcher.problems.os.open", refuse):
+            self.assertEqual(cannot_write(Path(folder)).kind, "access")
+        self.assertEqual(len(calls), 1)
+
+    @unittest.skipIf(os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
+                     "needs a folder this user can't write to")
+    def test_read_only_folder(self):
+        with tempfile.TemporaryDirectory() as folder:
+            locked = Path(folder) / "locked"
+            locked.mkdir()
+            locked.chmod(0o555)
+            try:
+                self.assertEqual(cannot_write(locked).kind, "access")
+            finally:
+                locked.chmod(0o755)
 
 
 class SpaceTests(unittest.TestCase):

@@ -47,6 +47,7 @@ def export_queued_comic(job: QueuedComic, progress=None):
                 [(c.left, c.right, c.likely, c.continuity) for c in old.candidates[:job.plan.base_candidate_count]]):
             raise ValueError("The imported pages or suggestions changed. Review this comic again.")
         scan.candidates = list(old.candidates)
+        scan.output_folder = old.output_folder  # Where it was to be saved, perhaps a folder chosen instead.
         plan = copy.deepcopy(job.plan)
         plan.scan = scan
         export_progress = (lambda n, total: progress(50 + round(50 * n / max(1, total)), 100)) if progress else None
