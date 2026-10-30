@@ -9,7 +9,6 @@ import json
 from collections import OrderedDict, deque
 from pathlib import Path
 
-from PIL import Image
 from PySide6.QtCore import QEvent, QSettings, QSize, Qt, QTimer, QUrl
 from PySide6.QtGui import QFontMetrics, QDesktopServices, QPixmap, QShortcut, QKeySequence, QIcon
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QFileDialog,
@@ -27,20 +26,15 @@ from .key_store import can_remember_key, forget_key, protect_key, retrieve_key
 from .window_outline import OutlinedDialog, OutlinedWindow, prefer_xwayland_on_gnome
 from .ui.common import (START_SIZE, PROGRESS_WIDTH, fit_height, ui_heading, ui_app_style,
     ui_primary, ProgressLabel, CurrentPageStack, tooltip_text, form_hint, interface_icon,
-    review_control, readable_size)
+    readable_size)
 from .ui.workers import Worker, ReviewImageWorker, ThumbnailWorker
-from .ui.overlap import OverlapDialog
-from .ui.output_options import ARCHIVE_CHOICES, OutputOptionsDialog
-from .ui.pdf_dialog import PdfImportDialog
 from .ui.theme import tone
 from .ui.help import show_guide, show_shortcuts
 from .rar_export import find_rar
 from .problems import enable_long_paths, long_paths_enabled
 from .space import drive_name, shortfall
-from .ui.crop_review import ScreenshotCropDialog
-from .ui.import_dialogs import ImportDropZone, REVIEW_MODES, ImportChoiceDialog
-from .ui.thumbnails import QueueList
-from .ui.queue import QueuedComic, export_queued_comic, queued_outputs
+from .ui.import_dialogs import ImportDropZone, REVIEW_MODES
+from .ui.queue import QueuedComic
 from .ui.import_flow import ImportScreen
 from .ui.screenshot_flow import ScreenshotImport
 from .ui.pair_review import PairReview
@@ -406,7 +400,6 @@ class ComicWindow(ImportScreen, ScreenshotImport, PairReview, FinalReview, Expor
 
     def _compact_target_size(self):
         progress = hasattr(self, "progress_page") and self.pages.currentWidget() is self.progress_page
-        finished = progress and not self.done_button.isHidden()
         if progress:
             # Just as large as the messages, bar and any buttons need.
             minimum = self._progress_minimum()

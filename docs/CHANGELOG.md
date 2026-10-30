@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Code tidying: leftovers from splitting up the window's code removed (unused
+  imports, two unused variables and an unused helper), and every change is
+  now checked for them automatically. No change in behaviour.
 - Help, offline: a **?** button beside the settings gear opens the User Guide
   (also **F1**, on any screen) and a keyboard shortcuts window (also **?**).
   The guide opens in a window of its own, in Comic Stitcher's light or dark

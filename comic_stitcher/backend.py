@@ -101,7 +101,7 @@ def missing_numbers(names: list[str]) -> list[tuple[int, int]]:
         parts.append((match.group(1).casefold(), start, end))
     if len({prefix for prefix, _, _ in parts}) != 1:
         return []
-    steps = [after[1] - before[2] for before, after in zip(parts, parts[1:])]
+    steps = [after[1] - before[2] for before, after in zip(parts, parts[1:], strict=False)]
     if any(step < 1 for step in steps):
         return []
     gaps = [(index + 1, step - 1) for index, step in enumerate(steps) if step > 1]

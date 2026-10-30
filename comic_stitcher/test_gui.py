@@ -25,9 +25,14 @@ from .screenshot_import import CropChoice, stage_screenshots
 from .session import clear_session
 from . import diagnostics
 from .window_outline import OutlinedDialog
-from .gui import (START_SIZE, ComicWindow, ui_app_style, ImportChoiceDialog, OutputOptionsDialog, PdfImportDialog,
-                  ScreenshotCropDialog, Worker, tooltip_text,
-                  QueuedComic, export_queued_comic, queued_outputs)
+from .gui import START_SIZE, ComicWindow, ui_app_style
+from .ui.common import tooltip_text
+from .ui.crop_review import ScreenshotCropDialog
+from .ui.import_dialogs import ImportChoiceDialog
+from .ui.output_options import OutputOptionsDialog
+from .ui.pdf_dialog import PdfImportDialog
+from .ui.queue import QueuedComic, export_queued_comic, queued_outputs
+from .ui.workers import Worker
 
 
 class ThumbnailTest(unittest.TestCase):
@@ -259,7 +264,8 @@ class ThumbnailTest(unittest.TestCase):
             for proposals, expected in ((stray, "1 screenshot was individually measured at 2014 × 3056"),
                                         (mixed, "2 screenshots have pages measuring 2014 × 3056")):
                 shown = []
-                with patch.object(QMessageBox, "exec", lambda box: shown.append((box.text(), box.informativeText(), box.icon()))):
+                with patch.object(QMessageBox, "exec",
+                                  lambda box, shown=shown: shown.append((box.text(), box.informativeText(), box.icon()))):
                     summary(window, proposals, [])
                 self.assertEqual(shown[0][0], "Ready to crop 5 screenshots" if proposals is mixed else "Ready to crop 4 screenshots")
                 self.assertEqual(shown[0][2], QMessageBox.NoIcon)  # Not an error.
@@ -337,7 +343,7 @@ class ThumbnailTest(unittest.TestCase):
             proposal = SimpleNamespace(path=Path("not-read-during-construction.png"), canvas=(4200, 3056),
                                        kind="double", source="measured", page_width=3976,
                                        box=(112, 0, 4088, 3056), review_reason=None, family_widths=(), family_width=None)
-            with patch("comic_stitcher.gui.Image.open", side_effect=AssertionError("GUI decoded an image")):
+            with patch("PIL.Image.open", side_effect=AssertionError("GUI decoded an image")):
                 dialog = ScreenshotCropDialog([proposal])
                 dialog.guide_edit_button.setChecked(True)
                 dialog.crop_left.setValue(113)
@@ -490,7 +496,7 @@ class ThumbnailTest(unittest.TestCase):
                 window.close()
 
     def test_icon_size_respects_display_scale_and_page_shapes_share_height(self):
-        from .gui import review_control
+        from .ui.common import review_control
         from PySide6.QtWidgets import QPushButton
         controls = []
         for name in ('No', 'Seam', 'Remove', 'Single', 'Double', 'Sideways', 'Swap', 'Replace'):
@@ -511,7 +517,7 @@ class ThumbnailTest(unittest.TestCase):
             button.close()
 
     def test_pair_review_seam_lines_up_the_pair_before_deciding(self):
-        from .gui import OverlapDialog
+        from .ui.overlap import OverlapDialog
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory)
             Image.new("RGB", (120, 160), "red").save(folder / "001.png")
@@ -542,7 +548,7 @@ class ThumbnailTest(unittest.TestCase):
                 window.close()
 
     def test_line_up_keys_enter_shows_the_seam_line_and_space_finishes(self):
-        from .gui import OverlapDialog
+        from .ui.overlap import OverlapDialog
         left, right = Image.new("RGB", (120, 160), "red"), Image.new("RGB", (120, 160), "blue")
         dialog = OverlapDialog(left, right, (0, "left"), find_on_open=False)
         try:
@@ -620,7 +626,7 @@ class ThumbnailTest(unittest.TestCase):
                 window.close()
 
     def test_pdf_asks_for_page_format_and_is_kept_only_for_the_session(self):
-        from .gui import ARCHIVE_CHOICES
+        from .ui.output_options import ARCHIVE_CHOICES
         pdf, cb7 = ARCHIVE_CHOICES.index("pdf"), ARCHIVE_CHOICES.index("cb7")
         first = ComicWindow()
         try:
@@ -683,7 +689,7 @@ class ThumbnailTest(unittest.TestCase):
             second.close()
 
     def test_cbr_is_offered_only_with_rar_and_rar4_only_with_rar_6_or_older(self):
-        from .gui import ARCHIVE_CHOICES
+        from .ui.output_options import ARCHIVE_CHOICES
         from .rar_export import RarProgram
         cbr = ARCHIVE_CHOICES.index("cbr")
         with patch("comic_stitcher.ui.export_screen.find_rar", return_value=None):
@@ -1623,7 +1629,6 @@ class ThumbnailTest(unittest.TestCase):
                 window.close()
 
     def test_compact_windows_are_as_large_as_their_contents(self):
-        from PySide6.QtWidgets import QPushButton
         window = ComicWindow()
         try:
             window.show(); self.app.processEvents()
@@ -1880,7 +1885,7 @@ class ThumbnailTest(unittest.TestCase):
                 window.close()
 
     def test_shared_drop_zone_has_separate_browse_actions(self):
-        from .gui import QFileDialog
+        from PySide6.QtWidgets import QFileDialog
         window = ComicWindow()
         try:
             with patch.object(QFileDialog, "getOpenFileNames", return_value=([], "")) as files:
@@ -1925,7 +1930,7 @@ class ThumbnailTest(unittest.TestCase):
 
     def test_queue_order_can_be_changed_by_dragging_or_keyboard(self):
         from PySide6.QtWidgets import QListWidget, QPushButton
-        from .gui import QueueList
+        from .ui.thumbnails import QueueList
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             Image.new("RGB", (40, 60), "white").save(root / "001.png")
@@ -1963,7 +1968,7 @@ class ThumbnailTest(unittest.TestCase):
 
     def test_queue_can_be_viewed_from_the_export_screen_while_reviewing(self):
         from PySide6.QtWidgets import QPushButton
-        from .gui import QueueList
+        from .ui.thumbnails import QueueList
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             Image.new("RGB", (40, 60), "white").save(root / "001.png")
@@ -1993,7 +1998,6 @@ class ThumbnailTest(unittest.TestCase):
         message boxes opened from the queue; blue buttons all share one taller
         height; drop-down lists match on every screen."""
         from PySide6.QtWidgets import QComboBox, QPushButton
-        from .gui import QueueList
         standard = QPushButton("Remove selected").sizeHint().height()
         plain, blue, combos, details = {}, {}, {}, {}
 
@@ -2197,7 +2201,7 @@ class ThumbnailTest(unittest.TestCase):
     def test_a_spread_with_repeated_art_is_lined_up_from_seam(self):
         import numpy as np
         from PySide6.QtCore import QPoint
-        from .gui import OverlapDialog
+        from .ui.overlap import OverlapDialog
         from .test_spread_overlap import artwork, halves
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory) / "book"
@@ -2274,7 +2278,7 @@ class ThumbnailTest(unittest.TestCase):
 
     def test_find_overlap_covers_a_thin_border(self):
         import numpy as np
-        from .gui import OverlapDialog
+        from .ui.overlap import OverlapDialog
         from .test_spread_overlap import artwork
         art = artwork(width=2000, seed=19)
         left = np.full((700, 1003, 3), 255, np.uint8)
@@ -2339,7 +2343,7 @@ class ThumbnailTest(unittest.TestCase):
                 window.close()
 
     def test_double_click_reopens_a_queued_comics_settings(self):
-        from .gui import QueueList
+        from .ui.thumbnails import QueueList
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             window = ComicWindow()
@@ -2385,7 +2389,7 @@ class ThumbnailTest(unittest.TestCase):
                 window.close()
 
     def test_removing_the_comic_on_screen_skips_it(self):
-        from .gui import QueueList
+        from .ui.thumbnails import QueueList
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             window = ComicWindow()
@@ -2408,7 +2412,7 @@ class ThumbnailTest(unittest.TestCase):
                 window.close()
 
     def test_add_another_batch_item_returns_to_import_without_exporting(self):
-        from .gui import QFileDialog
+        from PySide6.QtWidgets import QFileDialog
         window = ComicWindow()
         try:
             with patch.object(QFileDialog, "getOpenFileNames", return_value=(["/tmp/extra.cbz"], "")), \
@@ -2644,7 +2648,7 @@ class ThumbnailTest(unittest.TestCase):
                     window.close()
 
     def test_cover_and_comicinfo_files_beside_the_comic(self):
-        from .gui import ARCHIVE_CHOICES
+        from .ui.output_options import ARCHIVE_CHOICES
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory) / "pages"
             folder.mkdir()
@@ -2674,7 +2678,7 @@ class ThumbnailTest(unittest.TestCase):
                 window.close()
 
     def test_lossless_png_checkbox_is_extra_and_grayed_when_pages_are_png_already(self):
-        from .gui import ARCHIVE_CHOICES
+        from .ui.output_options import ARCHIVE_CHOICES
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory) / "pages"
             folder.mkdir()

@@ -13,8 +13,8 @@
     },
     {
       "path": ".github/workflows/tests.yml",
-      "bytes": 7533,
-      "sha256": "2ad10bf28432e0517edbc7534ffa8e909fdb20cab2bf8eaca96c7c521a449d22"
+      "bytes": 8062,
+      "sha256": "a7dc97250f45a7dc2ed422c37df4c51e529dae78e3131b4e2b0eeb4da935b942"
     },
     {
       "path": ".github/workflows/windows-build.yml",
@@ -1308,8 +1308,8 @@
     },
     {
       "path": "comic_stitcher/backend.py",
-      "bytes": 45269,
-      "sha256": "9cdeeb5fceb55a3f37b4b599e029c3d4721afe26871a23d23859359f47ad9e4a"
+      "bytes": 45283,
+      "sha256": "a802f377e792f4c0f5645ecd61cd50a782a59b6c6f3d8a39ef0fa3f73c259618"
     },
     {
       "path": "comic_stitcher/centering.py",
@@ -1373,8 +1373,8 @@
     },
     {
       "path": "comic_stitcher/gui.py",
-      "bytes": 50667,
-      "sha256": "b9a435a6bb6fd21c5c12ff02263518ff61d2d7441fd20a98bc93bcfadb3764d4"
+      "bytes": 50273,
+      "sha256": "478d723a87d4a01fb3fa15a80afa8238af1633f918bd3e6f5bcb59db9e336e8e"
     },
     {
       "path": "comic_stitcher/icons_resource.py",
@@ -1488,8 +1488,8 @@
     },
     {
       "path": "comic_stitcher/test_comicinfo.py",
-      "bytes": 10420,
-      "sha256": "75d6e354fd685045f83105f890ab086f171eba3d8ca470ba7b33a9abec484d20"
+      "bytes": 10425,
+      "sha256": "1e60b9df6759c4e1c1a874b772d1273c7071fc9de6fd024445e0c0ea81a104e1"
     },
     {
       "path": "comic_stitcher/test_comicvine.py",
@@ -1528,8 +1528,8 @@
     },
     {
       "path": "comic_stitcher/test_gui.py",
-      "bytes": 201662,
-      "sha256": "bc5137ee50aebead0e691ed0b8fca6965d7217a6d11635874d828ea0de5a2e05"
+      "bytes": 201906,
+      "sha256": "d0204d75f7275981c7aa5366a4e405fe886e28fc0cc79fa4cc4f5cd5bac59e7c"
     },
     {
       "path": "comic_stitcher/test_icons_resource.py",
@@ -1638,13 +1638,13 @@
     },
     {
       "path": "comic_stitcher/ui/common.py",
-      "bytes": 14168,
-      "sha256": "055dac768179014a735d1c8ad555eeeac38d6e5b97b43b4d6e10a2bbd5fa47e8"
+      "bytes": 13794,
+      "sha256": "4523807d253c9f2577f6a1a790b9923e64a9e289b34f0b2b40058bf6720f38c9"
     },
     {
       "path": "comic_stitcher/ui/crop_review.py",
-      "bytes": 31140,
-      "sha256": "1d774fd3b8aa41fb7a2632e6b60a8585997ac557bcdcb3188320cd34363d32e8"
+      "bytes": 31099,
+      "sha256": "769921d6f29f2c2b31c6e697cf0e71d422c3a31ddd96f438205b9f93101419b6"
     },
     {
       "path": "comic_stitcher/ui/export_screen.py",
@@ -1733,8 +1733,8 @@
     },
     {
       "path": "docs/CHANGELOG.md",
-      "bytes": 25509,
-      "sha256": "6e084725bac6eabb9d7ea7f825215f15fbc57c50dd6868b54ccf894727d2895d"
+      "bytes": 25724,
+      "sha256": "450d1a4c5152ddf93e09956ebcb11be9d3d4362000aaf0f7a357f4f8e96bd67b"
     },
     {
       "path": "docs/NATIVE_SOURCE_REBUILD.md",

@@ -15,16 +15,6 @@ from ..colour import standard_mode
 from .theme import apply_theme, tinted, tone
 
 
-def compact_filename_range(names):
-    if len(names) == 1:
-        return names[0]
-    first, last = Path(names[0]), Path(names[-1])
-    final_number = last.stem.rsplit(" - ", 1)[-1]
-    extensions = {Path(name).suffix.lower() for name in names}
-    suffix = first.suffix if len(extensions) == 1 else " (mixed formats)"
-    return f"{first.stem}...{final_number}{suffix}"
-
-
 def fit_height(window, width):
     """Size a window to this width and just the height its contents need there
     (wrapped text included), with no spare space between them."""
