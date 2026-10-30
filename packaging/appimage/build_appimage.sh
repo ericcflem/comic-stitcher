@@ -33,6 +33,17 @@ echo "==> Arranging the AppImage's folder"
 mkdir -p "$APPDIR/usr/lib"
 mv "$WORK/dist/comic-stitcher" "$APPDIR/usr/lib/comic-stitcher"
 APP="$APPDIR/usr/lib/comic-stitcher"
+# Leave out system libraries every desktop has, and that must match the rest of
+# the system: with the build machine's older GLib bundled, the desktop's own
+# GLib plugins (GVfs, GTK's) fail to load ("undefined symbol"). Newer versions
+# of these keep working with programs built against older ones. The same goes
+# for D-Bus and the font libraries, which read the system's own settings.
+echo "Left out, to use the system's own:"
+find "$APP" -type f \( -name 'libglib-2.0.so*' -o -name 'libgobject-2.0.so*' -o -name 'libgio-2.0.so*' \
+    -o -name 'libgmodule-2.0.so*' -o -name 'libgthread-2.0.so*' -o -name 'libdbus-1.so*' \
+    -o -name 'libfontconfig.so*' -o -name 'libfreetype.so*' \) -print -delete
+echo "System libraries bundled (the rest come from the system):"
+find "$APP/_internal" -maxdepth 1 -name 'lib*.so*' -printf '  %f\n' | sort
 # The documents the app opens (the User Guide on F1) and its licences.
 mkdir -p "$APP/docs" "$APP/licenses"
 cp README.md LICENSE "$APP/"
