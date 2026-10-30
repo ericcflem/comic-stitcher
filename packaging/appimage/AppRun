@@ -1,0 +1,13 @@
+#!/bin/sh
+# Starts Comic Stitcher from inside the AppImage.
+HERE="$(dirname "$(readlink -f "$0")")"
+# Matches the window to its app-menu entry on X11/XWayland desktops.
+RESOURCE_NAME=comic-stitcher
+export RESOURCE_NAME
+# The drop tab starts itself at sign-in through this: the AppImage file itself,
+# not the temporary folder it's mounted at while running.
+if [ -n "${APPIMAGE:-}" ]; then
+    COMIC_STITCHER_LAUNCHER="$APPIMAGE"
+    export COMIC_STITCHER_LAUNCHER
+fi
+exec "$HERE/usr/lib/comic-stitcher/comic-stitcher" "$@"

@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Comic Stitcher
+GenericName=Comic Book Preparation
+Comment=Turn PDFs, image folders and comic archives into clean comic book files
+Exec=comic-stitcher %F
+Icon=comic-stitcher
+Terminal=false
+Categories=Graphics;
+Keywords=comic;cbz;cbr;cb7;pdf;manga;spread;stitch;
+MimeType=application/vnd.comicbook+zip;application/vnd.comicbook-rar;application/x-cb7;application/pdf;application/zip;application/vnd.rar;application/x-7z-compressed;
+StartupNotify=true
+StartupWMClass=comic-stitcher
