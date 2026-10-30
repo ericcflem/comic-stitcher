@@ -1373,8 +1373,8 @@
     },
     {
       "path": "comic_stitcher/gui.py",
-      "bytes": 50079,
-      "sha256": "c83ba5aa432d931bc220263b65e8c91ca2a0070101a1f5d702572ff5ce900469"
+      "bytes": 50667,
+      "sha256": "b9a435a6bb6fd21c5c12ff02263518ff61d2d7441fd20a98bc93bcfadb3764d4"
     },
     {
       "path": "comic_stitcher/icons_resource.py",
@@ -1733,8 +1733,8 @@
     },
     {
       "path": "docs/CHANGELOG.md",
-      "bytes": 25383,
-      "sha256": "fb09dd3899d67d6251836ac262da96f2ad109690df7874263cf9b62b2038f138"
+      "bytes": 25509,
+      "sha256": "6e084725bac6eabb9d7ea7f825215f15fbc57c50dd6868b54ccf894727d2895d"
     },
     {
       "path": "docs/NATIVE_SOURCE_REBUILD.md",

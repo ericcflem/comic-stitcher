@@ -552,6 +552,17 @@ class ComicWindow(ImportScreen, ScreenshotImport, PairReview, FinalReview, Expor
         elif not self.seam and action in ("back", "left"):
             self.review_back()
 
+    @staticmethod
+    def _corner_button_style(font: str) -> str:
+        """The settings and help buttons: outlined and shaded under the pointer,
+        like the review buttons, so they look clickable."""
+        return ("QPushButton { border:1px solid transparent; border-radius:6px; background:transparent; "
+                f"padding:0; {font} }} "
+                f"QPushButton:hover {{ background:{tone('control_hover')}; border-color:{tone('control_border')}; }} "
+                f"QPushButton:pressed, QPushButton:open {{ background:{tone('control_pressed')}; "
+                f"border-color:{tone('control_border')}; }} "
+                "QToolTip { font-size:12px; }")
+
     def show_user_guide(self):
         self.help_window = show_guide(self)
 
@@ -565,23 +576,21 @@ class ComicWindow(ImportScreen, ScreenshotImport, PairReview, FinalReview, Expor
         box.setSpacing(16)
         # The title bar names the program; the settings gear sits with the queue buttons.
         gear = QPushButton("⚙")
-        gear.setFlat(True)
         gear.setFixedSize(40, 40)
         gear.setIcon(interface_icon("settings"))
         if not gear.icon().isNull():
             gear.setText("")
             gear.setIconSize(QSize(30, 30))
-        gear.setStyleSheet("QPushButton { font-size:26px; } QToolTip { font-size:12px; }")
+        gear.setStyleSheet(self._corner_button_style("font-size:26px;"))
         gear.setToolTip("Settings")
         gear.setAccessibleName("Settings")
         gear.clicked.connect(self.show_settings)
         self.settings_button = gear
         # Help, offline: the User Guide (F1) and the keyboard shortcuts (?).
         help_button = QPushButton("?")
-        help_button.setFlat(True)
         help_button.setFixedSize(40, 40)
-        help_button.setStyleSheet("QPushButton { font-size:24px; font-weight:700; } "
-                                  "QPushButton::menu-indicator { width:0; } QToolTip { font-size:12px; }")
+        help_button.setStyleSheet(self._corner_button_style("font-size:24px; font-weight:700;") +
+                                  " QPushButton::menu-indicator { width:0; }")
         help_button.setToolTip("Help: the User Guide (F1) and keyboard shortcuts (?)")
         help_button.setAccessibleName("Help")
         help_menu = QMenu(help_button)
