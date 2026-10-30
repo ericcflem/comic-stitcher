@@ -125,12 +125,20 @@ def cannot_write(folder: Path) -> Problem | None:
     small file there; None when it can. Read-only folders, discs, folders
     Windows' Controlled folder access protects, and folders that are gone all
     show up this way, before any work is done."""
-    import tempfile
+    # One try with a name of its own, not tempfile: on Windows, tempfile takes
+    # "access denied" in a folder it thinks is writable (a mounted disc image,
+    # say) for a name already taken, and tries again, practically forever.
+    import uuid
+    probe = Path(folder) / f".comic-stitcher-check-{uuid.uuid4().hex}"
     try:
-        with tempfile.NamedTemporaryFile(dir=folder, prefix=".comic-stitcher-check-"):
-            pass
+        handle = os.open(probe, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o600)
     except OSError as exc:
         return explain(exc) or Problem(str(exc))
+    os.close(handle)
+    try:
+        probe.unlink()
+    except OSError:
+        pass  # Saved, so it's writable; a leftover check file is harmless.
     return None
 
 

@@ -60,6 +60,17 @@ class WritableTests(unittest.TestCase):
             self.assertEqual(list(Path(folder).iterdir()), [])  # The check leaves nothing behind.
             self.assertEqual(cannot_write(Path(folder) / "gone").kind, "missing")
 
+    def test_access_denied_is_tried_once(self):
+        # Windows' tempfile retried "access denied" in a mounted disc image practically forever.
+        calls = []
+
+        def refuse(*args, **kwargs):
+            calls.append(args[0])
+            raise PermissionError(13, "Permission denied", str(args[0]))
+        with tempfile.TemporaryDirectory() as folder, patch("comic_stitcher.problems.os.open", refuse):
+            self.assertEqual(cannot_write(Path(folder)).kind, "access")
+        self.assertEqual(len(calls), 1)
+
     @unittest.skipIf(os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
                      "needs a folder this user can't write to")
     def test_read_only_folder(self):
