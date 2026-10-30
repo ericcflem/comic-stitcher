@@ -495,7 +495,6 @@ class ScreenshotCropDialog(OutlinedWindow, QDialog):
         path = self.sources[index]
         canvas = self.canvases[index]
         choice = self.choices[index]
-        proposal = self.proposals[index]
         self._show_families(index)
         self.page_label.setText(f"Screenshot {index + 1} of {len(self.sources)}" +
                                 (f" · {choice.kind.title()}" if choice else " · Choose a crop type"))

@@ -143,7 +143,7 @@ class ComicInfoTests(unittest.TestCase):
 
     def test_flushed_queue_reimport_retains_edited_metadata(self):
         import shutil
-        from .gui import QueuedComic, export_queued_comic
+        from .ui.queue import QueuedComic, export_queued_comic
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); folder = self.source(root)
             archive = root / 'queue.cbz'
