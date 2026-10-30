@@ -46,7 +46,7 @@ It exports `CBZ`, `CB7`, `PDF` (and `CBR`, with your own RAR program), or a fold
 - **cwebp:** WebP's sharp color conversion uses Google's `cwebp.exe` from libwebp, bundled with the installer.
 - **System Dependencies:** If needed, the installer will prompt to install the Microsoft Visual C++ x64 runtime.
 - **Uninstalling:** Remove Comic Stitcher from **Settings > Apps** or **Control Panel**. It then asks whether to remove your settings, logs and a remembered ComicVine key too; choose **No** to keep them for a reinstall.
-- **Linux:** Install from the source download with `linux/install.sh` (see [Installing on Linux](#installing-on-linux)). An AppImage is planned.
+- **Linux:** Install from the source download with `linux/install.sh` (see [Installing on Linux](#installing-on-linux)).
 
 ### Installing on Linux
 
