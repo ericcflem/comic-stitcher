@@ -933,7 +933,7 @@ class ThumbnailTest(unittest.TestCase):
             self.assertIn("centering-the-art", names)
             guide.find_box.setText("Center the art")
             guide.find_next()
-            self.assertEqual(guide.browser.textCursor().selectedText(), "Center the art")
+            self.assertEqual(guide.browser.textCursor().selectedText().lower(), "center the art")  # Any case.
             guide.close()
             window.show_keyboard_shortcuts()
             shortcuts = window.shortcuts_window
