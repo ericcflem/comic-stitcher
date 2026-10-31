@@ -88,9 +88,24 @@ class LayoutTests(unittest.TestCase):
 class LaunchTests(unittest.TestCase):
     def test_installed_build_passes_paths_straight_to_the_exe(self):
         program, arguments = launch_command([Path("C:/Comics/a b.cbz")], frozen=True,
-                                            executable="C:/Program Files/Comic Stitcher/ComicStitcher.exe")
+                                            executable="C:/Program Files/Comic Stitcher/ComicStitcher.exe",
+                                            environ={})
         self.assertEqual(program, "C:/Program Files/Comic Stitcher/ComicStitcher.exe")
         self.assertEqual(arguments, [str(Path("C:/Comics/a b.cbz"))])
+
+    def test_an_appimage_starts_the_appimage_file_not_its_mounted_copy(self):
+        with tempfile.TemporaryDirectory() as folder:
+            image = Path(folder) / "Comic Stitcher.AppImage"
+            image.write_text("")
+            image.chmod(0o755)
+            program, arguments = launch_command(["/home/me/x.cbz"], frozen=True,
+                                                executable="/tmp/.mount_abc/usr/lib/comic-stitcher/comic-stitcher",
+                                                environ={"APPIMAGE": str(image)})
+            self.assertEqual((program, arguments), (str(image), ["/home/me/x.cbz"]))
+            image.unlink()  # Gone: the program it's running from is all there is.
+            program, _ = launch_command([], frozen=True, executable="/tmp/.mount_abc/cs",
+                                        environ={"APPIMAGE": str(image)})
+            self.assertEqual(program, "/tmp/.mount_abc/cs")
 
     def test_source_run_uses_launch_script(self):
         program, arguments = launch_command(["/home/me/x.cbz"], frozen=False,

@@ -236,6 +236,19 @@ class DropTabControl(QObject):
         return written
 
 
+def replace_running_tab(control, seconds=5):
+    """From an AppImage, take over from a drop tab that's already running: it
+    may be from an older or since-replaced AppImage, whose mounted folder no
+    longer works. True once this one has taken over."""
+    DropTabControl.send_quit()
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if control.claim():
+            return True
+        time.sleep(.1)
+    return False
+
+
 class DropTab(QWidget):
     def __init__(self, settings=None, opener=open_in_comic_stitcher, parent=None):
         flags = (Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint
@@ -796,7 +809,7 @@ def main(argv=None):
         except OSError:
             pass
     control = DropTabControl()
-    if not control.claim():
+    if not control.claim() and not (os.environ.get("APPIMAGE") and replace_running_tab(control)):
         # A drop tab is already running for this user; bring it back if it was hidden.
         DropTabControl.send_show()
         return 0

@@ -1368,13 +1368,13 @@
     },
     {
       "path": "comic_stitcher/drop_tab.py",
-      "bytes": 33598,
-      "sha256": "4193286864f73c5a048f417d93815dafed021c0f8a72a7ab0ef126c86e4702f6"
+      "bytes": 34130,
+      "sha256": "63a114025c6731f80c81848bff72913168793e7f5929d8cad899718e452a15f5"
     },
     {
       "path": "comic_stitcher/drop_tab_support.py",
-      "bytes": 8913,
-      "sha256": "0a3d710963476ec4747784dcf3c47a93e315c5229520021e487aea509c26f206"
+      "bytes": 9406,
+      "sha256": "7ee941d87d206e2fda055a6569ac5e1ed0a2b662839e452df91874c5255b2bee"
     },
     {
       "path": "comic_stitcher/export.py",
@@ -1538,8 +1538,8 @@
     },
     {
       "path": "comic_stitcher/test_drop_tab_support.py",
-      "bytes": 8737,
-      "sha256": "94c715405d523eb3d167d9808623285326f9cf55d676993d8f244d4fab521d74"
+      "bytes": 9722,
+      "sha256": "a14f15ed3b85bcf427631b343bfca5995e4497948bfddc19790b687ad04195d0"
     },
     {
       "path": "comic_stitcher/test_gui.py",
