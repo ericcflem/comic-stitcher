@@ -912,6 +912,31 @@ class ThumbnailTest(unittest.TestCase):
             self.app.setPalette(original)
         self.assertEqual(theme.tone("drop"), theme.TONES["drop"][0])
 
+    def test_scroll_bar_handles_stand_out_in_light_and_dark(self):
+        from PySide6.QtWidgets import QScrollBar, QStyle, QStyleOptionSlider
+        from .ui import theme
+        original = self.app.palette()
+        try:
+            for dark in (False, True):
+                theme.apply_theme(self.app, dark=dark)
+                bar = QScrollBar(Qt.Vertical)
+                bar.setRange(0, 100)
+                bar.setPageStep(20)
+                bar.resize(16, 300)
+                image = bar.grab().toImage()
+                option = QStyleOptionSlider()
+                bar.initStyleOption(option)
+                handle = bar.style().subControlRect(QStyle.CC_ScrollBar, option, QStyle.SC_ScrollBarSlider, bar)
+                groove = bar.style().subControlRect(QStyle.CC_ScrollBar, option, QStyle.SC_ScrollBarGroove, bar)
+                handle_colour = image.pixelColor(handle.center())
+                track_colour = image.pixelColor(groove.center().x(), groove.bottom() - 4)
+                self.assertGreater(abs(handle_colour.lightness() - track_colour.lightness()), 60,
+                                   f"dark={dark}: handle {handle_colour.name()} on track {track_colour.name()}")
+                bar.deleteLater()
+        finally:
+            theme.apply_theme(self.app, dark=False)
+            self.app.setPalette(original)
+
     def test_linux_dark_mode_is_asked_of_the_desktop(self):
         from .ui import theme
         self.assertTrue(theme.portal_choice("(<<uint32 1>>,)\n"))

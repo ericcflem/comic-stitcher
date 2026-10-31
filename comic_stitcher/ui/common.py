@@ -8,7 +8,7 @@ from PIL import Image, ImageOps
 from PySide6.QtCore import QFile, QEvent, QObject, QSize, Qt, Signal, QRectF
 from PySide6.QtGui import QImage, QPixmap, QPainter, QColor, QPen, QIcon
 from PySide6.QtWidgets import (QComboBox, QFormLayout, QLabel, QSizePolicy, QStackedWidget,
-    QVBoxLayout, QWidget, QStyle, QDialogButtonBox, QProxyStyle, QStyleFactory)
+    QVBoxLayout, QWidget, QStyle, QDialogButtonBox, QProxyStyle, QStyleFactory, QStyleOptionSlider)
 from ..backend import stitched_image, rotated_image
 from ..centering import open_centered
 from ..colour import standard_mode
@@ -51,12 +51,42 @@ class _DropDownHeight(QObject):
 
 class _WindowsButtonOrder(QProxyStyle):
     """Fusion, with dialog buttons in the Windows order on every system (Linux
-    desktops otherwise reorder them, putting Cancel in the middle)."""
+    desktops otherwise reorder them, putting Cancel in the middle), and scroll
+    bars whose handle stands out from its track (Fusion's is barely lighter or
+    darker than the track, in light and dark mode alike)."""
 
     def styleHint(self, hint, option=None, widget=None, returnData=None):
         if hint == QStyle.SH_DialogButtonLayout:
             return QDialogButtonBox.WinLayout
         return super().styleHint(hint, option, widget, returnData)
+
+    def drawComplexControl(self, control, option, painter, widget=None):
+        if control != QStyle.ComplexControl.CC_ScrollBar or not isinstance(option, QStyleOptionSlider):
+            return super().drawComplexControl(control, option, painter, widget)
+        arrows = QStyleOptionSlider(option)  # Fusion's own arrow buttons, then ours on top.
+        arrows.subControls = option.subControls & (QStyle.SubControl.SC_ScrollBarAddLine
+                                                   | QStyle.SubControl.SC_ScrollBarSubLine)
+        super().drawComplexControl(control, arrows, painter, widget)
+        groove = self.subControlRect(control, option, QStyle.SubControl.SC_ScrollBarGroove, widget)
+        handle = self.subControlRect(control, option, QStyle.SubControl.SC_ScrollBarSlider, widget)
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.fillRect(groove, QColor(tone("scroll_track")))
+        if handle.isValid() and option.maximum > option.minimum:
+            slider = QStyle.SubControl.SC_ScrollBarSlider
+            active = bool(option.activeSubControls & slider)
+            if active and option.state & QStyle.StateFlag.State_Sunken:
+                colour = tone("scroll_handle_pressed")
+            elif active and option.state & QStyle.StateFlag.State_MouseOver:
+                colour = tone("scroll_handle_hover")
+            else:
+                colour = tone("scroll_handle")
+            shape = QRectF(handle).adjusted(2, 2, -2, -2)  # A little margin, like the desktops'.
+            radius = min(shape.width(), shape.height()) / 2
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor(colour))
+            painter.drawRoundedRect(shape, radius, radius)
+        painter.restore()
 
 
 def ui_app_style(app):

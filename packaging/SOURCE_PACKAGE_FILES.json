@@ -1543,8 +1543,8 @@
     },
     {
       "path": "comic_stitcher/test_gui.py",
-      "bytes": 204310,
-      "sha256": "b5f780bff0b892124de91a19bc8767465dd8ae81d31c144e262866190744593f"
+      "bytes": 205658,
+      "sha256": "87bcb46fdc9feb2eaa93685466006f22bfa02a70d0e0c69631967cb2e532c392"
     },
     {
       "path": "comic_stitcher/test_icons_resource.py",
@@ -1653,8 +1653,8 @@
     },
     {
       "path": "comic_stitcher/ui/common.py",
-      "bytes": 13794,
-      "sha256": "4523807d253c9f2577f6a1a790b9923e64a9e289b34f0b2b40058bf6720f38c9"
+      "bytes": 15753,
+      "sha256": "57b7ee96db9b4237f9e476493734269d1648f7e03c38deee2945b086c28a34ae"
     },
     {
       "path": "comic_stitcher/ui/crop_review.py",
@@ -1723,8 +1723,8 @@
     },
     {
       "path": "comic_stitcher/ui/theme.py",
-      "bytes": 7156,
-      "sha256": "8f936d92e96a380c9621909dabd006781b4c4200031da410e1548bb168883e74"
+      "bytes": 7434,
+      "sha256": "9fe3cac9ceaa27a4e785c5517d2bc413a2acd67abff8421a83d0df64724fff93"
     },
     {
       "path": "comic_stitcher/ui/thumbnails.py",
