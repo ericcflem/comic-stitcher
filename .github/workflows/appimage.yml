@@ -34,6 +34,33 @@ jobs:
             libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
             libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 xvfb
 
+      - name: "Probe: downloads and Linux wheel hashes"
+        continue-on-error: true
+        run: |
+          for v in 730 731 720 713 712; do
+            url="https://www.rarlab.com/rar/rarlinux-x64-$v.tar.gz"
+            if curl -fsSL -o "$RUNNER_TEMP/rar-$v.tgz" "$url"; then
+              echo "::notice title=rarlinux $v::$(sha256sum "$RUNNER_TEMP/rar-$v.tgz" | cut -c1-64) | $(tar tzf "$RUNNER_TEMP/rar-$v.tgz" | tr '\n' ' ')"
+              mkdir -p "$RUNNER_TEMP/r$v" && tar xzf "$RUNNER_TEMP/rar-$v.tgz" -C "$RUNNER_TEMP/r$v"
+              echo "::notice title=unrar $v::$("$RUNNER_TEMP/r$v/rar/unrar" | head -2 | tr '\n' ' ') | $(sha256sum "$RUNNER_TEMP/r$v/rar/unrar" | cut -c1-64) | ldd: $(ldd "$RUNNER_TEMP/r$v/rar/unrar" | awk '{print $1}' | tr '\n' ' ') | $(head -c 300 "$RUNNER_TEMP/r$v/rar/license.txt" | tr '\n' ' ')"
+              break
+            fi
+          done
+          url=https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-1.6.0-linux-x86-64.tar.gz
+          if curl -fsSL -o "$RUNNER_TEMP/webp.tgz" "$url"; then
+            mkdir -p "$RUNNER_TEMP/webp" && tar xzf "$RUNNER_TEMP/webp.tgz" -C "$RUNNER_TEMP/webp"
+            cw=$(find "$RUNNER_TEMP/webp" -name cwebp -type f | head -1)
+            echo "::notice title=libwebp linux::$(sha256sum "$RUNNER_TEMP/webp.tgz" | cut -c1-64) | cwebp $($cw -version) $(sha256sum "$cw" | cut -c1-64) | ldd: $(ldd "$cw" | awk '{print $1}' | tr '\n' ' ') | $(tar tzf "$RUNNER_TEMP/webp.tgz" | head -30 | tr '\n' ' ')"
+          else
+            echo "::notice title=libwebp linux::download failed"
+          fi
+          grep -v '^#' packaging/requirements-release.txt | grep -viE '^(pefile|pywin32-ctypes)' | sed 's/ --hash.*//' > "$RUNNER_TEMP/want.txt"
+          python -m pip download --only-binary=:all: --no-deps --dest "$RUNNER_TEMP/wheels" -r "$RUNNER_TEMP/want.txt" >/dev/null
+          lines=$(cd "$RUNNER_TEMP/wheels" && for f in *.whl; do echo "$f $(sha256sum "$f" | cut -c1-64)"; done)
+          echo "::notice title=Linux wheels::$(echo "$lines" | tr '\n' '|')"
+          python -m venv "$RUNNER_TEMP/v" && "$RUNNER_TEMP/v/bin/pip" install -q -r "$RUNNER_TEMP/want.txt" >/dev/null && \
+            echo "::notice title=Linux pip freeze::$("$RUNNER_TEMP/v/bin/pip" freeze --all | tr '\n' ' ')"
+
       - name: Install Comic Stitcher's requirements and PyInstaller
         run: >
           python -m pip install -r requirements.txt
