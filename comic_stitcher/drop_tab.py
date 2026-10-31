@@ -12,7 +12,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QLockFile, QObject, QProcess, QRectF, QSettings, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QLockFile, QObject, QProcess, QProcessEnvironment, QRectF, QSettings, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QAction, QColor, QCursor, QFont, QFontMetrics, QGuiApplication, QIcon, QPainter, QPainterPath, QPen, QPixmap,
 )
@@ -27,7 +27,7 @@ from .drop_tab_support import (
     DEFAULT_OFFSET, DEFAULT_THICKNESS, ENABLE_AUTOSTART_FLAG, HOVER_DELAY_MS,
     HOVER_RANGE, LINUX_WINDOW_NAME, MIN_HEIGHT, THICKNESS_RANGE, UNINSTALL_FLAG, autostart_enabled,
     autostart_supported, clamp_height, clamp_hover_delay, clamp_offset, clamp_thickness,
-    launch_command, max_height, needs_x11, offset_range, qt_arguments, set_autostart, tab_rect,
+    child_environment, launch_command, max_height, needs_x11, offset_range, qt_arguments, set_autostart, tab_rect,
 )
 
 CLICK_SLOP = 4
@@ -52,8 +52,9 @@ def saved_colour(value) -> str:
 
 def edge_colour(colour: QColor) -> QColor:
     """A thin edge that sets the tab off from any window behind it: darker
-    around a light colour, lighter around a dark one."""
-    return colour.darker(165) if colour.lightness() >= 70 else colour.lighter(260)
+    than the tab, so it doesn't show as a light outline, except around a
+    nearly black colour, where a darker edge couldn't be seen."""
+    return colour.darker(165) if colour.lightness() >= 40 else colour.lighter(260)
 ICON_SIZE = 48
 TOP_PAD = 16
 ICON_GAP = 8
@@ -132,10 +133,21 @@ def local_paths(mime):
     return [Path(url.toLocalFile()) for url in mime.urls() if url.isLocalFile()]
 
 
+_platform_forced = False  # True once main() chose X11 for the tab itself.
+
+
 def open_in_comic_stitcher(paths=()):
     program, arguments = launch_command(paths)
-    working = str(Path(program).parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent)
-    started = QProcess.startDetached(program, arguments, working)
+    process = QProcess()
+    process.setProgram(program)
+    process.setArguments(arguments)
+    process.setWorkingDirectory(str(Path(program).parent if getattr(sys, "frozen", False)
+                                    else Path(__file__).resolve().parent.parent))
+    environment = QProcessEnvironment()
+    for name, value in child_environment(platform_forced=_platform_forced).items():
+        environment.insert(name, value)
+    process.setProcessEnvironment(environment)
+    started = process.startDetached()
     # PySide6 returns (ok, pid) for this overload; accept a bare bool too.
     return bool(started[0] if isinstance(started, tuple) else started)
 
@@ -233,6 +245,19 @@ class DropTabControl(QObject):
         if socket.state() != QLocalSocket.LocalSocketState.UnconnectedState:
             socket.waitForDisconnected(1000)
         return written
+
+
+def replace_running_tab(control, seconds=5):
+    """From an AppImage, take over from a drop tab that's already running: it
+    may be from an older or since-replaced AppImage, whose mounted folder no
+    longer works. True once this one has taken over."""
+    DropTabControl.send_quit()
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if control.claim():
+            return True
+        time.sleep(.1)
+    return False
 
 
 class DropTab(QWidget):
@@ -782,7 +807,9 @@ def main(argv=None):
             pass
         return 0
     if needs_x11():
+        global _platform_forced
         os.environ["QT_QPA_PLATFORM"] = "xcb"
+        _platform_forced = True
     app = QApplication(qt_arguments(argv))
     if sys.platform.startswith("linux"):
         QApplication.setDesktopFileName(LINUX_WINDOW_NAME)  # Wayland's equivalent.
@@ -795,7 +822,7 @@ def main(argv=None):
         except OSError:
             pass
     control = DropTabControl()
-    if not control.claim():
+    if not control.claim() and not (os.environ.get("APPIMAGE") and replace_running_tab(control)):
         # A drop tab is already running for this user; bring it back if it was hidden.
         DropTabControl.send_show()
         return 0

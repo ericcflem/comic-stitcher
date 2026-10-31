@@ -106,19 +106,47 @@ def tab_rect(available, offset, expanded, expanded_size=EXPANDED_SIZE,
     return (x + width - panel_width, top, panel_width, panel_height)
 
 
-def launch_command(paths=(), frozen=None, executable=None, source_root=None):
+def launch_command(paths=(), frozen=None, executable=None, source_root=None, environ=None):
     """Return (program, arguments) that start Comic Stitcher with ``paths``.
 
     A running Comic Stitcher window receives the paths through its existing
     single-instance handoff, so this works whether or not it is open.
+
+    From an AppImage, that's the AppImage file itself, not the program inside
+    the folder it's mounted at while running: a drop tab left running after its
+    AppImage was replaced (by a newer download, say) then opens the new one,
+    where the old mount no longer works.
     """
     frozen = getattr(sys, "frozen", False) if frozen is None else frozen
+    environ = os.environ if environ is None else environ
     executable = str(executable or sys.executable)
     arguments = [str(path) for path in paths]
     if frozen:
+        appimage = environ.get("APPIMAGE")
+        if appimage and os.access(appimage, os.X_OK):
+            return appimage, arguments
         return executable, arguments
     root = Path(source_root) if source_root else Path(__file__).resolve().parent.parent
     return executable, [str(root / "launch.py"), *arguments]
+
+
+def child_environment(environ=None, platform_forced=False, frozen=None):
+    """The environment for Comic Stitcher started from the drop tab.
+
+    * A frozen app's child would otherwise take itself for part of the same
+      program (PyInstaller's markers in the environment) and skip setting up
+      its own libraries: on Linux it then can't find the bundled X11 libraries,
+      and fails to start where the system doesn't have them.
+    * X11 is the drop tab's own choice (see needs_x11), not the main window's,
+      which can fall back to Wayland.
+    """
+    environ = dict(os.environ if environ is None else environ)
+    frozen = getattr(sys, "frozen", False) if frozen is None else frozen
+    if frozen:
+        environ["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+    if platform_forced:
+        environ.pop("QT_QPA_PLATFORM", None)
+    return environ
 
 
 def drop_tab_command(frozen=None, executable=None, source_root=None, environ=None):
@@ -131,7 +159,7 @@ def drop_tab_command(frozen=None, executable=None, source_root=None, environ=Non
     launcher = environ.get("COMIC_STITCHER_LAUNCHER")
     if launcher and os.access(launcher, os.X_OK):
         return [launcher, DROP_TAB_FLAG]
-    program, arguments = launch_command((), frozen, executable, source_root)
+    program, arguments = launch_command((), frozen, executable, source_root, environ)
     return [program, *arguments, DROP_TAB_FLAG]
 
 
@@ -176,11 +204,14 @@ def linux_autostart_path(environ=None):
 
 def linux_desktop_entry(command):
     exec_line = " ".join(_desktop_quote(argument) for argument in command)
+    # TryExec: once the program is gone (an AppImage deleted, say), the desktop
+    # skips the entry instead of failing to start it at every sign-in.
+    try_exec = f"TryExec={command[0]}\n" if command[0].startswith("/") else ""
     return ("[Desktop Entry]\n"
             "Type=Application\n"
             "Name=Comic Stitcher drop tab\n"
             "Comment=Drag comics to the right edge of the screen to open them in Comic Stitcher\n"
-            f"Exec={exec_line}\n"
+            f"Exec={exec_line}\n{try_exec}"
             "Terminal=false\n"
             "NoDisplay=true\n"
             "X-GNOME-Autostart-enabled=true\n")

@@ -912,6 +912,46 @@ class ThumbnailTest(unittest.TestCase):
             self.app.setPalette(original)
         self.assertEqual(theme.tone("drop"), theme.TONES["drop"][0])
 
+    def test_linux_dark_mode_is_asked_of_the_desktop(self):
+        from .ui import theme
+        self.assertTrue(theme.portal_choice("(<<uint32 1>>,)\n"))
+        self.assertFalse(theme.portal_choice("(<<uint32 2>>,)\n"))
+        self.assertIsNone(theme.portal_choice("(<<uint32 0>>,)\n"))
+        self.assertIsNone(theme.portal_choice(""))  # No portal.
+        self.assertTrue(theme.gnome_choice("'prefer-dark'\n"))
+        self.assertIsNone(theme.gnome_choice("'default'\n"))
+        answers = {"gdbus": "(<<uint32 0>>,)", "gsettings": "'prefer-dark'"}
+        with patch.object(theme, "_run", side_effect=lambda command: answers[command[0]]):
+            self.assertTrue(theme.linux_desktop_is_dark())
+        answers["gdbus"] = "(<<uint32 2>>,)"
+        with patch.object(theme, "_run", side_effect=lambda command: answers[command[0]]):
+            self.assertFalse(theme.linux_desktop_is_dark())  # The portal comes first.
+        if sys.platform.startswith("linux"):
+            with patch.object(theme, "linux_desktop_is_dark", return_value=True):
+                self.assertTrue(theme.system_is_dark())
+
+    def test_notices_read_inside_the_app(self):
+        from PySide6.QtCore import QUrl
+        from .ui.help import NoticesWindow
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "licenses"
+            (root / "pkg").mkdir(parents=True)
+            (root / "index.html").write_text('<h1>Third-party notices</h1><a href="pkg/LICENSE">pkg/LICENSE</a>')
+            (root / "pkg" / "LICENSE").write_text("Copyright <someone@example.org>\nPermission is granted.")
+            (Path(folder) / "secret.txt").write_text("not a notice")
+            window = NoticesWindow(root / "index.html")
+            try:
+                self.assertIn("Third-party notices", window.browser.toPlainText())
+                self.assertFalse(window.back.isEnabled())
+                window._follow(QUrl("pkg/LICENSE"))
+                self.assertIn("<someone@example.org>", window.browser.toPlainText())  # Plain text, kept whole.
+                window._follow(QUrl("../../secret.txt"))  # Outside the notices: not followed.
+                self.assertNotIn("not a notice", window.browser.toPlainText())
+                window.go_back()
+                self.assertIn("Third-party notices", window.browser.toPlainText())
+            finally:
+                window.close()
+
     def test_help_opens_the_guide_and_shortcuts_offline(self):
         from .ui.help import guide_path, shortcuts_markdown, slug
         self.assertTrue(guide_path().is_file(), guide_path())

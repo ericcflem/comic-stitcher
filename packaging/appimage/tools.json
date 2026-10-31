@@ -1,0 +1,32 @@
+{
+  "about": "Downloads the AppImage build uses, each checked against its recorded SHA-256 before use.",
+  "unrar": {
+    "version": "7.20",
+    "url": "https://www.rarlab.com/rar/rarlinux-x64-720.tar.gz",
+    "sha256": "d3e7fba3272385b1d0255ee332a1e8c1a6779bb5a5ff9d4d8ac2be846e49ca46",
+    "member": "rar/unrar",
+    "member_sha256": "718db45ff7a132043f33928af3b7692dbb5b93630c84fead0c04d73e77155c0d",
+    "license": "vendor/license.txt: the UnRAR freeware license, which allows distributing UnRAR inside other software. Only unrar is taken from RARLAB's RAR for Linux download; rar itself is not included."
+  },
+  "cwebp": {
+    "version": "1.6.0",
+    "url": "https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-1.6.0-linux-x86-64.tar.gz",
+    "sha256": "1c5ffab71efecefa0e3c23516c3a3a1dccb45cc310ae1095c6f14ae268e38067",
+    "member": "libwebp-1.6.0-linux-x86-64/bin/cwebp",
+    "member_sha256": "5ac7ece6bdda1587f3c169ce74ab2734994f9d14e07fc5358208443c1b29edec",
+    "license": "BSD-3-Clause with the WebM patent grant: vendor/libwebp/COPYING and PATENTS (from the v1.6.0 source tag), as for the Windows release."
+  },
+  "appimagetool": {
+    "version": "1.9.1",
+    "url": "https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage",
+    "sha256": "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0",
+    "license": "MIT; a build tool only, not included."
+  },
+  "runtime": {
+    "version": "20251108",
+    "url": "https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64",
+    "sha256": "2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d",
+    "license_url": "https://raw.githubusercontent.com/AppImage/type2-runtime/20251108/LICENSE",
+    "license": "The start of every AppImage file, which mounts the rest. MIT; built with statically linked libraries including libfuse (LGPL-2.1) and squashfuse (BSD-2-Clause). Its source, with theirs: https://github.com/AppImage/type2-runtime/tree/20251108"
+  }
+}

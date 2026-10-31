@@ -46,7 +46,17 @@ It exports `CBZ`, `CB7`, `PDF` (and `CBR`, with your own RAR program), or a fold
 - **cwebp:** WebP's sharp color conversion uses Google's `cwebp.exe` from libwebp, bundled with the installer.
 - **System Dependencies:** If needed, the installer will prompt to install the Microsoft Visual C++ x64 runtime.
 - **Uninstalling:** Remove Comic Stitcher from **Settings > Apps** or **Control Panel**. It then asks whether to remove your settings, logs and a remembered ComicVine key too; choose **No** to keep them for a reinstall.
-- **Linux:** Install from the source download with `linux/install.sh` (see [Installing on Linux](#installing-on-linux)).
+- **Linux:** Either download the AppImage, a single file that runs without installing (see [Running the AppImage on Linux](#running-the-appimage-on-linux)), or install from the source download with `linux/install.sh` (see [Installing on Linux](#installing-on-linux)).
+
+### Running the AppImage on Linux
+
+1. From the [latest release](https://github.com/ericcflem/comic-stitcher/releases/latest), download **ComicStitcher-*version*-x86_64.AppImage**. Keep it wherever you like, such as your Documents folder.
+2. Allow it to run: right-click it, choose **Properties**, and turn on **Executable as Program** (or run `chmod +x ComicStitcher-*.AppImage` in a terminal).
+3. Open it. The first time, it offers to add Comic Stitcher to your app menu, with Open With for comics, **Open in Comic Stitcher** in Files' folder menu, and a menu entry for the drop tab. You can change this later in **Settings**.
+
+Everything it needs is inside, including UnRAR for CBR import and `cwebp` for WebP's sharp color conversion; nothing else is installed. It runs on 64-bit Linux from about 2022 onward (Ubuntu 22.04, Debian 12, Fedora 36 or newer).
+
+To update, download the new version: if you replace the old file with it, or start the new one once, the app menu entries follow it. To remove it, choose **Remove from app menu** in **Settings** (which can also remove your settings, logs and saved reviews), then delete the file. If you delete the file without doing that, its menu entries simply disappear.
 
 ### Installing on Linux
 
@@ -62,7 +72,7 @@ It exports `CBZ`, `CB7`, `PDF` (and `CBR`, with your own RAR program), or a fold
 
 You can delete the downloaded folder afterwards. To update, download the new version and run its `linux/install.sh` again. If a system upgrade moves to a new version of Python, Comic Stitcher offers to repair itself the next time it starts. To uninstall, run `~/.local/share/comic-stitcher/uninstall.sh`. Add `--purge` to also remove your settings, logs and a remembered ComicVine key.
 
-Notes:
+Notes (the AppImage brings its own UnRAR and `cwebp`, so the first two apply only to `linux/install.sh`):
 - **RAR/CBR import** uses an installed RAR extractor: UnRAR first, then unar, bsdtar or 7-Zip. `linux/install.sh` offers to install UnRAR (`sudo apt install unrar` on Ubuntu or Debian). Use UnRAR, or 7-Zip with its RAR support (`sudo apt install 7zip-rar`), for comics in the newer RAR5 format: unar, bsdtar, and 7-Zip without its RAR support, can't read them fully.
 - **Sharp color conversion for WebP** uses libwebp's `cwebp` tool. `linux/install.sh` offers to install it; on Ubuntu or Debian it is `sudo apt install webp`. Without it the option is greyed out.
 - **A remembered ComicVine key** is kept in the desktop keyring, such as GNOME Keyring or KDE Wallet.

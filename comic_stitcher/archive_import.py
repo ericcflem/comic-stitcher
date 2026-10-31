@@ -104,6 +104,14 @@ def _unrar_tool() -> str:
                      "ComicStitcher.exe (or launch.py), or install WinRAR/UnRAR, then retry.")
 
 
+def bundled_unrar() -> Path | None:
+    """The UnRAR the Linux AppImage carries beside the app, if this is it."""
+    if not getattr(sys, "frozen", False):
+        return None
+    candidate = Path(sys.executable).resolve().parent / "unrar"
+    return candidate if os.access(candidate, os.X_OK) else None
+
+
 # The extractors rarfile can use, in the order they are tried outside Windows.
 RAR_EXTRACTORS = (("unrar", "UnRAR"), ("unar", "unar"), ("bsdtar", "bsdtar"),
                   ("sevenzip", "7-Zip (7z)"), ("sevenzip2", "7-Zip (7zz)"))
@@ -130,14 +138,17 @@ def _rar_extractors(windows: bool | None = None) -> list[tuple[str, dict]]:
     """The extractors to try, in order, as rarfile.tool_setup arguments.
 
     Windows uses the official UnRAR shipped beside Comic Stitcher (or WinRAR's).
-    Elsewhere nothing is bundled: each installed extractor is tried in turn
-    (UnRAR, unar, bsdtar, 7-Zip), since some can't fully read RAR5 archives.
+    Elsewhere each extractor is tried in turn (UnRAR, unar, bsdtar, 7-Zip),
+    since some can't fully read RAR5 archives; UnRAR is the one the AppImage
+    carries, when it's that, or else the system's.
     """
     if windows is None:
         windows = os.name == "nt"
     if windows:
         rarfile.UNRAR_TOOL = _unrar_tool()
         return [("UnRAR", dict(unrar=True, unar=False, bsdtar=False, sevenzip=False, sevenzip2=False))]
+    bundled = bundled_unrar()
+    rarfile.UNRAR_TOOL = str(bundled) if bundled else "unrar"
     return [(label, {name: name == key for name, _ in RAR_EXTRACTORS}) for key, label in RAR_EXTRACTORS]
 
 

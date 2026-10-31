@@ -51,6 +51,30 @@ are retained with this package and installed notices.
 Comic Stitcher's own MIT grant is in [LICENSE](../LICENSE); its scope and AI-assisted
 history are explained in [PROVENANCE.md](PROVENANCE.md).
 
+## Linux AppImage
+
+The release's Linux AppImage is built by `.github/workflows/appimage.yml` from the
+release's own tag, with `packaging/appimage/build_appimage.sh`: the Python
+libraries are the versions in `packaging/appimage/requirements-linux.txt` (the
+Windows release's versions, as official Linux wheels, checked by hash), and
+UnRAR, `cwebp` and the AppImage tools are the downloads recorded with their
+SHA-256 in `packaging/appimage/tools.json`. The Qt/PySide, archive-library and
+setuptools sources listed above are the same versions.
+
+It also carries some of its build machine's (Ubuntu 22.04's) own libraries,
+such as X11 libraries that not every desktop has. Its `licenses/` index lists
+each with its Ubuntu package, version and copyright file; their sources are
+Ubuntu's source packages of those versions, which Ubuntu keeps published on
+Launchpad. The AppImage runtime (the start of the file, which mounts the rest)
+is the AppImage project's type2-runtime, under the MIT licence, built with
+libfuse (LGPL-2.1) and other libraries; its source is at
+https://github.com/AppImage/type2-runtime at the tag recorded in `tools.json`.
+
+To change or replace a library in the AppImage, extract it with
+`./ComicStitcher-<version>-x86_64.AppImage --appimage-extract`, change the
+library in `squashfs-root/usr/lib/comic-stitcher/`, and run
+`squashfs-root/AppRun`; `appimagetool` can pack the folder into an AppImage again.
+
 ## Component notices and build records
 
 The source notice reference contains texts from the 26 pinned build-input wheels

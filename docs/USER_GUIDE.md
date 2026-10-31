@@ -317,7 +317,8 @@ Advanced settings for each format:
   - **Compression effort:** 0–6. Higher takes longer to find a smaller file.
   - **Sharp color conversion (sharp YUV):** keeps edges between strong colors, such as
     red lettering on black, clean instead of blurred or darkened. It takes about twice
-    as long. On Linux this needs the `webp` package.
+    as long. Installed on Linux with `linux/install.sh`, this needs the `webp` package
+    (the AppImage has it built in).
 - **PNG**
   - **Compression effort (lossless):** 0–9. Higher makes smaller files more slowly. The
     image is the same at every level. The default is 6.
@@ -381,8 +382,9 @@ joins the window that's already open.
 
 - **Turn it on:** on Windows, the installer's **Show a drop tab on the right edge of the
   screen** option is ticked by default. On Linux, `linux/install.sh` turns it on for a
-  new install (add `--no-drop-tab` to skip that). **Comic Stitcher Drop Tab** in the
-  Start menu or app menu starts it again. From source, run `python launch.py
+  new install (add `--no-drop-tab` to skip that). The AppImage adds **Comic Stitcher
+  Drop Tab** to the app menu once you let it add itself there. **Comic Stitcher Drop
+  Tab** in the Start menu or app menu starts it again. From source, run `python launch.py
   --drop-tab`.
 - **Use it:** rest the mouse on the tab, or click it, to see what it is; click the open
   panel to start Comic Stitcher. Drag the tab up or down to move it. Right-click it, or
@@ -410,6 +412,11 @@ The gear on the start screen opens Settings:
 - **Optional CBR export:** the RAR program Comic Stitcher found for making CBRs, or
   **Browse…** to choose one (on Windows, `Rar.exe` in WinRAR's folder). **Find
   automatically** goes back to looking for it.
+- **AppImage** (only when running the Linux AppImage): **Add to app menu** adds its
+  app-menu entries, Open With for comics, **Open in Comic Stitcher** in Files' folder
+  menu and the drop tab's entry, all pointing at the AppImage file. **Remove from app
+  menu…** takes them out again, and can also remove your settings, logs and saved
+  reviews, so that deleting the AppImage afterwards leaves nothing behind.
 - **Open diagnostic logs** and **Open pair review reports** open their folders.
 - **About and credits…**
 

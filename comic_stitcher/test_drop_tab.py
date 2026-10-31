@@ -193,16 +193,18 @@ class DropTabTests(unittest.TestCase):
         dialog.deleteLater()
 
     def test_older_colour_settings_and_bad_values(self):
-        from .drop_tab import edge_colour, saved_colour
+        from .drop_tab import SWATCHES, edge_colour, saved_colour
         from PySide6.QtGui import QColor
         self.assertEqual(saved_colour("accent"), "#0073e5")  # Was the system accent: now Blue.
         self.assertEqual(saved_colour("gray"), "#3d3d3d")
         self.assertEqual(saved_colour("not a colour"), "#0073e5")
         self.assertEqual(saved_colour("red"), "#0073e5")  # Only #rrggbb is saved.
         self.assertEqual(saved_colour(None), "#0073e5")
-        # The edge sets the tab off: darker around light colours, lighter around dark.
+        # The edge sets the tab off: darker, but lighter around nearly black.
         self.assertLess(edge_colour(QColor("#ffffff")).lightness(), 200)
-        self.assertGreater(edge_colour(QColor("#3d3d3d")).lightness(), QColor("#3d3d3d").lightness())
+        for name, value in SWATCHES:  # All the same kind of edge, none a light outline.
+            self.assertLess(edge_colour(QColor(value)).lightness(), QColor(value).lightness(), name)
+        self.assertGreater(edge_colour(QColor("#151515")).lightness(), QColor("#151515").lightness())
 
     def test_a_saved_height_is_kept(self):
         self.tab.apply_settings(height=120)
