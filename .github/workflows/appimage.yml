@@ -1,13 +1,19 @@
-# Builds the Linux AppImage (a trial: see packaging/appimage/README.md), starts
-# it on a virtual screen to check that it runs, and keeps it as a download on
-# the run's page (Artifacts). Runs for changes to the AppImage files, and on request.
+# Builds the Linux AppImage (see packaging/appimage/README.md) from pinned
+# inputs, starts it on a virtual screen to check that it runs, and keeps it as a
+# download on the run's page (Artifacts). Runs for changes to the AppImage's
+# files and on request; and when a release is published, attaches the AppImage
+# to it and adds its line to the release's SHA256SUMS.txt.
 name: AppImage
 
 on:
   pull_request:
     paths:
       - "packaging/appimage/**"
+      - "packaging/package_licenses.py"
+      - "launch.py"
       - ".github/workflows/appimage.yml"
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -24,7 +30,8 @@ jobs:
 
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.14"
+          # The same Python as the Windows release.
+          python-version: "3.14.2"
 
       - name: Install the libraries Qt's screen support needs, so they're bundled
         run: |
@@ -34,23 +41,12 @@ jobs:
             libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
             libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 xvfb
 
-      - name: "Probe: tool releases"
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Install the pinned libraries and PyInstaller
+        # Exactly the versions recorded, each wheel checked against its hash.
         run: |
-          for repo in AppImage/appimagetool AppImage/type2-runtime; do
-            echo "::notice title=$repo releases::$(gh api repos/$repo/releases --jq '.[0:4][] | "\(.tag_name) \(.published_at) " + ([.assets[] | select(.name|test("x86_64")) | "\(.name)=\(.digest)"] | join(","))' | tr '\n' '|')"
-          done
-          url=https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-1.6.0-linux-x86-64.tar.gz
-          curl -fsSL -o "$RUNNER_TEMP/webp.tgz" "$url" && mkdir -p "$RUNNER_TEMP/webp" && tar xzf "$RUNNER_TEMP/webp.tgz" -C "$RUNNER_TEMP/webp"
-          cw=$(find "$RUNNER_TEMP/webp" -name cwebp -type f | head -1)
-          echo "::notice title=cwebp::${cw#"$RUNNER_TEMP"/} $(sha256sum "$cw" | cut -c1-64) ldd $(ldd "$cw" | awk '{print $1}' | tr '\n' ' ') files $(cd "$RUNNER_TEMP/webp" && find . -maxdepth 2 | tr '\n' ' ')"
-
-      - name: Install Comic Stitcher's requirements and PyInstaller
-        run: >
-          python -m pip install -r requirements.txt
-          pyinstaller==6.22.3 pyinstaller-hooks-contrib==2026.8
+          python -m pip install --require-hashes --only-binary=:all: --no-deps \
+            -r packaging/appimage/requirements-linux.txt
+          python -m pip check
 
       - name: Build the AppImage
         run: packaging/appimage/build_appimage.sh
@@ -110,9 +106,54 @@ jobs:
             exit 1
           fi
 
+      - name: Check the bundled UnRAR, cwebp and notices
+        run: |
+          app="$RUNNER_TEMP/x/squashfs-root/usr/lib/comic-stitcher"
+          "$app/unrar" | head -2
+          "$app/cwebp" -version
+          test -s "$app/licenses/index.html"
+          grep -q "UnRAR" "$app/licenses/index.html"
+          echo "Notices: $(find "$app/licenses" -type f | wc -l) files"
+
       - name: Keep the AppImage as a download
         uses: actions/upload-artifact@v4
         with:
           name: ComicStitcher-AppImage
           path: dist/ComicStitcher-*-x86_64.AppImage
           retention-days: 30
+
+  release:
+    # A published release: attach the AppImage built from its tag.
+    if: github.event_name == 'release'
+    needs: appimage
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.event.release.tag_name }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ComicStitcher-AppImage
+          path: appimage
+
+      - name: Attach the AppImage and add it to SHA256SUMS.txt
+        run: |
+          image=$(ls appimage/ComicStitcher-*-x86_64.AppImage)
+          name=$(basename "$image")
+          version=${name#ComicStitcher-}; version=${version%-x86_64.AppImage}
+          if [ "$TAG" != "v$version" ]; then
+            echo "::error title=AppImage::The release is $TAG, but its code is version $version."
+            exit 1
+          fi
+          gh release upload "$TAG" "$image" --repo "$GITHUB_REPOSITORY" --clobber
+          if gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern SHA256SUMS.txt --dir sums; then
+            grep -v "  $name\$" sums/SHA256SUMS.txt > SHA256SUMS.txt || true
+          else
+            echo "::warning title=AppImage::The release had no SHA256SUMS.txt; starting one."
+            : > SHA256SUMS.txt
+          fi
+          (cd appimage && sha256sum "$name") >> SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          gh release upload "$TAG" SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --clobber

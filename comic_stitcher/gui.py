@@ -29,7 +29,7 @@ from .ui.common import (START_SIZE, PROGRESS_WIDTH, fit_height, ui_heading, ui_a
     readable_size)
 from .ui.workers import Worker, ReviewImageWorker, ThumbnailWorker
 from .ui.theme import tone
-from .ui.help import show_guide, show_shortcuts
+from .ui.help import show_guide, show_notices, show_shortcuts
 from .rar_export import find_rar
 from .problems import enable_long_paths, long_paths_enabled, message_for
 from .space import drive_name, shortfall
@@ -326,7 +326,10 @@ class ComicWindow(ImportScreen, ScreenshotImport, PairReview, FinalReview, Expor
         notices = QPushButton("View third-party notices")
         notices.setObjectName("view_license_notices")
         notices.setEnabled(index.is_file())
-        notices.clicked.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(index))))
+        if appimage_path() is not None:  # Its files are only visible to itself (see show_notices).
+            notices.clicked.connect(lambda: show_notices(index, dialog))
+        else:
+            notices.clicked.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(index))))
         layout.addWidget(notices)
         files = QPushButton("Open license folder")
         files.setObjectName("open_license_folder")

@@ -1,4 +1,5 @@
 """Focused checks of review overlap and original-byte-preserving export."""
+import sys
 import tempfile
 import unittest
 import zipfile
@@ -433,6 +434,26 @@ class BookFlowTest(unittest.TestCase):
                          ["UnRAR", "unar", "bsdtar", "7-Zip (7z)", "7-Zip (7zz)"])
         for _, backends in choices:
             self.assertEqual(sum(backends.values()), 1)
+        self.assertEqual(archive_import.rarfile.UNRAR_TOOL, "unrar")  # The system's.
+
+    def test_the_appimages_own_unrar_comes_first(self):
+        from comic_stitcher import archive_import
+        with tempfile.TemporaryDirectory() as tmp:
+            program = Path(tmp) / "comic-stitcher"
+            unrar = Path(tmp) / "unrar"
+            for path in (program, unrar):
+                path.write_text("")
+                path.chmod(0o755)
+            with patch.object(sys, "frozen", True, create=True), patch.object(sys, "executable", str(program)):
+                if os.name != "nt":
+                    self.assertEqual(archive_import.bundled_unrar(), unrar.resolve())
+                archive_import._rar_extractors(windows=False)
+                if os.name != "nt":
+                    self.assertEqual(archive_import.rarfile.UNRAR_TOOL, str(unrar.resolve()))
+                unrar.unlink()
+                self.assertIsNone(archive_import.bundled_unrar())
+            archive_import._rar_extractors(windows=False)
+            self.assertEqual(archive_import.rarfile.UNRAR_TOOL, "unrar")
 
     def test_missing_rar_extractor_names_packages_outside_windows(self):
         from comic_stitcher import archive_import

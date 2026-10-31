@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # Builds a Linux AppImage of Comic Stitcher: one file that runs on most x86-64
-# Linux desktops without installing. (A trial: see packaging/appimage/README.md.)
+# Linux desktops without installing. See packaging/appimage/README.md.
 #
 #   packaging/appimage/build_appimage.sh
 #
-# Run in a Python 3.14 environment with requirements.txt and PyInstaller
-# installed, on the oldest Linux it should run on (its C library sets the
-# floor; GitHub's Ubuntu 22.04 machines are used). Writes
-# dist/ComicStitcher-<version>-x86_64.AppImage.
+# Run on Ubuntu 22.04 (its C library sets the oldest Linux the AppImage runs
+# on), in a Python 3.14 environment installed from
+# packaging/appimage/requirements-linux.txt with --require-hashes, as
+# .github/workflows/appimage.yml does. Downloads UnRAR, cwebp and the AppImage
+# tools recorded in packaging/appimage/tools.json, checking each one's SHA-256.
+# Writes dist/ComicStitcher-<version>-x86_64.AppImage.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
@@ -16,8 +18,12 @@ VERSION="$("$PYTHON" -c 'import comic_stitcher; print(comic_stitcher.__version__
 WORK="$ROOT/build/appimage"
 APPDIR="$WORK/ComicStitcher.AppDir"
 OUTPUT="$ROOT/dist/ComicStitcher-$VERSION-x86_64.AppImage"
+DOWNLOADS="$ROOT/build/appimage-downloads"  # Kept between builds; checked each time.
 rm -rf "$WORK"
 mkdir -p "$WORK" "$ROOT/dist"
+
+echo "==> Fetching UnRAR, cwebp and the AppImage tools"
+"$PYTHON" packaging/appimage/fetch_tools.py "$DOWNLOADS"
 
 echo "==> Freezing Comic Stitcher $VERSION with PyInstaller"
 "$PYTHON" -m PyInstaller --noconfirm --clean --windowed --onedir \
@@ -70,26 +76,20 @@ if [ -n "$stray" ]; then
 fi
 echo "System libraries bundled (the rest come from the system):"
 find "$APP/_internal" -maxdepth 1 -name 'lib*.so*' -printf '  %f\n' | sort
-if [ -n "${GITHUB_ACTIONS:-}" ]; then  # Shown on the run's page.
-    echo "::notice title=Bundled libraries::$(find "$APP/_internal" -maxdepth 1 -name 'lib*.so*' -printf '%f ' | tr ' ' '\n' | sort | tr '\n' ' ')"
-    echo "::notice title=Qt plugins::$(cd "$APP/_internal" && find . -path '*plugins*' -name '*.so' -printf '%P ' | tr ' ' '\n' | sort | tr '\n' ' ')"
-fi
 # The documents the app opens (the User Guide on F1) and its licences.
 mkdir -p "$APP/docs" "$APP/licenses"
 cp README.md LICENSE "$APP/"
 cp docs/*.md "$APP/docs/"
-cp -R assets/licenses/. "$APP/licenses/"
-rm -rf "$APP/licenses/microsoft"  # The Windows runtime's terms; nothing of it is in here.
-cp -R third_party_notices "$APP/licenses/python-packages"
+# UnRAR (CBR import) and cwebp (sharp color conversion), where the app looks first.
+cp "$DOWNLOADS/unrar" "$DOWNLOADS/cwebp" "$APP/"
+echo "==> Collecting the licence notices"
+"$PYTHON" packaging/appimage/collect_notices.py "$APP" "$DOWNLOADS"
 cp packaging/appimage/AppRun "$APPDIR/AppRun"
 cp packaging/appimage/comic-stitcher.desktop "$APPDIR/comic-stitcher.desktop"
 cp assets/app/comic-stitcher.png "$APPDIR/comic-stitcher.png"
 ln -s comic-stitcher.png "$APPDIR/.DirIcon"
 
 echo "==> Making the AppImage"
-TOOL="$WORK/appimagetool"
-curl -fsSL -o "$TOOL" \
-    "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
-chmod +x "$TOOL"
-ARCH=x86_64 "$TOOL" --appimage-extract-and-run --no-appstream "$APPDIR" "$OUTPUT"
+ARCH=x86_64 "$DOWNLOADS/appimagetool" --appimage-extract-and-run --no-appstream \
+    --runtime-file "$DOWNLOADS/runtime-x86_64" "$APPDIR" "$OUTPUT"
 ls -l "$OUTPUT"

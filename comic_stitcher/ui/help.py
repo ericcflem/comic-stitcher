@@ -14,7 +14,8 @@ from pathlib import Path
 
 from PySide6.QtCore import QUrl, Qt
 from PySide6.QtGui import QDesktopServices, QKeySequence, QShortcut, QTextCharFormat, QTextCursor, QTextDocument
-from PySide6.QtWidgets import QDialogButtonBox, QHBoxLayout, QLabel, QLineEdit, QTextBrowser, QVBoxLayout
+from PySide6.QtWidgets import (QDialogButtonBox, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTextBrowser,
+                               QVBoxLayout)
 
 from ..window_outline import OutlinedDialog
 
@@ -133,6 +134,68 @@ def show_shortcuts(parent) -> HelpWindow:
     text = shortcuts_markdown(path.read_text(encoding="utf-8")) if path.is_file() else ""
     window = HelpWindow("Keyboard shortcuts", text, parent, path.parent) if text else _missing(parent)
     window.resize(620, 520)
+    window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+    window.show()
+    return window
+
+
+class NoticesWindow(OutlinedDialog):
+    """The third-party notices (licenses/index.html and the files it lists),
+    read inside Comic Stitcher. The AppImage uses this: its files are in a
+    folder only it can see while running, which a browser in a sandbox (Ubuntu's
+    Firefox, say) can't open."""
+
+    def __init__(self, index: Path, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Third-party notices")
+        self.resize(900, 760)
+        self.root = index.parent.resolve()
+        self.history: list[Path] = []
+        layout = QVBoxLayout(self)
+        self.browser = QTextBrowser()
+        self.browser.setOpenLinks(False)
+        self.browser.anchorClicked.connect(self._follow)
+        layout.addWidget(self.browser, 1)
+        row = QHBoxLayout()
+        self.back = QPushButton("Back")
+        self.back.clicked.connect(self.go_back)
+        row.addWidget(self.back)
+        row.addStretch()
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(self.reject)
+        row.addWidget(buttons)
+        layout.addLayout(row)
+        self.current = index.resolve()
+        self.show_file(self.current)
+
+    def show_file(self, path: Path) -> None:
+        self.current = path
+        text = path.read_text(encoding="utf-8", errors="replace")
+        suffix = path.suffix.lower()
+        if suffix in (".html", ".htm"):
+            self.browser.setHtml(text)
+        elif suffix == ".md":
+            self.browser.setMarkdown(text)
+        else:
+            self.browser.setPlainText(text)  # Licence texts, whatever angle brackets they hold.
+        self.back.setEnabled(bool(self.history))
+
+    def _follow(self, url: QUrl) -> None:
+        if url.scheme() in ("http", "https", "mailto"):
+            QDesktopServices.openUrl(url)
+            return
+        target = (self.current.parent / url.path()).resolve()
+        if target.is_file() and target.is_relative_to(self.root):  # Only the notices themselves.
+            self.history.append(self.current)
+            self.show_file(target)
+
+    def go_back(self) -> None:
+        if self.history:
+            self.show_file(self.history.pop())
+
+
+def show_notices(index: Path, parent) -> NoticesWindow:
+    window = NoticesWindow(index, parent)
     window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
     window.show()
     return window

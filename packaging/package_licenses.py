@@ -88,14 +88,14 @@ def notice_member(member):
             name.startswith(('license', 'licence', 'copying', 'notice', 'copyright')))
 
 
-def frozen_distributions(destination):
+def frozen_distributions(destination, executable_name='ComicStitcher.exe'):
     """Resolve installed owners of code actually frozen by this build.
 
     This deliberately includes packaging tools if they enter PYZ. Vendor notices
     are retained from their containing distribution's complete file manifest.
     """
     from PyInstaller.archive.readers import CArchiveReader
-    executable = destination / 'ComicStitcher.exe'
+    executable = destination / executable_name
     if not executable.is_file():
         return {}, {'inspected': False, 'unmapped_roots': [], 'modules': []}
     archive = CArchiveReader(str(executable))
