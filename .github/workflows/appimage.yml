@@ -78,8 +78,13 @@ jobs:
             status=$?
             set -e
             echo "== $label: exit $status"; echo "$out" | tail -40
-            echo "::notice title=$label - exit $status::$(echo "$out" | grep -E 'qt.qpa|ould not|annot load|failed to start|no Qt platform|This application' | grep -v portal | head -12 | tr '\n' '|')"
+            echo "::notice title=$label - exit $status::exit $status | $(echo "$out" | grep -E 'qt.qpa|ould not|annot load|failed to start|no Qt platform|This application' | grep -v portal | head -12 | tr '\n' '|')"
           }
+          plugin="$(dirname "$app")/_internal/PySide6/Qt/plugins/platforms/libqxcb.so"
+          echo "::notice title=Still installed::$(dpkg -l libxcb-cursor0 libxkbcommon-x11-0 xvfb 2>&1 | grep -E '^(ii|rc|un)' | awk '{print $1, $2}' | tr '\n' '|')"
+          echo "::notice title=ldd libqxcb not found::$(ldd "$plugin" | grep 'not found' | tr '\n' '|') none-or-above"
+          echo "::notice title=RUNPATH::$(for f in "$plugin" "$(dirname "$app")/_internal/PySide6/Qt/lib/libQt6XcbQpa.so.6"; do readelf -d "$f" | grep -E 'RPATH|RUNPATH'; done | tr '\n' '|')"
+          echo "::notice title=Bundled xcb::$(ls "$(dirname "$app")/_internal" | grep -E 'xcb|xkb' | tr '\n' ' ')"
           try "Through AppRun" "$RUNNER_TEMP/x/squashfs-root/AppRun"
           try "Program inside directly" "$app"
           try "Program inside with its libraries on the path" env LD_LIBRARY_PATH="$(dirname "$app")/_internal" "$app"
