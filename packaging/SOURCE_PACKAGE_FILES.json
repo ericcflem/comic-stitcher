@@ -13,8 +13,8 @@
     },
     {
       "path": ".github/workflows/appimage.yml",
-      "bytes": 4406,
-      "sha256": "646b0a9d98c14bafc4017355fe8eb9f44898033a485aacd0f5b06734da2371e0"
+      "bytes": 4480,
+      "sha256": "94d7cf65ed002f76b56965fea8dfaf3ad60714ddc6c855aec7556e95b2863173"
     },
     {
       "path": ".github/workflows/tests.yml",
