@@ -6,8 +6,19 @@ app starts. In dark mode it uses its own dark palette for Qt's Fusion style
 checked), and its own colors (headings, hints, panels, highlights) switch to
 dark-mode versions through tone(). The interface icons, drawn in black, are
 drawn in the text color instead.
+
+On Linux the light or dark setting is asked of the desktop itself (the
+settings portal, or GNOME's own setting) before Qt, whose answer depends on
+which of its desktop plugins could load: in the AppImage, without the
+system's own GTK, it could miss dark mode. Light mode there uses Fusion's own
+light palette, so it doesn't pick up half of a desktop theme either.
 """
 from __future__ import annotations
+
+import re
+import shutil
+import subprocess
+import sys
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QGuiApplication, QIcon, QPainter, QPalette
@@ -51,7 +62,44 @@ TONES = {
 }
 
 
+PORTAL = ["gdbus", "call", "--session", "--timeout", "2", "--dest", "org.freedesktop.portal.Desktop",
+          "--object-path", "/org/freedesktop/portal/desktop",
+          "--method", "org.freedesktop.portal.Settings.ReadOne", "org.freedesktop.appearance", "color-scheme"]
+GNOME = ["gsettings", "get", "org.gnome.desktop.interface", "color-scheme"]
+
+
+def _run(command: list[str]) -> str:
+    if not shutil.which(command[0]):
+        return ""
+    try:
+        return subprocess.run(command, capture_output=True, text=True, timeout=3, check=False).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def portal_choice(output: str) -> bool | None:
+    """The portal's color-scheme answer ("(<<uint32 1>>,)"): 1 prefers dark,
+    2 prefers light, 0 no preference (None)."""
+    match = re.search(r"uint32 (\d+)", output)
+    return {"1": True, "2": False}.get(match.group(1)) if match else None
+
+
+def gnome_choice(output: str) -> bool | None:
+    value = output.strip().strip("'")
+    return {"prefer-dark": True, "prefer-light": False}.get(value)
+
+
+def linux_desktop_is_dark() -> bool | None:
+    """The desktop's own light or dark setting, or None if it gives none."""
+    choice = portal_choice(_run(PORTAL))
+    return choice if choice is not None else gnome_choice(_run(GNOME))
+
+
 def system_is_dark() -> bool:
+    if sys.platform.startswith("linux"):
+        choice = linux_desktop_is_dark()
+        if choice is not None:
+            return choice
     hints = QGuiApplication.styleHints()
     scheme = getattr(hints, "colorScheme", None)
     if scheme is not None and scheme() != Qt.ColorScheme.Unknown:
@@ -97,6 +145,8 @@ def apply_theme(app, dark: bool | None = None) -> None:
     _dark = system_is_dark() if dark is None else dark
     if _dark:
         app.setPalette(dark_palette())
+    elif sys.platform.startswith("linux"):
+        app.setPalette(app.style().standardPalette())
 
 
 def tinted(icon: QIcon, size: int = 128) -> QIcon:

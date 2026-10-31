@@ -52,8 +52,9 @@ def saved_colour(value) -> str:
 
 def edge_colour(colour: QColor) -> QColor:
     """A thin edge that sets the tab off from any window behind it: darker
-    around a light colour, lighter around a dark one."""
-    return colour.darker(165) if colour.lightness() >= 70 else colour.lighter(260)
+    than the tab, so it doesn't show as a light outline, except around a
+    nearly black colour, where a darker edge couldn't be seen."""
+    return colour.darker(165) if colour.lightness() >= 40 else colour.lighter(260)
 ICON_SIZE = 48
 TOP_PAD = 16
 ICON_GAP = 8

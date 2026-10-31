@@ -28,3 +28,9 @@ menu), and Settings has Add to app menu / Remove from app menu. Removing can als
 remove the settings, logs and saved reviews. Every entry has `TryExec`, so it
 hides itself once the AppImage is deleted, and the Files script removes itself;
 if the AppImage is moved, the entries follow it at its next start.
+
+Appearance: Qt's GTK plugin is left out, with the GTK libraries it brought
+from the build machine; that older GTK missed newer desktops' dark mode and
+drew faint check boxes. AppRun has Qt use the desktop's settings portal instead
+(light or dark, and the desktop's own file dialogs), and Comic Stitcher also
+asks the portal for light or dark itself.

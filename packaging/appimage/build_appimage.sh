@@ -42,6 +42,32 @@ echo "Left out, to use the system's own:"
 find "$APP" -type f \( -name 'libglib-2.0.so*' -o -name 'libgobject-2.0.so*' -o -name 'libgio-2.0.so*' \
     -o -name 'libgmodule-2.0.so*' -o -name 'libgthread-2.0.so*' -o -name 'libdbus-1.so*' \
     -o -name 'libfontconfig.so*' -o -name 'libfreetype.so*' \) -print -delete
+# Qt's GTK plugin brought the build machine's GTK with it, and that older GTK
+# misread newer desktops' themes: no dark mode, faint check boxes. Without it
+# Qt asks the desktop portal instead (AppRun chooses it), which also gives the
+# desktop's own file dialogs; so the GTK libraries go too.
+echo "Left out with Qt's GTK plugin:"
+find "$APP" -type f -name 'libqgtk3.so' -print -delete
+GTK_ONLY='libgtk-3 libgdk-3 libgdk_pixbuf-2.0 libatk-1.0 libatk-bridge-2.0 libatspi libcairo libcairo-gobject
+libpango-1.0 libpangocairo-1.0 libpangoft2-1.0 libharfbuzz libfribidi libthai libdatrie libgraphite2
+libpixman-1 libepoxy libXcomposite libXdamage libXi libXinerama libXcursor libXrandr'
+for name in $GTK_ONLY; do
+    find "$APP" -type f -name "$name.so*" -print -delete
+done
+# Nothing left may still need what was taken out with the GTK plugin.
+stray=""
+for file in $(find "$APP" -type f -name '*.so*'); do
+    for needed in $(readelf -d "$file" 2>/dev/null | sed -n 's/.*Shared library: \[\(.*\)\]/\1/p'); do
+        for name in $GTK_ONLY; do
+            case "$needed" in "$name".so*) stray="$stray ${file#"$APP"/} needs $needed;" ;; esac
+        done
+    done
+done
+if [ -n "$stray" ]; then
+    echo "Still needed by what's bundled:$stray"
+    if [ -n "${GITHUB_ACTIONS:-}" ]; then echo "::error title=GTK libraries still needed::$stray"; fi
+    exit 1
+fi
 echo "System libraries bundled (the rest come from the system):"
 find "$APP/_internal" -maxdepth 1 -name 'lib*.so*' -printf '  %f\n' | sort
 if [ -n "${GITHUB_ACTIONS:-}" ]; then  # Shown on the run's page.

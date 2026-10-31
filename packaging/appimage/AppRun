@@ -10,4 +10,10 @@ if [ -n "${APPIMAGE:-}" ]; then
     COMIC_STITCHER_LAUNCHER="$APPIMAGE"
     export COMIC_STITCHER_LAUNCHER
 fi
+# Light or dark mode, file dialogs and the like from the desktop's own settings
+# portal (GNOME, KDE and others), unless a Qt theme was chosen already.
+if [ -z "${QT_QPA_PLATFORMTHEME:-}" ]; then
+    QT_QPA_PLATFORMTHEME=xdgdesktopportal
+    export QT_QPA_PLATFORMTHEME
+fi
 exec "$HERE/usr/lib/comic-stitcher/comic-stitcher" "$@"

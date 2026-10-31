@@ -1368,8 +1368,8 @@
     },
     {
       "path": "comic_stitcher/drop_tab.py",
-      "bytes": 33516,
-      "sha256": "963a01f8b46012dc2a19b211a2243250f5c68d5e6701d25459e2da37f3517f63"
+      "bytes": 33598,
+      "sha256": "4193286864f73c5a048f417d93815dafed021c0f8a72a7ab0ef126c86e4702f6"
     },
     {
       "path": "comic_stitcher/drop_tab_support.py",
@@ -1533,8 +1533,8 @@
     },
     {
       "path": "comic_stitcher/test_drop_tab.py",
-      "bytes": 14876,
-      "sha256": "4dc8f6c8d695f87afce5abaadedbea6f1f13d22b87661b8ebd254ac185ea648d"
+      "bytes": 15067,
+      "sha256": "caf567556744bb265c3e221ffdb57c4e5a320318174b9e9ecad5e7a11d26353a"
     },
     {
       "path": "comic_stitcher/test_drop_tab_support.py",
@@ -1543,8 +1543,8 @@
     },
     {
       "path": "comic_stitcher/test_gui.py",
-      "bytes": 201906,
-      "sha256": "d0204d75f7275981c7aa5366a4e405fe886e28fc0cc79fa4cc4f5cd5bac59e7c"
+      "bytes": 203020,
+      "sha256": "00f8be26308eeb564f2e77c880b1058e53ac8d4333d671df41fcd440d1e3ad03"
     },
     {
       "path": "comic_stitcher/test_icons_resource.py",
@@ -1723,8 +1723,8 @@
     },
     {
       "path": "comic_stitcher/ui/theme.py",
-      "bytes": 5192,
-      "sha256": "9e1c015156346bb80458d276e7a02992fee0a8787a22bca1164765e02c2a9b33"
+      "bytes": 7156,
+      "sha256": "8f936d92e96a380c9621909dabd006781b4c4200031da410e1548bb168883e74"
     },
     {
       "path": "comic_stitcher/ui/thumbnails.py",
@@ -1873,18 +1873,18 @@
     },
     {
       "path": "packaging/appimage/AppRun",
-      "bytes": 523,
-      "sha256": "591c13cef7c3473858af6f072eb5db9e0b91e6bc776127833ca2079b2f238376"
+      "bytes": 796,
+      "sha256": "c280233272ea4b76bdf56afbe1cdd093eae961fdb7197ec1060446ecc26f31ce"
     },
     {
       "path": "packaging/appimage/README.md",
-      "bytes": 1607,
-      "sha256": "b167e06c6743b82a484573f2918b9e32b679e5045fa1f2e7b349d75af5077e69"
+      "bytes": 1958,
+      "sha256": "530e2ecc0fdba32db716969ab62431facd8ebfaa9999e5ab0bc10caff2fecdf5"
     },
     {
       "path": "packaging/appimage/build_appimage.sh",
-      "bytes": 3329,
-      "sha256": "8adea05d64017d7dfc7630f2e85945466a4e43850b93fe4a6972daa94cd93d58"
+      "bytes": 5052,
+      "sha256": "67ec52d21b00b4413e8ae97b2591edfb587f1aa79acd30430ddf9112a189f7fa"
     },
     {
       "path": "packaging/appimage/comic-stitcher.desktop",
