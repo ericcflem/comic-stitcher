@@ -88,9 +88,9 @@ jobs:
             set -e
           }
           run_child
-          echo "Without PYINSTALLER_RESET_ENVIRONMENT: exit $status (134 = couldn't start)"
+          echo "::notice title=Started from the drop tab the old way::exit $status (124 = still running; 134 = could not start)"
           run_child PYINSTALLER_RESET_ENVIRONMENT=1
-          echo "With it: exit $status"
+          echo "::notice title=Started from the drop tab now::exit $status"
           kill $pid || true
           if [ "$status" -ne 124 ]; then
             echo "::error title=AppImage::Started from the drop tab, it stopped by itself (exit $status)."
