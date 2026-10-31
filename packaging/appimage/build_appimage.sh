@@ -44,6 +44,10 @@ find "$APP" -type f \( -name 'libglib-2.0.so*' -o -name 'libgobject-2.0.so*' -o 
     -o -name 'libfontconfig.so*' -o -name 'libfreetype.so*' \) -print -delete
 echo "System libraries bundled (the rest come from the system):"
 find "$APP/_internal" -maxdepth 1 -name 'lib*.so*' -printf '  %f\n' | sort
+if [ -n "${GITHUB_ACTIONS:-}" ]; then  # Shown on the run's page.
+    echo "::notice title=Bundled libraries::$(find "$APP/_internal" -maxdepth 1 -name 'lib*.so*' -printf '%f ' | tr ' ' '\n' | sort | tr '\n' ' ')"
+    echo "::notice title=Qt plugins::$(cd "$APP/_internal" && find . -path '*plugins*' -name '*.so' -printf '%P ' | tr ' ' '\n' | sort | tr '\n' ' ')"
+fi
 # The documents the app opens (the User Guide on F1) and its licences.
 mkdir -p "$APP/docs" "$APP/licenses"
 cp README.md LICENSE "$APP/"
