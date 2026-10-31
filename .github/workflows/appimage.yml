@@ -133,14 +133,15 @@ jobs:
 
   release:
     # A published release: attach the AppImage built from its tag.
-    if: github.event_name == 'release'
+    if: github.event_name == 'release' || github.event_name == 'pull_request'
     needs: appimage
     runs-on: ubuntu-latest
     permissions:
       contents: write
     env:
       GH_TOKEN: ${{ github.token }}
-      TAG: ${{ github.event.release.tag_name }}
+      TAG: ${{ github.event.release.tag_name || 'v0.13.0' }}
+      DRY_RUN: ${{ github.event_name != 'release' }}
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -156,7 +157,7 @@ jobs:
             echo "::error title=AppImage::The release is $TAG, but its code is version $version."
             exit 1
           fi
-          gh release upload "$TAG" "$image" --repo "$GITHUB_REPOSITORY" --clobber
+          if [ "$DRY_RUN" != true ]; then gh release upload "$TAG" "$image" --repo "$GITHUB_REPOSITORY" --clobber; fi
           if gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern SHA256SUMS.txt --dir sums; then
             grep -v "  $name\$" sums/SHA256SUMS.txt > SHA256SUMS.txt || true
           else
@@ -165,4 +166,5 @@ jobs:
           fi
           (cd appimage && sha256sum "$name") >> SHA256SUMS.txt
           cat SHA256SUMS.txt
-          gh release upload "$TAG" SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --clobber
+          echo "::notice title=SHA256SUMS.txt (dry run $DRY_RUN)::$(tr '\n' '|' < SHA256SUMS.txt)"
+          if [ "$DRY_RUN" != true ]; then gh release upload "$TAG" SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --clobber; fi
