@@ -63,31 +63,39 @@ jobs:
           fi
           echo "Ran for 25 seconds; size: $(du -h "$image" | cut -f1)"
 
-      - name: "Diagnosis: start it without the system's xcb libraries"
-        continue-on-error: true
+      - name: Start it again from inside itself, as the drop tab does, without the system's X11 libraries
+        # Ubuntu doesn't install some of the X11 libraries Qt needs (install.sh
+        # offers them); the AppImage brings its own. A copy started from a
+        # running one (the drop tab opening a comic) must find them too.
         run: |
           image=$(realpath dist/ComicStitcher-*-x86_64.AppImage)
           sudo apt-get remove -y libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
-            libxcb-render-util0 libxcb-xinerama0 libxkbcommon-x11-0 >/dev/null 2>&1 || true
+            libxcb-render-util0 libxcb-xinerama0 libxkbcommon-x11-0
           mkdir -p "$RUNNER_TEMP/x" && cd "$RUNNER_TEMP/x" && "$image" --appimage-extract >/dev/null
           app="$RUNNER_TEMP/x/squashfs-root/usr/lib/comic-stitcher/comic-stitcher"
-          try() {
-            label="$1"; shift
+          export QT_QPA_PLATFORM=xcb
+          Xvfb :91 -screen 0 1280x1024x24 & sleep 2
+          export DISPLAY=:91
+          "$RUNNER_TEMP/x/squashfs-root/AppRun" --drop-tab & sleep 8
+          pid=$(pgrep -f -- "$app --drop-tab" | head -1)
+          [ -n "$pid" ] || { echo "::error::The drop tab didn't start."; exit 1; }
+          # What a program it starts inherits, PyInstaller's markers included.
+          tr '\0' '\n' < /proc/$pid/environ | grep '^_PYI\|^PYINSTALLER' | sed 's/^/  /'
+          run_child() {
             set +e
-            out=$(QT_DEBUG_PLUGINS=1 QT_QPA_PLATFORM=xcb xvfb-run -a timeout 15 "$@" 2>&1)
+            env $(tr '\0' '\n' < /proc/$pid/environ | grep '^_PYI' | tr '\n' ' ') "$@" timeout 15 "$app"
             status=$?
             set -e
-            echo "== $label: exit $status"; echo "$out" | tail -40
-            echo "::notice title=$label - exit $status::exit $status | $(echo "$out" | grep -E 'qt.qpa|ould not|annot load|failed to start|no Qt platform|This application' | grep -v portal | head -12 | tr '\n' '|')"
           }
-          plugin="$(dirname "$app")/_internal/PySide6/Qt/plugins/platforms/libqxcb.so"
-          echo "::notice title=Still installed::$(dpkg -l libxcb-cursor0 libxkbcommon-x11-0 xvfb 2>&1 | grep -E '^(ii|rc|un)' | awk '{print $1, $2}' | tr '\n' '|')"
-          echo "::notice title=ldd libqxcb not found::$(ldd "$plugin" | grep 'not found' | tr '\n' '|') none-or-above"
-          echo "::notice title=RUNPATH::$(for f in "$plugin" "$(dirname "$app")/_internal/PySide6/Qt/lib/libQt6XcbQpa.so.6"; do readelf -d "$f" | grep -E 'RPATH|RUNPATH'; done | tr '\n' '|')"
-          echo "::notice title=Bundled xcb::$(ls "$(dirname "$app")/_internal" | grep -E 'xcb|xkb' | tr '\n' ' ')"
-          try "Through AppRun" "$RUNNER_TEMP/x/squashfs-root/AppRun"
-          try "Program inside directly" "$app"
-          try "Program inside with its libraries on the path" env LD_LIBRARY_PATH="$(dirname "$app")/_internal" "$app"
+          run_child
+          echo "Without PYINSTALLER_RESET_ENVIRONMENT: exit $status (134 = couldn't start)"
+          run_child PYINSTALLER_RESET_ENVIRONMENT=1
+          echo "With it: exit $status"
+          kill $pid || true
+          if [ "$status" -ne 124 ]; then
+            echo "::error title=AppImage::Started from the drop tab, it stopped by itself (exit $status)."
+            exit 1
+          fi
 
       - name: Keep the AppImage as a download
         uses: actions/upload-artifact@v4

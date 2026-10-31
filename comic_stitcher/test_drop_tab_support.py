@@ -107,6 +107,17 @@ class LaunchTests(unittest.TestCase):
                                         environ={"APPIMAGE": str(image)})
             self.assertEqual(program, "/tmp/.mount_abc/cs")
 
+    def test_comic_stitcher_started_from_the_tab_sets_itself_up(self):
+        environ = {"_PYI_APPLICATION_HOME_DIR": "/tmp/.mount_x", "QT_QPA_PLATFORM": "xcb", "HOME": "/home/me"}
+        child = support.child_environment(environ, platform_forced=True, frozen=True)
+        self.assertEqual(child["PYINSTALLER_RESET_ENVIRONMENT"], "1")
+        self.assertNotIn("QT_QPA_PLATFORM", child)  # The tab's choice, not the window's.
+        self.assertEqual(child["HOME"], "/home/me")
+        kept = support.child_environment(environ, platform_forced=False, frozen=False)
+        self.assertEqual(kept["QT_QPA_PLATFORM"], "xcb")  # The user's own choice stays.
+        self.assertNotIn("PYINSTALLER_RESET_ENVIRONMENT", kept)
+        self.assertEqual(environ["QT_QPA_PLATFORM"], "xcb")  # A copy; the tab's own is untouched.
+
     def test_source_run_uses_launch_script(self):
         program, arguments = launch_command(["/home/me/x.cbz"], frozen=False,
                                             executable="/usr/bin/python3", source_root="/src/cs")

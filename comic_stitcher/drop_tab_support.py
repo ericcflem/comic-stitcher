@@ -130,6 +130,25 @@ def launch_command(paths=(), frozen=None, executable=None, source_root=None, env
     return executable, [str(root / "launch.py"), *arguments]
 
 
+def child_environment(environ=None, platform_forced=False, frozen=None):
+    """The environment for Comic Stitcher started from the drop tab.
+
+    * A frozen app's child would otherwise take itself for part of the same
+      program (PyInstaller's markers in the environment) and skip setting up
+      its own libraries: on Linux it then can't find the bundled X11 libraries,
+      and fails to start where the system doesn't have them.
+    * X11 is the drop tab's own choice (see needs_x11), not the main window's,
+      which can fall back to Wayland.
+    """
+    environ = dict(os.environ if environ is None else environ)
+    frozen = getattr(sys, "frozen", False) if frozen is None else frozen
+    if frozen:
+        environ["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+    if platform_forced:
+        environ.pop("QT_QPA_PLATFORM", None)
+    return environ
+
+
 def drop_tab_command(frozen=None, executable=None, source_root=None, environ=None):
     """The command that starts the drop tab (used for starting it at sign-in).
 
