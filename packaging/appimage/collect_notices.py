@@ -98,11 +98,16 @@ def _dpkg(*arguments: str) -> str:
 
 def ubuntu_package(library: str) -> str | None:
     """The Ubuntu package a bundled library came from, if one did."""
+    found = []
     for line in _dpkg("-S", f"*/{library}").splitlines():
         package, _, path = line.partition(": ")
         if path.rsplit("/", 1)[-1] == library:
-            return package.split(":")[0].split(",")[0].strip()
-    return None
+            found.append((package.split(":")[0].split(",")[0].strip(), path))
+    # The 64-bit library, not a 32-bit package's (lib32z1's /usr/lib32/libz.so.1).
+    for package, path in found:
+        if "/x86_64-linux-gnu/" in path:
+            return package
+    return found[0][0] if found else None
 
 
 def system_libraries(app: Path, target: Path) -> list[dict]:

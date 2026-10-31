@@ -1888,8 +1888,8 @@
     },
     {
       "path": "packaging/appimage/collect_notices.py",
-      "bytes": 10911,
-      "sha256": "ac1a48b9497305a463ef7eb0cc16d67f05512bd36e5c0c63189d3ff73ae33658"
+      "bytes": 11150,
+      "sha256": "b167d6dd374ec88299afb2c64fbde71f44bc23d4a42cb68435d1f9176eae677f"
     },
     {
       "path": "packaging/appimage/comic-stitcher.desktop",
