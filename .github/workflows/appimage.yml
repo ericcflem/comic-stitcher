@@ -78,11 +78,11 @@ jobs:
             status=$?
             set -e
             echo "== $label: exit $status"; echo "$out" | tail -40
-            echo "::notice title=$label (exit $status)::$(echo "$out" | grep -iE 'cannot|could not|not found|error|fatal|abort|xcb' | grep -v 'Found metadata' | head -12 | tr '\n' '|')"
+            echo "::notice title=$label - exit $status::$(echo "$out" | grep -E 'qt.qpa|ould not|annot load|failed to start|no Qt platform|This application' | grep -v portal | head -12 | tr '\n' '|')"
           }
           try "Through AppRun" "$RUNNER_TEMP/x/squashfs-root/AppRun"
-          try "Program inside, directly" "$app"
-          try "Program inside, LD_LIBRARY_PATH=_internal" env LD_LIBRARY_PATH="$(dirname "$app")/_internal" "$app"
+          try "Program inside directly" "$app"
+          try "Program inside with its libraries on the path" env LD_LIBRARY_PATH="$(dirname "$app")/_internal" "$app"
 
       - name: Keep the AppImage as a download
         uses: actions/upload-artifact@v4
