@@ -41,11 +41,6 @@ jobs:
             libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
             libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 xvfb
 
-      - name: "Probe: keyring wheels (temporary)"
-        run: |
-          python -m pip download --only-binary=:all: --dest "$RUNNER_TEMP/k" "keyring>=25.7,<26" >/dev/null
-          echo "::notice title=keyring wheels::$(cd "$RUNNER_TEMP/k" && for f in *.whl; do echo "$f $(sha256sum "$f" | cut -c1-64)"; done | tr '\n' '|')"
-
       - name: Install the pinned libraries and PyInstaller
         # Exactly the versions recorded, each wheel checked against its hash.
         run: |

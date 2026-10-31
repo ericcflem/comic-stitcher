@@ -1903,8 +1903,8 @@
     },
     {
       "path": "packaging/appimage/requirements-linux.txt",
-      "bytes": 2647,
-      "sha256": "e1a8ca01ce2875f221b52b40c70575da1f8c7205f4bb2e14099039ae037d39e7"
+      "bytes": 3764,
+      "sha256": "34c95bc88045e6f9ae2b608cfac59edeab7d940954761f52d1785f183b8648f4"
     },
     {
       "path": "packaging/appimage/tools.json",
