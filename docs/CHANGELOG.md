@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.14.0
+
+**Linux AppImage**
+
+- A second way to run Comic Stitcher on Linux: one file,
+  `ComicStitcher-0.14.0-x86_64.AppImage`, that runs without installing.
+  Download it, allow it to run, and open it. `linux/install.sh` is still there
+  for an installed copy. It runs on 64-bit Linux from about 2022 on (Ubuntu
+  22.04, Debian 12, Fedora 36 or newer), and has been tried on Ubuntu 22.04 and
+  26.04, Kubuntu and Fedora.
+- Everything it needs is inside, including UnRAR for CBR import and Google's
+  `cwebp` for WebP's sharp color conversion, so nothing else has to be
+  installed. Its libraries are the Windows release's versions.
+- The first time, it offers to add itself to the app menu: its icon in the
+  dock, Open With for comics, **Open in Comic Stitcher** in Files' folder menu,
+  and the drop tab's menu entry. **Settings → AppImage** adds or removes them;
+  removing can also remove your settings, logs and saved reviews. If the
+  AppImage is moved, its entries follow it; if it's deleted, they disappear.
+- **About → View third-party notices** shows the notices inside Comic
+  Stitcher, including those for the Ubuntu libraries the AppImage carries.
+- Built and attached to each release by GitHub, from the release's own code,
+  with its checksum in SHA256SUMS.txt.
+
+**Look**
+
+- Scroll bars stand out: the handle is clearly darker (or, in dark mode,
+  lighter) than its track, as the desktop's own are, and changes shade under
+  the pointer and while dragged. Before, it was almost the same color as the
+  track.
+- Linux: dark mode is read from the desktop's own setting, and light mode uses
+  Qt's standard light colors, so check boxes are clearly outlined.
+- Drop tab: Olive and Dark gray no longer have a light outline the other
+  colors don't.
+
+**Drop tab**
+
+- The drop tab starts Comic Stitcher as a program of its own. On Linux,
+  a frozen build started from the tab could fail to start where the system
+  lacks some X11 libraries, showing **Opening…** and then nothing.
+- On Linux, its sign-in entry hides itself if the program it starts is gone.
+
 ## 0.13.0
 
 **Look and help**

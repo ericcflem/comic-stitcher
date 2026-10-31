@@ -1,5 +1,5 @@
 {
-  "scope": "Comic Stitcher 0.13.0 source package. Library source archives and unrar.exe are unchanged since 0.6.38; cwebp.exe is libwebp 1.6.0.",
+  "scope": "Comic Stitcher 0.14.0 source package. Library source archives and unrar.exe are unchanged since 0.6.38; cwebp.exe is libwebp 1.6.0.",
   "files": [
     {
       "path": ".github/check_linux_install.py",
@@ -1299,7 +1299,7 @@
     {
       "path": "comic_stitcher/__init__.py",
       "bytes": 107,
-      "sha256": "47632647ccbc0b241c3c1852e7cbfd86ff11891b500d489309eb1fd94351612f"
+      "sha256": "ce01103971a8459e9d21a667e3bd1e01f2fc6c118f00d6a1936cb9c7e5bbb9c6"
     },
     {
       "path": "comic_stitcher/__main__.py",
@@ -1744,17 +1744,17 @@
     {
       "path": "docs/BUILDING.md",
       "bytes": 8160,
-      "sha256": "eaa420dbec9354ebba09f254d04c8e9b5743d2a44c0008b9767a7b445ef093ce"
+      "sha256": "ed2d13f3e940b1010dc9fd9bf860e5bab576ec32e92d99d076a4bb15928df23e"
     },
     {
       "path": "docs/CHANGELOG.md",
-      "bytes": 25779,
-      "sha256": "0a99fb50bd53753889d2ea3f56245ed54c709c877df11368e4cbcbbd20571f73"
+      "bytes": 27854,
+      "sha256": "c6d01b701ccc8a0e6f2f13c1c6ee70a06b2e2f4ced96bfe096786a8d361dad88"
     },
     {
       "path": "docs/NATIVE_SOURCE_REBUILD.md",
       "bytes": 10819,
-      "sha256": "ddf7927c34457cc443628c06bf271cb0b77a38b8bc264680894d97b093b61d46"
+      "sha256": "7e1351b34fe12cb6150a770e969e385592721aaea15337370b79fdd8ce46d759"
     },
     {
       "path": "docs/PROVENANCE.md",
@@ -1764,17 +1764,17 @@
     {
       "path": "docs/REBUILDING_AND_REPLACING_LIBRARIES.md",
       "bytes": 9053,
-      "sha256": "cef3b4e215766beb3ba39a1d1510f97e7a73781b4c70cd131c04f0e66ebdc568"
+      "sha256": "1785f1da66d29be67806963f6713e2f23d8d84e8a6219d065eb457c8eb69a896"
     },
     {
       "path": "docs/RELEASE_NOTES.md",
-      "bytes": 2568,
-      "sha256": "3b70fb746822ce921b0eba907f3769dae19c762c8104d1203d88b6e803b01227"
+      "bytes": 2316,
+      "sha256": "3d727c5e622adc86e4680db079fcd061ec55dd8692025fdb2e39171e0669f17b"
     },
     {
       "path": "docs/SOURCE_ACCESS.md",
-      "bytes": 7479,
-      "sha256": "c272ce783995c1d6d033ba082c3d1904c14dcd2574b14973a2a5318999fd71df"
+      "bytes": 7501,
+      "sha256": "08a9a1e03506c8f078b9efd8e0428e0ecec0a95cf6562515c50ac068582ed030"
     },
     {
       "path": "docs/SOURCE_PACKAGE_CONTENTS.md",
@@ -1784,7 +1784,7 @@
     {
       "path": "docs/START_HERE.md",
       "bytes": 1018,
-      "sha256": "f4865fe993d55d451ee8eaad908085d119fa78c0c24e945ad1efac54531f84d3"
+      "sha256": "e83dbc7a5d63e50942e0019debf6f58c3c8de6995a44eab142276504e41ef0f8"
     },
     {
       "path": "docs/THIRD_PARTY_ACKNOWLEDGEMENTS.md",
@@ -1929,7 +1929,7 @@
     {
       "path": "packaging/build_release_windows.bat",
       "bytes": 1184,
-      "sha256": "3166e856aa7cbe12ff2b63555703653a1d23efc2df12e1680c50ca77e4326407"
+      "sha256": "6d9dd2df1d3e98fefe8483a6fd1a767864d210d38b4ef005382c5c6c3b46a8c1"
     },
     {
       "path": "packaging/build_runtime_installer_windows.bat",
@@ -1949,7 +1949,7 @@
     {
       "path": "packaging/compile_runtime_installer_windows.ps1",
       "bytes": 4437,
-      "sha256": "17cfdee253d18e6fa8de3137487a90bae7695000976ccb1480faa93e644c57d8"
+      "sha256": "86155aa1c583a06e0bdc5ab581a735826384e110d0f9dc4059b01458a9a674c8"
     },
     {
       "path": "packaging/installer_evidence.py",
@@ -2029,7 +2029,7 @@
     {
       "path": "packaging/setup_windows.iss",
       "bytes": 9640,
-      "sha256": "3288fbea3306902cfa542530899f3d0f92146c895fc9e6cafe45546a5cb73e15"
+      "sha256": "c7e2e442e002f6edc7a3440afe7a5286d78debc533932976be5d65fc1b5f3750"
     },
     {
       "path": "packaging/test_installed_runtime_verifier.py",

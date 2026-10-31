@@ -1,4 +1,4 @@
-# Native-library source and rebuild guide — 0.13.0 (library sources unchanged since 0.6.38)
+# Native-library source and rebuild guide — 0.14.0 (library sources unchanged since 0.6.38)
 
 Prepared 9 October 2026 UTC. This guide separates a normal application rebuild,
 rebuilding upstream libraries, and evidence about the supplier's binaries.
