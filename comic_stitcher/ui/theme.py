@@ -59,6 +59,11 @@ TONES = {
     "tab_border": ("#ccd5dd", "#4a5057"),
     "switch_track": ("#d0d7de", "#5a6169"),   # Seam View's page-on-top switch.
     "switch_knob": ("#ffffff", "#e8eaed"),
+    # Scroll bars: a handle that stands out from its track, as the desktop's own do.
+    "scroll_track": ("#eceff2", "#26282c"),
+    "scroll_handle": ("#a3a9b0", "#80868e"),
+    "scroll_handle_hover": ("#848b93", "#9ea4ab"),
+    "scroll_handle_pressed": ("#6b727a", "#b9bec4"),
 }
 
 
