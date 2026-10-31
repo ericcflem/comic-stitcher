@@ -122,7 +122,7 @@ jobs:
           "$app/cwebp" -version
           test -s "$app/licenses/index.html"
           grep -q "UnRAR" "$app/licenses/index.html"
-          echo "Notices: $(find "$app/licenses" -type f | wc -l) files"
+          echo "::notice title=Notices::$(python -c 'import json,sys; d=json.load(open(sys.argv[1])); print(", ".join(r["name"] + " " + r["version"] for r in d["packages"] + d["runtime_tool_notices"]))' "$app/licenses/build-inventory.json")"
 
       - name: Keep the AppImage as a download
         uses: actions/upload-artifact@v4

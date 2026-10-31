@@ -13,8 +13,8 @@
     },
     {
       "path": ".github/workflows/appimage.yml",
-      "bytes": 7077,
-      "sha256": "0e102e552fc4fd55deb1177bc9d145dddbbf0c6d8246de0e53f27d6751776392"
+      "bytes": 7247,
+      "sha256": "df150e550af3a3d179cd3b83c22337f9d84b362837447d7ca87cd3256da8f9ff"
     },
     {
       "path": ".github/workflows/tests.yml",
@@ -38,8 +38,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 6631,
-      "sha256": "343b9d26479e998549e5411625a7c2bf0bf614282b42e96f224e02badda1dacd"
+      "bytes": 8096,
+      "sha256": "39233b6d30a1a10efe5637849fca750e4a4c46ce7d8084efe838905e1e219bc2"
     },
     {
       "path": "assets/app/comic-stitcher.ico",
@@ -1773,8 +1773,8 @@
     },
     {
       "path": "docs/SOURCE_ACCESS.md",
-      "bytes": 6056,
-      "sha256": "7787fe793211bb2cd6a768016f07f6efffbe2dac5b54fb5bea8c31db9dc6d506"
+      "bytes": 7479,
+      "sha256": "c272ce783995c1d6d033ba082c3d1904c14dcd2574b14973a2a5318999fd71df"
     },
     {
       "path": "docs/SOURCE_PACKAGE_CONTENTS.md",
@@ -1793,8 +1793,8 @@
     },
     {
       "path": "docs/USER_GUIDE.md",
-      "bytes": 23285,
-      "sha256": "2ee3409aba37f6243eac5bfe60c9a647997d195a630d91693ed5c543f2d7658b"
+      "bytes": 23868,
+      "sha256": "51b9cd5cc6807c659ec34c0667632b10bf7b5f5202b3cfea115a90e8b66dcae2"
     },
     {
       "path": "installer/RUNTIME_REFERENCES.md",
@@ -1878,8 +1878,8 @@
     },
     {
       "path": "packaging/appimage/README.md",
-      "bytes": 1958,
-      "sha256": "530e2ecc0fdba32db716969ab62431facd8ebfaa9999e5ab0bc10caff2fecdf5"
+      "bytes": 2543,
+      "sha256": "fe1d4c29658e2f855fd700e58b73526770daa8413eb5b2ff3b7b7dcc7c758039"
     },
     {
       "path": "packaging/appimage/build_appimage.sh",
