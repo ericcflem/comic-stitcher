@@ -49,7 +49,16 @@ jobs:
           python -m pip check
 
       - name: Build the AppImage
-        run: packaging/appimage/build_appimage.sh
+        run: |
+          set -o pipefail
+          packaging/appimage/build_appimage.sh 2>&1 | tee build-appimage.log
+
+      - name: Show where the build failed
+        # Puts the end of its output on the pull request.
+        if: failure()
+        run: |
+          body=$(tail -c 3500 build-appimage.log | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')
+          echo "::error title=build_appimage.sh::$body"
 
       - name: Start it on a virtual screen
         # It should still be running when stopped after 25 seconds (exit 124), with
