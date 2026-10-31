@@ -63,6 +63,27 @@ jobs:
           fi
           echo "Ran for 25 seconds; size: $(du -h "$image" | cut -f1)"
 
+      - name: "Diagnosis: start it without the system's xcb libraries"
+        continue-on-error: true
+        run: |
+          image=$(realpath dist/ComicStitcher-*-x86_64.AppImage)
+          sudo apt-get remove -y libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+            libxcb-render-util0 libxcb-xinerama0 libxkbcommon-x11-0 >/dev/null 2>&1 || true
+          mkdir -p "$RUNNER_TEMP/x" && cd "$RUNNER_TEMP/x" && "$image" --appimage-extract >/dev/null
+          app="$RUNNER_TEMP/x/squashfs-root/usr/lib/comic-stitcher/comic-stitcher"
+          try() {
+            label="$1"; shift
+            set +e
+            out=$(QT_DEBUG_PLUGINS=1 QT_QPA_PLATFORM=xcb xvfb-run -a timeout 15 "$@" 2>&1)
+            status=$?
+            set -e
+            echo "== $label: exit $status"; echo "$out" | tail -40
+            echo "::notice title=$label (exit $status)::$(echo "$out" | grep -iE 'cannot|could not|not found|error|fatal|abort|xcb' | grep -v 'Found metadata' | head -12 | tr '\n' '|')"
+          }
+          try "Through AppRun" "$RUNNER_TEMP/x/squashfs-root/AppRun"
+          try "Program inside, directly" "$app"
+          try "Program inside, LD_LIBRARY_PATH=_internal" env LD_LIBRARY_PATH="$(dirname "$app")/_internal" "$app"
+
       - name: Keep the AppImage as a download
         uses: actions/upload-artifact@v4
         with:
