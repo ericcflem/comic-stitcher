@@ -1,5 +1,5 @@
 ; Compile with packaging\build_installer_windows.bat on Windows after supplying official UnRAR.
-#define ComicStitcherVersion "0.13.0"
+#define ComicStitcherVersion "0.14.0"
 ; This script is in packaging\; the files it uses are in the source folder above it.
 #define Root AddBackslash(SourcePath) + "..\"
 #if !FileExists(Root + "vendor\microsoft\runtime-verified.iss")

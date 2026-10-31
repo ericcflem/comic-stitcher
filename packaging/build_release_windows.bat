@@ -3,7 +3,7 @@ setlocal
 rem Run from the source folder, one level up, where the build's outputs go.
 cd /d "%~dp0.."
 if not exist "launch.py" (
-    echo Copy this rebuild kit into an isolated copy of the 0.13.0 source folder first.
+    echo Copy this rebuild kit into an isolated copy of the 0.14.0 source folder first.
     exit /b 1
 )
 py -3.14 -c "import sys; assert sys.version_info[:3] == (3,14,2), 'Use Python 3.14.2 for this reference build'; assert sys.maxsize > 2**32, 'Use 64-bit Python'"
