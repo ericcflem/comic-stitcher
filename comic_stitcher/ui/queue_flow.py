@@ -195,6 +195,7 @@ class QueueFlow:
         self.batch_import_active = False
         self.queue_completed = 0
         self.queue_results.clear()
+        self.queue_stopping = False
         self._show_progress_page()
         self._compact_window()
         self._start_next_queued_export()
@@ -217,6 +218,7 @@ class QueueFlow:
     def _start_next_queued_export(self):
         if not self.queue_jobs:
             self.active_queue_job = None
+            self._show_queue_controls(False)
             self.progress_bar.setValue(100)
             paths = [path.name for path in self.queue_results]
             visible = paths[:5]
@@ -230,6 +232,7 @@ class QueueFlow:
             return
         job = self.queue_jobs[0]
         self.active_queue_job = job
+        self._show_queue_controls(True)
         job.options.workers = self.worker_count()  # The current setting, even if changed since queueing.
         if job.pdf_options is not None:
             job.pdf_options["workers"] = job.options.workers
@@ -240,12 +243,15 @@ class QueueFlow:
             f"{self.queue_completed + len(self.queue_jobs)}: {job.options.book_name}…")
         self._run_worker(export_queued_comic, (job,), self._queued_export_done,
                          progress_handler=self._queued_export_progress,
-                         failure_handler=self._queued_export_failed)
+                         failure_handler=self._queued_export_failed,
+                         stopped_handler=self._queued_export_stopped)
 
     def _queued_export_progress(self, done, total):
         self.progress_bar.setValue(round(100 * done / max(1, total)))
         job = self.active_queue_job
-        if job is not None:
+        if job is not None and self.queue_stopping:
+            self.progress_label.setText(f"Stopping {job.options.book_name}: finishing the pages already started…")
+        elif job is not None:
             phase = "Re-importing and checking pages" if job.reimport_source and done < 50 else "Creating comic"
             self.progress_label.setText(f"{phase}: {job.options.book_name}…")
 
@@ -277,8 +283,76 @@ class QueueFlow:
         # Keep the prior QThread alive until its run() fully exits.
         if self.worker and self.worker.isRunning():
             QTimer.singleShot(20, self._queue_advance_when_ready)
+        elif self.pause_queue_button.isChecked() and self.queue_jobs:
+            self._pause_queue()
         else:
             self._start_next_queued_export()
+
+    # Pausing and stopping ---------------------------------------------------
+    def _show_queue_controls(self, visible: bool):
+        """Pause after this comic and Stop now, shown while the queue runs."""
+        self.pause_queue_button.blockSignals(True)
+        self.pause_queue_button.setChecked(False)
+        self.pause_queue_button.blockSignals(False)
+        self.pause_queue_button.setText("Pause after this comic")
+        self.progress_caption.setText("Overall progress")
+        for button in (self.pause_queue_button, self.stop_queue_button):
+            button.setEnabled(True)
+            button.setVisible(visible)
+
+    def _pause_queue_toggled(self, pausing: bool):
+        self.pause_queue_button.setText("Keep going" if pausing else "Pause after this comic")
+        self.progress_caption.setText("The queue will pause once this comic is done." if pausing
+                                      else "Overall progress")
+        diagnostics.note("Queue %s", "to pause after this comic" if pausing else "to keep going")
+
+    def _stop_queue_now(self):
+        job = self.active_queue_job
+        if job is None or not (self.worker and self.worker.isRunning()):
+            return
+        if QMessageBox.question(
+                self, "Stop now?",
+                f"Stop making “{job.options.book_name}” now? What it has made so far is discarded; "
+                "it stays first in the queue, to be made again from the start. The rest of the "
+                "queue waits too.", QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
+            return
+        if self.active_queue_job is not job or not (self.worker and self.worker.isRunning()):
+            return  # It finished while the question was open.
+        self.queue_stopping = True
+        for button in (self.pause_queue_button, self.stop_queue_button):
+            button.setEnabled(False)
+        self.progress_label.setText(f"Stopping {job.options.book_name}: finishing the pages already started…")
+        self.worker.request_stop()
+
+    def _queued_export_stopped(self):
+        job = self.active_queue_job
+        diagnostics.note("Queued export stopped on request: %s", job.options.book_name if job else "")
+        self.active_queue_job = None  # It stays first in the queue.
+        QTimer.singleShot(0, lambda: self._pause_queue(stopped=job))
+
+    def _pause_queue(self, stopped=None):
+        """Back to the start screen with the rest of the queue waiting."""
+        if self.worker and self.worker.isRunning():
+            QTimer.singleShot(20, lambda: self._pause_queue(stopped))
+            return
+        self.queue_stopping = False
+        self._show_queue_controls(False)
+        self.pages.setCurrentIndex(0)
+        self._compact_window()
+        self._refresh_queue_status()
+        waiting = len(self.queue_jobs)
+        diagnostics.note("Queue paused: %d created, %d waiting", self.queue_completed, waiting)
+        lines = []
+        if self.queue_completed:
+            lines.append(f"{self.queue_completed} comic{'s' if self.queue_completed != 1 else ''} created.")
+        if stopped is not None:
+            lines.append(f"“{stopped.options.book_name}” was stopped; it will be made again from the start.")
+        lines.append(f"{waiting} comic{'s are' if waiting != 1 else ' is'} waiting in the queue.")
+        message = QMessageBox(QMessageBox.Information, "Queue paused", "\n".join(lines), parent=self)
+        message.setInformativeText(
+            "You can change Settings (such as worker processes), or a comic's own settings: View queue, "
+            "then double-click it. Press Start queue to carry on.")
+        message.exec()
 
     def _queued_export_failed(self, message):
         diagnostics.note("Queued export stopped: %s", message)
@@ -287,6 +361,7 @@ class QueueFlow:
                            "This comic and the remaining jobs are still in the queue. "
                            "Correct the issue and start the queue again.")
         self.active_queue_job = None
+        self._show_queue_controls(False)
         self.pages.setCurrentIndex(0)
         self._compact_window()
         QTimer.singleShot(0, self._queue_refresh_when_ready)

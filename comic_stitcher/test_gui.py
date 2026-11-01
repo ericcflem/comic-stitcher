@@ -2531,6 +2531,101 @@ class ThumbnailTest(unittest.TestCase):
             finally:
                 window.close()
 
+    def queue_two_books(self, window, root, pages=2, size=(70, 95)):
+        window.settings.setValue("workers", 1)
+        for index in (1, 2):
+            folder = root / f"book-{index}"
+            folder.mkdir()
+            for page in range(pages):
+                Image.new("RGB", size, (index * 60, page * 5 % 255, 80)).save(folder / f"{page:03d}.png")
+            window.scan_done(scan_manual_folder(folder))
+            window.show_export()
+            window.book_name.setText(f"Queued Book {index}")
+            window._queue_window_action("another")
+
+    def test_queue_pauses_after_the_comic_being_made(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.object(QMessageBox, "exec", return_value=0) as paused_message:
+            root = Path(directory)
+            window = ComicWindow()
+            try:
+                window.show()
+                self.queue_two_books(window, root)
+                window.start_queue()
+                self.assertTrue(window.pause_queue_button.isVisible())
+                window.pause_queue_button.setChecked(True)
+                self.assertEqual(window.pause_queue_button.text(), "Keep going")
+                self.wait_for(lambda: paused_message.called, seconds=20)
+                self.assertEqual(window.queue_completed, 1)
+                self.assertEqual([job.options.book_name for job in window.queue_jobs], ["Queued Book 2"])
+                self.assertIsNone(window.active_queue_job)
+                self.assertIs(window.pages.currentWidget(), window.start_page)
+                self.assertTrue(window.queue_start_button.isEnabled())
+                self.assertTrue((root / "Queued Book 1.cbz").is_file())
+                self.assertFalse((root / "Queued Book 2.cbz").exists())
+                window.start_queue()  # Carry on: the pause is not remembered.
+                self.assertFalse(window.pause_queue_button.isChecked())
+                self.wait_for(lambda: not window.queue_jobs and window.active_queue_job is None, seconds=20)
+                self.assertTrue((root / "Queued Book 2.cbz").is_file())
+            finally:
+                window.close()
+
+    def test_stop_now_keeps_the_comic_first_in_the_queue_and_saves_nothing(self):
+        shown = []
+
+        def paused_message(box):
+            shown.append(box.text())
+            return 0
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.object(QMessageBox, "exec", paused_message), \
+                patch.object(QMessageBox, "question", return_value=QMessageBox.Yes):
+            root = Path(directory)
+            window = ComicWindow()
+            try:
+                window.show()
+                self.queue_two_books(window, root, pages=12, size=(900, 1300))
+                window.start_queue()
+                window._stop_queue_now()
+                self.assertFalse(window.stop_queue_button.isEnabled())
+                self.wait_for(lambda: bool(shown), seconds=30)
+                self.assertEqual(window.queue_completed, 0)
+                self.assertEqual([job.options.book_name for job in window.queue_jobs],
+                                 ["Queued Book 1", "Queued Book 2"])
+                self.assertFalse(list(root.glob("*.cbz")))
+                self.assertFalse(list(root.rglob("__ComicStitcher_work_*")))
+                self.assertIn("will be made again from the start", shown[-1])
+                self.assertFalse(window.queue_stopping)
+            finally:
+                window.close()
+
+    def test_changed_page_settings_can_go_to_the_other_queued_comics(self):
+        from .ui.queue import QueuedComic
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            window = ComicWindow()
+            try:
+                plan = BookPlan(scan_manual_folder(self.make_book(root, "one")))
+                jobs = [QueuedComic(plan, ExportOptions(name, format="jpeg", archive_format=archive), None, None, None)
+                        for name, archive in (("Editing", "cbz"), ("Other", "cbz"), ("A PDF", "pdf"))]
+                window.queue_jobs.extend(jobs)
+                window.current_job = jobs[0]
+                after = ExportOptions("Editing", format="webp", webp_method=2)
+                with patch.object(QMessageBox, "question", return_value=QMessageBox.Yes) as asked, \
+                        patch.object(QMessageBox, "information") as told:
+                    window._offer_page_settings_to_queue(jobs[0].options, after)
+                asked.assert_called_once()
+                self.assertEqual((jobs[1].options.format, jobs[1].options.webp_method), ("webp", 2))
+                self.assertEqual(jobs[1].options.book_name, "Other")  # Only page settings.
+                self.assertEqual(jobs[2].options.format, "jpeg")  # A PDF can't hold WebP.
+                self.assertIn("A PDF", told.call_args.args[2])
+                with patch.object(QMessageBox, "question") as asked:  # Nothing changed: no question.
+                    window._offer_page_settings_to_queue(after, after)
+                asked.assert_not_called()
+            finally:
+                window.current_job = None
+                window.queue_jobs.clear()
+                window.close()
+
     def test_queued_archive_discards_staged_pages_and_reimports_for_export(self, keep=False):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -371,6 +371,21 @@ When you start a batch, Comic Stitcher asks how to store the imported pages:
 - **Keep for faster export** keeps every comic's imported pages until it's exported.
   A large queue can use a lot of disk space.
 
+While the queue runs:
+
+- **Pause after this comic** finishes the comic being made, then stops (click it again,
+  **Keep going**, to change your mind). The rest of the queue waits on the start
+  screen: change **Settings** (such as worker processes), or a queued comic's own
+  settings, then press **Start queue** to carry on.
+- **Stop now** stops the comic being made straight away and discards what it had made
+  (pages already being encoded are finished first, which can take a moment). It stays
+  first in the queue, to be made again from the start, and the rest wait with it.
+
+When you change a queued comic's page settings (format, quality, effort and the like),
+Comic Stitcher offers to use them for the other queued comics too. Their names, sizes
+and other settings stay as they are. Comics saved as PDFs keep theirs if the new
+settings are WebP, which a PDF can't hold.
+
 If the queue stops on an error, that comic and the rest stay queued. Fix the problem
 and start the queue again.
 

@@ -655,8 +655,19 @@ def export_outputs(plan: BookPlan, folder: Path, title: str, opt: ExportOptions)
     return outputs
 
 
+class ExportStopped(Exception):
+    """The export was stopped on request; nothing of it was kept."""
+
+    def __init__(self):
+        super().__init__("Stopped on request.")
+
+
 def export_book(plan: BookPlan, opt: ExportOptions,
-                progress: Callable[[int, int], None] | None = None) -> Path | tuple[Path, Path]:
+                progress: Callable[[int, int], None] | None = None,
+                stop: Callable[[], bool] | None = None) -> Path | tuple[Path, Path]:
+    """Export one comic. ``stop``, when given, is asked between pages: once it
+    returns True, the export ends with ExportStopped, removing everything it
+    had made (pages already being encoded are finished first)."""
     if opt.archive_format not in ("cbz", "cb7", "cbr", "pdf"):
         raise ValueError("Choose CBZ, CB7, CBR or PDF as the archive format.")
     if opt.cbz and opt.archive_format == "cbr" and not opt.rar_program:
@@ -701,11 +712,16 @@ def export_book(plan: BookPlan, opt: ExportOptions,
     total = len(variants) * (len(entries) + int(opt.cbz))
     completed = 0
 
+    def check_stop():
+        if stop is not None and stop():
+            raise ExportStopped()
+
     def done():
         nonlocal completed
         completed += 1
         if progress:
             progress(completed, total)
+        check_stop()
 
     published: list[Path] = []
     try:
@@ -751,16 +767,19 @@ def export_book(plan: BookPlan, opt: ExportOptions,
                                                             str(dest), fmt, encoding_opt, reduce, rotation,
                                                             str(png_work / (dest.stem + ".png")) if keep_png else None, page_rotations,
                                                             overlap, centering))
-                            if len(pending) >= 2 * worker_count:
-                                finished, pending = wait(pending, return_when=FIRST_COMPLETED)
+                            while len(pending) >= 2 * worker_count:
+                                # Half a second at most, so a stop request is seen promptly.
+                                finished, pending = wait(pending, timeout=0.5, return_when=FIRST_COMPLETED)
                                 for future in finished:
                                     future.result()
                                     done()
+                                check_stop()
                         while pending:
-                            finished, pending = wait(pending, return_when=FIRST_COMPLETED)
+                            finished, pending = wait(pending, timeout=0.5, return_when=FIRST_COMPLETED)
                             for future in finished:
                                 future.result()
                                 done()
+                            check_stop()
                     except Exception:
                         for future in pending:
                             future.cancel()
@@ -809,6 +828,7 @@ def export_book(plan: BookPlan, opt: ExportOptions,
                     raise ValueError("Archive verification failed; working images were preserved.")
                 done()
         # Publish only after every requested copy has been built and verified.
+        check_stop()  # The last chance: from here the comic is saved whole.
         check_sources(plan.scan)
         for variant in variants:
             out = destination(variant)
@@ -833,6 +853,9 @@ def export_book(plan: BookPlan, opt: ExportOptions,
             logging.exception("Comic was created, but could not remove export working folder %s", work)
         results = tuple(destination(variant) for variant in variants)
         return results if len(results) == 2 else results[0]
+    except ExportStopped:
+        shutil.rmtree(work, ignore_errors=True)  # Nothing was published yet.
+        raise
     except Exception as exc:
         for path in reversed(published):
             if path.is_dir():

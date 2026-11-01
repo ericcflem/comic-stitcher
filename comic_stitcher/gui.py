@@ -78,6 +78,7 @@ class ComicWindow(ImportScreen, ScreenshotImport, PairReview, FinalReview, Expor
         self.pending_imports: deque[Path] = deque()
         self.active_queue_job: QueuedComic | None = None
         self.queue_completed = 0
+        self.queue_stopping = False  # Stop now was pressed for the comic being made.
         self.queue_results: list[Path] = []
         self.screenshot_source: Path | None = None
         self.screenshot_flagged_pages: set[int] = set()
@@ -769,6 +770,25 @@ class ComicWindow(ImportScreen, ScreenshotImport, PairReview, FinalReview, Expor
         self.progress_caption.setAlignment(Qt.AlignCenter)
         self.progress_caption.setStyleSheet(f"color:{tone('muted')};")
         box.addWidget(self.progress_caption)
+        # While the queue runs: stop once this comic is done, or straight away.
+        queue_controls = QHBoxLayout()
+        queue_controls.addStretch()
+        self.pause_queue_button = QPushButton("Pause after this comic")
+        self.pause_queue_button.setCheckable(True)
+        self.pause_queue_button.setToolTip(tooltip_text(
+            "Finish the comic being made, then stop. The rest of the queue waits: change "
+            "Settings or any queued comic's settings, then start the queue again."))
+        self.pause_queue_button.toggled.connect(self._pause_queue_toggled)
+        queue_controls.addWidget(self.pause_queue_button)
+        self.stop_queue_button = QPushButton("Stop now")
+        self.stop_queue_button.setToolTip(tooltip_text(
+            "Stop making this comic now, discarding what it has made so far. It stays at the "
+            "front of the queue, to be made again from the start with the rest."))
+        self.stop_queue_button.clicked.connect(self._stop_queue_now)
+        queue_controls.addWidget(self.stop_queue_button)
+        queue_controls.addStretch()
+        box.addLayout(queue_controls)
+        self._show_queue_controls(False)
         self.done_button = QPushButton("Process another comic")
         self.done_button.clicked.connect(self.new_comic)
         self.done_button.hide()
@@ -788,6 +808,7 @@ class ComicWindow(ImportScreen, ScreenshotImport, PairReview, FinalReview, Expor
         export only; left showing, they would leave this work running unseen."""
         self.done_button.hide()
         self.repeat_button.hide()
+        self._show_queue_controls(False)
         self.pages.setCurrentWidget(self.progress_page)
 
     def new_comic(self):
@@ -842,7 +863,10 @@ class ComicWindow(ImportScreen, ScreenshotImport, PairReview, FinalReview, Expor
         box.addWidget(QLabel("Press B to return"))
         self.pages.addWidget(self.boss_page)
 
-    def _run_worker(self, fn, args, success, progress_handler=None, failure_handler=None):
+    def _run_worker(self, fn, args, success, progress_handler=None, failure_handler=None,
+                    stopped_handler=None):
+        """Run fn in the background. With stopped_handler, the work can be
+        stopped early (Stop now) and that handler is called when it has."""
         source = args[0] if args else None
         if isinstance(source, Path):
             name = source.name
@@ -854,12 +878,14 @@ class ComicWindow(ImportScreen, ScreenshotImport, PairReview, FinalReview, Expor
         else:
             name = ""
         self.progress_source.setText(name)
-        self.worker = Worker(fn, *args)
+        self.worker = Worker(fn, *args, stoppable=stopped_handler is not None)
         self.worker.progress.connect(lambda n, total: self.progress_bar.setValue(int(100 * n / max(total, 1))))
         if progress_handler is not None:
             self.worker.progress.connect(progress_handler)
         self.worker.result.connect(success)
         self.worker.failure.connect(failure_handler or self._worker_error)
+        if stopped_handler is not None:
+            self.worker.stopped.connect(stopped_handler)
         self.worker.start()
 
     def _show_problem(self, title: str, message: str) -> None:
