@@ -61,8 +61,10 @@ def import_need(source: Path, dpi: int = 300, extract_jpegs: bool = False) -> in
             import pypdfium2 as pdfium
             document = pdfium.PdfDocument(str(source))
             try:
-                pixels = sum((page.get_width() * dpi / 72) * (page.get_height() * dpi / 72)
-                             for page in (document[i] for i in range(len(document))))
+                # Each page's size without loading the page: loading every page of a
+                # long PDF could keep the window from responding for many seconds.
+                pixels = sum((width * dpi / 72) * (height * dpi / 72)
+                             for width, height in (document.get_page_size(i) for i in range(len(document))))
             finally:
                 document.close()
             return int(pixels * BYTES_PER_PIXEL["png"])

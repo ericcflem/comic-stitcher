@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Importing a long PDF no longer makes the desktop say Comic Stitcher isn't
+  responding. The disk space check before it loaded every page of the PDF to
+  measure it, which kept the window busy for several seconds on a large PDF
+  (most noticeably for the first PDF after starting); it now reads the page
+  sizes without loading the pages.
 - The queue can be paused: **Pause after this comic** finishes the comic being
   made and stops, leaving the rest queued, so Settings (such as worker
   processes) or a queued comic's own settings can be changed before **Start

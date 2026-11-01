@@ -1463,8 +1463,8 @@
     },
     {
       "path": "comic_stitcher/space.py",
-      "bytes": 4199,
-      "sha256": "11b1515585f917691c60d8f3aa79357b8a70083eb6c4e3894f40e350fe50ac99"
+      "bytes": 4368,
+      "sha256": "3cce9a58f37f51b13e4746d40599b691eb5e566490c0ee90837d98e4cc0215f6"
     },
     {
       "path": "comic_stitcher/startup_notice.py",
@@ -1598,8 +1598,8 @@
     },
     {
       "path": "comic_stitcher/test_problems.py",
-      "bytes": 5396,
-      "sha256": "20c799c0eefde925d9fccdd200c36e4788fb4c10f9d2cc3c01b36240fb2b9262"
+      "bytes": 6118,
+      "sha256": "698b17bc15f17d2df75c63b29346df066329d55d71a4dbdeeb5b0b4af6e17df2"
     },
     {
       "path": "comic_stitcher/test_rar_export.py",
@@ -1753,8 +1753,8 @@
     },
     {
       "path": "docs/CHANGELOG.md",
-      "bytes": 28379,
-      "sha256": "ebf611a369f80df91360e5ac80fb4c99ba45e23e34807dbae5f3c93210987fac"
+      "bytes": 28719,
+      "sha256": "a7fac4e259079e18bb7628845e0eb13feb1795600536f83388469a0f6a38c594"
     },
     {
       "path": "docs/NATIVE_SOURCE_REBUILD.md",
