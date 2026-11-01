@@ -12,6 +12,11 @@
   processes) or a queued comic's own settings can be changed before **Start
   queue** carries on. **Stop now** stops the comic being made at once,
   discarding what it had made; it stays first in the queue to be made again.
+- Lossless WebP has one setting, **Compression effort** (0–6): WebP quality,
+  which libwebp uses as a second effort setting for lossless pages, is greyed
+  out instead of becoming "WebP lossless effort", and its effort now follows
+  Compression effort. The queue shows "lossless · compression effort 4" rather
+  than the quality number.
 - Changing a queued comic's page settings (format, quality, effort and the
   like) offers to use them for the other queued comics too.
 

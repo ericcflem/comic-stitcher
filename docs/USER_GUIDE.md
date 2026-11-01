@@ -312,9 +312,10 @@ Advanced settings for each format:
   - **Smoothing:** 0–100. It can hide noise, but blurs fine lines and lettering. Zero
     leaves it off.
 - **WebP**
-  - **Lossless WebP:** keeps every pixel exactly. Quality then sets compression effort
-    rather than image quality.
-  - **Compression effort:** 0–6. Higher takes longer to find a smaller file.
+  - **Lossless WebP:** keeps every pixel exactly. WebP quality doesn't apply then, so
+    it's greyed out.
+  - **Compression effort:** 0–6. Higher takes longer to find a smaller file. For
+    lossless WebP it's the only setting.
   - **Sharp color conversion (sharp YUV):** keeps edges between strong colors, such as
     red lettering on black, clean instead of blurred or darkened. It takes about twice
     as long. Installed on Linux with `linux/install.sh`, this needs the `webp` package

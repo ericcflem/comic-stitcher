@@ -816,7 +816,7 @@ class ExportScreen:
         if opt.format == "png":
             return "PNG · lossless"
         if opt.format == "webp" and opt.webp_lossless:
-            return f"WebP · lossless · effort {opt.webp_quality}"
+            return f"WebP · lossless · compression effort {opt.webp_method}"
         return f"{ 'JPEG' if opt.format == 'jpeg' else 'WebP'} · quality " + str(
             opt.jpeg_quality if opt.format == "jpeg" else opt.webp_quality) + (
             " · sharp YUV" if opt.format == "webp" and opt.webp_sharp_yuv else "")

@@ -185,7 +185,8 @@ def _save_image(image: Image.Image, path: Path, fmt: str, opt: ExportOptions) ->
         save_sharp_webp(image, path, opt.webp_quality, opt.webp_method, colour_metadata.get("icc_profile"))
     elif fmt == "webp":
         def pillow_webp(method):
-            image.save(path, "WEBP", quality=opt.webp_quality, method=method,
+            quality = lossless_webp_effort(method) if opt.webp_lossless else opt.webp_quality
+            image.save(path, "WEBP", quality=quality, method=method,
                        lossless=opt.webp_lossless, **colour_metadata)
         def overflowed(exc):
             return (not opt.webp_lossless
@@ -392,6 +393,16 @@ def _estimate_sample(source: str, right: str | None, rotation: int, page_rotatio
         return sizes[0], sizes[1]
     finally:
         image.close()
+
+
+# Lossless WebP's own effort, 0–100, for each Compression effort (method) 0–6:
+# libwebp's lossless presets (cwebp -z), so one setting governs it. WebP
+# quality doesn't apply to lossless pages.
+LOSSLESS_WEBP_EFFORT = (0, 20, 25, 50, 75, 90, 100)
+
+
+def lossless_webp_effort(method: int) -> int:
+    return LOSSLESS_WEBP_EFFORT[max(0, min(6, method))]
 
 
 # Offer lossless WebP when its estimate is at most this share of the chosen lossy format's.

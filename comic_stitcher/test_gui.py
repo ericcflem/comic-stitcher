@@ -205,6 +205,30 @@ class ThumbnailTest(unittest.TestCase):
         finally:
             dialog.reject()
 
+    def test_lossless_webp_greys_out_webp_quality(self):
+        window = ComicWindow()
+        self.addCleanup(window.close)
+        opt = ExportOptions("Lossless", format="webp", size_output="both", reduced_custom=True,
+                            reduced_settings={"format": "webp"})
+        dialog = OutputOptionsDialog(opt, window.custom_resize_values, window)
+        try:
+            self.assertTrue(dialog.webp_quality.isEnabled())
+            dialog.advanced.lossless.setChecked(True)
+            self.assertFalse(dialog.webp_quality.isEnabled())
+            self.assertFalse(dialog.webp_quality_label.isEnabled())
+            self.assertEqual(dialog.webp_quality_label.text(), "WebP quality")  # Not "lossless effort".
+            dialog.advanced.lossless.setChecked(False)
+            self.assertTrue(dialog.webp_quality.isEnabled())
+            self.assertTrue(dialog.reduced_quality.isEnabled())
+            dialog.reduced_advanced.lossless.setChecked(True)
+            self.assertFalse(dialog.reduced_quality.isEnabled())
+            self.assertEqual(dialog.reduced_quality_label.text(), "WebP quality")
+        finally:
+            dialog.reject()
+        summary = window._format_summary(ExportOptions("Lossless", format="webp", webp_lossless=True,
+                                                       webp_quality=95, webp_method=5))
+        self.assertEqual(summary, "WebP · lossless · compression effort 5")
+
     def test_reduced_copy_starts_from_the_settings_it_used_before(self):
         window = ComicWindow()
         self.addCleanup(window.close)
