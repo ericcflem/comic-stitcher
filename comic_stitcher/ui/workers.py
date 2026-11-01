@@ -10,7 +10,7 @@ from threading import Condition
 from PIL import Image, ImageOps
 from PySide6.QtCore import QThread, Signal
 from ..backend import stitched_image, rotated_image, encoding_workers
-from ..export import estimate_export_size, ESTIMATE_SAMPLES, lossless_alternative, lossless_check
+from ..export import ExportStopped, estimate_export_size, ESTIMATE_SAMPLES, lossless_alternative, lossless_check
 from .. import diagnostics
 from ..problems import message_for
 from ..pdf_import import measure_pdf_pages, suggest_from_pages
@@ -21,16 +21,26 @@ class Worker(QThread):
     progress = Signal(int, int)
     result = Signal(object)
     failure = Signal(str)
+    stopped = Signal()  # Ended early by request_stop(), for work that can be.
 
-    def __init__(self, fn, *args):
+    def __init__(self, fn, *args, stoppable=False):
         super().__init__()
         self.fn = fn
         self.args = args
+        self.stoppable = stoppable
+        self.stop_requested = False
         self.problem = "other"  # What kind of failure, so the window can offer a fix.
 
+    def request_stop(self):
+        self.stop_requested = True
+
     def run(self):
+        extra = {"stop": lambda: self.stop_requested} if self.stoppable else {}
         try:
-            self.result.emit(self.fn(*self.args, progress=self.progress.emit))
+            self.result.emit(self.fn(*self.args, progress=self.progress.emit, **extra))
+        except ExportStopped:
+            diagnostics.note("Export stopped on request")
+            self.stopped.emit()
         except Exception as exc:
             diagnostics.exception("Scan or export failed")
             message, self.problem = message_for(exc)  # In plain words; the log keeps the original.

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- The queue can be paused: **Pause after this comic** finishes the comic being
+  made and stops, leaving the rest queued, so Settings (such as worker
+  processes) or a queued comic's own settings can be changed before **Start
+  queue** carries on. **Stop now** stops the comic being made at once,
+  discarding what it had made; it stays first in the queue to be made again.
+- Changing a queued comic's page settings (format, quality, effort and the
+  like) offers to use them for the other queued comics too.
+
 ## 0.14.0
 
 **Linux AppImage**

@@ -6,7 +6,7 @@ import copy
 from dataclasses import dataclass
 from pathlib import Path
 from ..backend import BookPlan, safe_book_name
-from ..export import export_outputs, ExportOptions, export_book
+from ..export import ExportStopped, export_outputs, ExportOptions, export_book
 from ..archive_import import import_archive
 from ..pdf_import import import_pdf
 
@@ -23,17 +23,22 @@ class QueuedComic:
     pdf_options: dict | None = None
 
 
-def export_queued_comic(job: QueuedComic, progress=None):
-    """Recreate discarded imports for one job, then always release its working pages."""
+def export_queued_comic(job: QueuedComic, progress=None, stop=None):
+    """Recreate discarded imports for one job, then always release its working pages.
+    ``stop`` ends it early, as for export_book (ExportStopped)."""
     if job.reimport_source is None:
-        return export_book(job.plan, job.options, progress=progress)
+        return export_book(job.plan, job.options, progress=progress, stop=stop)
     source = job.reimport_source
     stat = source.stat()
     if (stat.st_size, stat.st_mtime_ns) != job.source_stat:
         raise ValueError("The original comic has changed since review. Import and review it again.")
     with tempfile.TemporaryDirectory(prefix="comic-stitcher-queue-") as working:
         destination = Path(working) / "pages"
-        prepare_progress = (lambda n, total: progress(round(50 * n / max(1, total)), 100)) if progress else None
+        def prepare_progress(n, total):
+            if progress:
+                progress(round(50 * n / max(1, total)), 100)
+            if stop is not None and stop():
+                raise ExportStopped()
         if source.suffix.lower() == ".pdf":
             scan = import_pdf(source, destination, manual=job.plan.scan.manual_mode, right_to_left=job.plan.scan.right_to_left,
                               progress=prepare_progress, **(job.pdf_options or {}))
@@ -51,7 +56,9 @@ def export_queued_comic(job: QueuedComic, progress=None):
         plan = copy.deepcopy(job.plan)
         plan.scan = scan
         export_progress = (lambda n, total: progress(50 + round(50 * n / max(1, total)), 100)) if progress else None
-        return export_book(plan, job.options, progress=export_progress)
+        if stop is not None and stop():
+            raise ExportStopped()
+        return export_book(plan, job.options, progress=export_progress, stop=stop)
 
 
 def queued_outputs(plan: BookPlan, opt: ExportOptions) -> list[Path]:

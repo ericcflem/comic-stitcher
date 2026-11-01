@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QFil
     QVBoxLayout, QWidget, QGroupBox)
 from ..backend import check_sources, safe_book_name
 from ..export import (lossless_check_key, keeps_png, ExportOptions, export_book, planned_names, copy_encoding_options,
-    lossless_alternative, LOSSLESS_HINT_SHARE, LOSSLESS_CHECK_SKIP_SHARE)
+    lossless_alternative, LOSSLESS_HINT_SHARE, LOSSLESS_CHECK_SKIP_SHARE, ENCODER_FIELDS, pdf_format_problem)
 from .. import diagnostics
 from ..metadata_dialog import MetadataDialog
 from ..comicinfo import parse_xml
@@ -904,8 +904,39 @@ class ExportScreen:
         if self.export_name_notice:
             QMessageBox.information(self, "Name changed", self.export_name_notice)
         self._remember_export_preferences(opt)
+        if self.editing_queued:
+            self._offer_page_settings_to_queue(self.current_job.options, opt)
         self.current_job.options = replace(opt)
         return True
+
+    PAGE_SETTINGS = ENCODER_FIELDS + ("reduced_custom", "reduced_settings")
+
+    def _offer_page_settings_to_queue(self, before: ExportOptions, after: ExportOptions):
+        """A queued comic's page settings (format, quality, effort…) changed: offer
+        them to the other queued comics too, as when pausing to change them."""
+        others = [job for job in self.queue_jobs if job is not self.current_job]
+        if not others or all(getattr(before, name) == getattr(after, name) for name in self.PAGE_SETTINGS):
+            return
+        count = len(others)
+        if QMessageBox.question(
+                self, "Use these page settings for the others too?",
+                f"Use these page settings for the other {count} queued comic{'s' if count != 1 else ''} "
+                f"too?\n\n{self._format_summary(after)}\n\nTheir names, sizes and other settings stay as "
+                "they are.", QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
+            return
+        settings = {name: copy.deepcopy(getattr(after, name)) for name in self.PAGE_SETTINGS}
+        skipped = []
+        for job in others:
+            changed = replace(job.options, **settings)
+            if job.options.cbz and job.options.archive_format == "pdf" and pdf_format_problem(changed):
+                skipped.append(job.options.book_name)  # A PDF can't hold WebP pages.
+                continue
+            job.options = changed
+        diagnostics.note("Page settings copied to %d queued comics", count - len(skipped))
+        if skipped:
+            QMessageBox.information(self, "Some comics kept their settings",
+                                    "These are saved as PDFs, which can't hold WebP pages, so they kept "
+                                    "their own page settings:\n\n" + "\n".join(skipped))
 
     def _commit_current_job(self):
         """This comic stays queued as it is; the window moves on to another."""
