@@ -2572,9 +2572,12 @@ class ThumbnailTest(unittest.TestCase):
 
     def test_stop_now_keeps_the_comic_first_in_the_queue_and_saves_nothing(self):
         shown = []
+
+        def paused_message(box):
+            shown.append(box.text())
+            return 0
         with tempfile.TemporaryDirectory() as directory, \
-                patch.object(QMessageBox, "exec", autospec=True,
-                             side_effect=lambda box: shown.append(box.text()) or 0) as paused_message, \
+                patch.object(QMessageBox, "exec", paused_message), \
                 patch.object(QMessageBox, "question", return_value=QMessageBox.Yes):
             root = Path(directory)
             window = ComicWindow()
@@ -2584,7 +2587,7 @@ class ThumbnailTest(unittest.TestCase):
                 window.start_queue()
                 window._stop_queue_now()
                 self.assertFalse(window.stop_queue_button.isEnabled())
-                self.wait_for(lambda: paused_message.called, seconds=30)
+                self.wait_for(lambda: bool(shown), seconds=30)
                 self.assertEqual(window.queue_completed, 0)
                 self.assertEqual([job.options.book_name for job in window.queue_jobs],
                                  ["Queued Book 1", "Queued Book 2"])
