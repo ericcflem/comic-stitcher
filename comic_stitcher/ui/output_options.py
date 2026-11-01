@@ -92,10 +92,11 @@ class AdvancedSettingsWidget(QWidget):
         wf.addRow(self.sharp_yuv)
         form_hint(wf, self.lossless,
                   "Preserves decoded pixel values instead of using lossy WebP compression. Files may be larger. "
-                  "In lossless mode, the main WebP quality value controls compression effort, not image quality.")
+                  "WebP quality doesn't apply; Compression effort sets how hard it works.")
         form_hint(wf, self.method,
-                  "WebP encoder method, 0–6. Higher values generally spend more CPU time seeking "
-                  "a smaller or better-encoded file; they do not change the selected quality setting.")
+                  "WebP encoder effort, 0–6. Higher values spend more time seeking a smaller file. "
+                  "For lossy WebP they don't change the quality setting; for lossless WebP, image "
+                  "quality is always perfect and this is the only setting. Default: 4.")
         self.sharp_yuv_hint = ("Lossy WebP keeps color at half resolution. This chooses that color more "
                                "carefully, so edges between strong colors, such as red lettering or blue sky "
                                "against black ink, stay clean instead of bleeding or darkening. Encoding takes "
@@ -281,8 +282,8 @@ class OutputOptionsDialog(OutlinedWindow, QDialog):
                   "files. This setting is remembered next time you open the app. Default: 90.")
         self.full_quality.addRow("WebP quality", self.webp_quality)
         form_hint(self.full_quality, self.webp_quality,
-                  "For lossy WebP, 1–100 controls image quality and file size. In lossless WebP mode, "
-                  "it controls compression effort: higher is slower, not higher image quality. "
+                  "WebP quality, 1–100. Higher values preserve more detail but usually make larger "
+                  "files. It doesn't apply to lossless WebP (Advanced), whose pixels are exact. "
                   "The value is remembered next time you open the app. Default: 90.")
         self.webp_quality_label = self.full_quality.labelForField(self.webp_quality)
         self.advanced = AdvancedSettingsWidget(self.draft, opt.format)
@@ -401,15 +402,18 @@ class OutputOptionsDialog(OutlinedWindow, QDialog):
         name = self.full_format()
         self.full_quality.setRowVisible(self.jpeg_quality, name == "JPEG")
         self.full_quality.setRowVisible(self.webp_quality, name == "WebP")
-        self.webp_quality_label.setText("WebP lossless effort" if self.advanced.lossless.isChecked()
-                                        else "WebP quality")
+        # Lossless WebP has no quality setting: its pixels are exact.
+        lossless = name == "WebP" and self.advanced.lossless.isChecked()
+        self.webp_quality.setEnabled(not lossless)
+        self.webp_quality_label.setEnabled(not lossless)
         self.advanced.format.setCurrentIndex({"JPEG": 0, "WebP": 1}.get(name, 2))
         reduced_name = self.reduced_format.currentText()
         self.reduced_advanced.format.setCurrentIndex({"JPEG": 0, "WebP": 1}.get(reduced_name, 2))
         self.reduced_quality_form.setRowVisible(self.reduced_quality, reduced_name != "PNG")
-        self.reduced_quality_label.setText(
-            "WebP lossless effort" if reduced_name == "WebP" and self.reduced_advanced.lossless.isChecked()
-            else f"{reduced_name} quality")
+        reduced_lossless = reduced_name == "WebP" and self.reduced_advanced.lossless.isChecked()
+        self.reduced_quality_label.setText(f"{reduced_name} quality")
+        self.reduced_quality.setEnabled(not reduced_lossless)
+        self.reduced_quality_label.setEnabled(not reduced_lossless)
 
     def apply_to(self, opt: ExportOptions) -> dict:
         full, reduced = self.make_full.isChecked(), self.make_reduced.isChecked()

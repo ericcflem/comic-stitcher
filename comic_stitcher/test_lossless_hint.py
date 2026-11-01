@@ -7,8 +7,8 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 from .backend import BookPlan, scan_folder
-from .export import (ExportOptions, LOSSLESS_CHECK_SKIP_SHARE, LOSSLESS_HINT_SHARE,
-    estimate_export_size, lossless_alternative, lossless_check)
+from .export import (ExportOptions, LOSSLESS_CHECK_SKIP_SHARE, LOSSLESS_HINT_SHARE, _encode_entry,
+    estimate_export_size, lossless_alternative, lossless_check, lossless_webp_effort)
 
 
 def line_art(path: Path, seed: int):
@@ -104,6 +104,26 @@ class QuickCheckTests(unittest.TestCase):
             # PNG is compared too: lossless WebP keeps the same pixels in fewer bytes.
             self.assertLess(lossless_check(plan, ExportOptions("Book", format="png")), 1)
             self.assertIsNone(lossless_check(plan, ExportOptions("Book"), cancelled=lambda: True))
+
+class LosslessEffortTests(unittest.TestCase):
+    def test_lossless_webp_follows_compression_effort_not_quality(self):
+        self.assertEqual([lossless_webp_effort(m) for m in range(7)], [0, 20, 25, 50, 75, 90, 100])
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            line_art(folder / "page.png", 3)
+            made = {}
+            for quality in (1, 100):
+                for method in (0, 6):
+                    out = folder / f"q{quality}-m{method}.webp"
+                    _encode_entry(str(folder / "page.png"), None, str(out), "webp",
+                                  ExportOptions("Book", format="webp", webp_lossless=True,
+                                                webp_quality=quality, webp_method=method))
+                    made[quality, method] = out.read_bytes()
+                    with Image.open(out) as image, Image.open(folder / "page.png") as original:
+                        self.assertEqual(image.convert("RGB").tobytes(), original.convert("RGB").tobytes())
+            self.assertEqual(made[1, 6], made[100, 6])  # Quality makes no difference.
+            self.assertNotEqual(made[1, 0], made[1, 6])  # Compression effort does.
+
 
 if __name__ == "__main__":
     unittest.main()
