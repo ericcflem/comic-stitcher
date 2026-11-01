@@ -96,6 +96,18 @@ class SpaceTests(unittest.TestCase):
             other.write_bytes(b"x" * 1000)
             self.assertEqual(import_need(other), 1050)
 
+    def test_a_pdfs_need_is_found_without_loading_its_pages(self):
+        import pypdfium2 as pdfium
+        from .space import BYTES_PER_PIXEL
+        with tempfile.TemporaryDirectory() as folder:
+            pdf = Path(folder) / "Book.pdf"
+            pages = [Image.new("RGB", (612, 792), "white"), Image.new("RGB", (792, 612), "white")]
+            pages[0].save(pdf, "PDF", resolution=72, save_all=True, append_images=pages[1:])
+            with patch.object(pdfium.PdfDocument, "__getitem__",
+                              side_effect=AssertionError("a page was loaded")):
+                need = import_need(pdf, dpi=144)
+            self.assertEqual(need, int(2 * (612 * 2) * (792 * 2) * BYTES_PER_PIXEL["png"]))
+
     def test_export_needs_pages_and_archive(self):
         with tempfile.TemporaryDirectory() as folder:
             for i in range(2):
