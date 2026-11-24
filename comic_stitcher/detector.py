@@ -384,5 +384,18 @@ def is_candidate_pair(a: PageInfo, b: PageInfo) -> bool:
 
 
 
+def mac_metadata(name: str) -> bool:
+    """Files macOS adds beside the real ones when it zips or copies them: the
+    __MACOSX folder, and "._" files (AppleDouble resource forks, such as
+    ._page001.jpg, 120 bytes or so, not images at all)."""
+    parts = name.replace("\\", "/").split("/")
+    return "__MACOSX" in parts or parts[-1].startswith("._")
+
+
+def is_page_name(name: str) -> bool:
+    """A file name that can be a comic page: an image, and not macOS metadata."""
+    return Path(name).suffix.lower() in IMAGE_EXTS and not mac_metadata(name)
+
+
 def collect_images(folder: Path) -> list[Path]:
-    return sorted((p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXTS), key=natural_key)
+    return sorted((p for p in folder.iterdir() if p.is_file() and is_page_name(p.name)), key=natural_key)

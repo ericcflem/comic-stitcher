@@ -353,6 +353,44 @@ class BookFlowTest(unittest.TestCase):
                 self.assertEqual(result.parent, folder)
                 self.assertEqual(original.read_bytes(), scan.pages[0].path.read_bytes())
 
+    def test_macos_metadata_in_archives_and_folders_is_ignored(self):
+        from comic_stitcher.detector import collect_images, mac_metadata
+        self.assertTrue(mac_metadata("Book/__MACOSX/._001.jpg"))
+        self.assertTrue(mac_metadata("._001.jpg"))
+        self.assertTrue(mac_metadata("Book\\__MACOSX\\001.jpg"))
+        self.assertFalse(mac_metadata("Book/001.jpg"))
+        self.assertFalse(mac_metadata("Book/.hidden/001.jpg"))
+        apple_double = b"\x00\x05\x16\x07\x00\x02\x00\x00Mac OS X" + bytes(104)  # 120 bytes, not an image.
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            page = folder / "page.png"
+            Image.new("RGB", (100, 120), "red").save(page)
+            for extension in (".cbz", ".cb7"):
+                archive = folder / f"Mac{extension}"
+                names = ["Book/001.png", "Book/002.png"]
+                junk = {"Book/__MACOSX/._001.png": apple_double, "__MACOSX/Book/._002.png": apple_double,
+                        "Book/._002.png": apple_double, "__MACOSX/Book/._ComicInfo.xml": apple_double}
+                if extension == ".cbz":
+                    with zipfile.ZipFile(archive, "w") as writer:
+                        for name in names:
+                            writer.write(page, name)
+                        for name, data in junk.items():
+                            writer.writestr(name, data)
+                else:
+                    with py7zr.SevenZipFile(archive, "w") as writer:
+                        for name in names:
+                            writer.write(page, name)
+                        for name, data in junk.items():
+                            writer.writestr(data, name)
+                scan = import_archive(archive, folder / f"pages-{extension[1:]}")
+                self.assertEqual(len(scan.pages), 2, extension)
+                self.assertFalse((folder / f"pages-{extension[1:]}" / "ComicInfo.xml").exists())
+            pages = folder / "folder"
+            pages.mkdir()
+            Image.new("RGB", (100, 120), "red").save(pages / "001.png")
+            (pages / "._001.png").write_bytes(apple_double)  # From a Mac, on a USB drive.
+            self.assertEqual([path.name for path in collect_images(pages)], ["001.png"])
+
     def test_import_rejects_traversal_entry(self):
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp)

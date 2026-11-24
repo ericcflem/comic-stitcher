@@ -1313,8 +1313,8 @@
     },
     {
       "path": "comic_stitcher/archive_import.py",
-      "bytes": 15914,
-      "sha256": "58cb8c4f292e83d0c5b3826c573186484b6102214ee2ab91c25236a191d51f60"
+      "bytes": 15873,
+      "sha256": "44622fdd3fe588cd88eb5ac6c4aaf278a27bdcf85996effc39479ec71493be53"
     },
     {
       "path": "comic_stitcher/backend.py",
@@ -1358,8 +1358,8 @@
     },
     {
       "path": "comic_stitcher/detector.py",
-      "bytes": 16480,
-      "sha256": "670237bffa2a10bbc022974efa299daa58c025630307748a3d488c016a3e75b4"
+      "bytes": 17026,
+      "sha256": "bb478fb9966873fa74b2d978b25adc3d667eef86ce4ae73da33436bf6e24f7fb"
     },
     {
       "path": "comic_stitcher/diagnostics.py",
@@ -1483,8 +1483,8 @@
     },
     {
       "path": "comic_stitcher/test_backend.py",
-      "bytes": 50413,
-      "sha256": "70397d10f291d5f83c5596e0292f157768b95473a94a88fa1b71858aea7f0b0e"
+      "bytes": 52682,
+      "sha256": "cea6d4f38e06b704755df90ebfc764e85b12f1af7131342f98ef44b7e868e9e6"
     },
     {
       "path": "comic_stitcher/test_case_names.py",
@@ -1753,8 +1753,8 @@
     },
     {
       "path": "docs/CHANGELOG.md",
-      "bytes": 29060,
-      "sha256": "6497697125f5380d872ebb3c843a837b5c5f2befe3ef04778ccbe185cbe6520a"
+      "bytes": 29300,
+      "sha256": "9965b11ced7c098a9058284cac3abc50564588eaef060dbaf0ce0ff4c958849d"
     },
     {
       "path": "docs/NATIVE_SOURCE_REBUILD.md",
