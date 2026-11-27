@@ -13,7 +13,7 @@ import rarfile
 
 from .backend import describe_case_twins, describe_page_notes, scan_folder
 from .comicinfo import MAX_XML_BYTES
-from .detector import IMAGE_EXTS, name_sort_key
+from .detector import is_page_name, mac_metadata, name_sort_key
 
 ARCHIVE_EXTS = {".cbz", ".zip", ".cb7", ".7z", ".cbr", ".rar"}
 MAX_PAGES = 10_000
@@ -51,7 +51,7 @@ def _extraction_layers(pages: list[tuple[str, int]]) -> list[list[str]]:
 
 
 def _check_entries(entries: list[tuple[str, int]]) -> list[tuple[str, int]]:
-    pages = [(name, size) for name, size in entries if Path(name).suffix.lower() in IMAGE_EXTS]
+    pages = [(name, size) for name, size in entries if is_page_name(name)]
     if not pages:
         raise ValueError("This archive contains no supported page images.")
     if len(pages) > MAX_PAGES or sum(size for _, size in pages) > MAX_BOOK_BYTES:
@@ -66,7 +66,7 @@ def _check_entries(entries: list[tuple[str, int]]) -> list[tuple[str, int]]:
 
 def _metadata_entry(entries):
     matches = [(name, size) for name, size in entries
-               if PurePosixPath(name.replace("\\", "/")).name.casefold() == 'comicinfo.xml']
+               if PurePosixPath(name.replace("\\", "/")).name.casefold() == 'comicinfo.xml' and not mac_metadata(name)]
     if len(matches) > 1:
         raise ValueError('This archive contains more than one ComicInfo.xml; metadata is ambiguous.')
     if not matches:
@@ -165,7 +165,7 @@ def _extract_rar(source: Path, destination: Path, progress, total_steps: int) ->
         except rarfile.Error as exc:
             raise ValueError(f"Cannot read or extract this RAR/CBR archive: {exc}") from exc
         for info in members:
-            if Path(info.filename).suffix.lower() in IMAGE_EXTS and (info.is_dir() or info.is_symlink()):
+            if is_page_name(info.filename) and (info.is_dir() or info.is_symlink()):
                 raise ValueError(f"Archive contains a non-file image: {info.filename!r}")
         pages = _check_entries([(info.filename, info.file_size) for info in members if not info.is_dir()])
         metadata = _metadata_entry([(info.filename, info.file_size) for info in members if not info.is_dir()])
@@ -245,7 +245,7 @@ def import_archive(source: Path, destination: Path, manual: bool = False, progre
         with zipfile.ZipFile(source) as archive:
             members = [info for info in archive.infolist() if not info.is_dir()]
             for info in members:
-                if Path(info.filename).suffix.lower() in IMAGE_EXTS and stat.S_ISLNK(info.external_attr >> 16):
+                if is_page_name(info.filename) and stat.S_ISLNK(info.external_attr >> 16):
                     raise ValueError(f"Archive contains an image symlink: {info.filename!r}")
             pages = _check_entries([(info.filename, info.file_size) for info in members])
             if any(archive.getinfo(name).flag_bits & 1 for name, _ in pages):
@@ -266,7 +266,7 @@ def import_archive(source: Path, destination: Path, manual: bool = False, progre
         with py7zr.SevenZipFile(source, "r", max_extract_size=MAX_BOOK_BYTES) as archive:
             infos = archive.list()
             for info in infos:
-                if Path(info.filename).suffix.lower() in IMAGE_EXTS and (not info.is_file or info.is_symlink):
+                if is_page_name(info.filename) and (not info.is_file or info.is_symlink):
                     raise ValueError(f"Archive contains a non-file image: {info.filename!r}")
             pages = _check_entries([(info.filename, info.uncompressed) for info in infos if info.is_file])
             metadata = _metadata_entry([(info.filename, info.uncompressed) for info in infos if info.is_file])

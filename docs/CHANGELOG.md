@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Comics zipped on a Mac import: the `__MACOSX` folder and `._` files macOS
+  adds beside the pages (resource forks, not images) are ignored, in archives
+  and in folders of pages, instead of stopping the import with "Cannot read
+  image".
 - Importing a long PDF no longer makes the desktop say Comic Stitcher isn't
   responding. The disk space check before it loaded every page of the PDF to
   measure it, which kept the window busy for several seconds on a large PDF
